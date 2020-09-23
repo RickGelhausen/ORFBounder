@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
 
 path="/mnt/datavault/SPP2002/analysis/campy_tt_analysis"
-scriptpath="/mnt/datavault/SPP2002/analysis/scripts"
+scriptpath="/mnt/datavault/SPP2002/analysis/TTS_analysis"
 annotationpath="/mnt/datavault/SPP2002/analysis/exp3/annotation/"
 genomepath="/mnt/datavault/SPP2002/analysis/exp3/genomes/"
 targetsite=("TTS")
-experiments=("exp28_no_tRNA")
+experiments=("exp28", "exp28_no_tRNA")
 mappings=("fiveprime56" "fiveprime56" "fiveprime56" "fiveprime56" "fiveprime56-57" "fiveprime56-57" "fiveprimetracks" "fiveprimetracks" "threeprime56" "threeprime56" "threeprime29-31" "threeprime30" "threeprime30" "threeprime30" "threeprime30" "threeprimetracks")
 #mappings=("fiveprimetracks" "fiveprimetracks" "threeprimetracks")
 
