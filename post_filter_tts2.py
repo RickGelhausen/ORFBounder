@@ -47,11 +47,13 @@ def get_additional_ORF_information(genome_seq, cur_stop, strand, start_codons, s
     upstream_nt_stop = ""
     upstream_nt_start = ""
 
+    loop_counter = 0
     if strand == "+":
         cur_position = cur_stop - 2
         nt=genome_seq[cur_position:cur_position+3]
         stop_nt_seq=nt
-        while nt not in stop_codons:
+        while nt not in stop_codons or loop_counter == 0:
+            loop_counter+=1
             cur_position -= 3
             if cur_position < 0:
                 upstream_stop = ""
@@ -59,7 +61,7 @@ def get_additional_ORF_information(genome_seq, cur_stop, strand, start_codons, s
                 break;
 
             nt = genome_seq[cur_position:cur_position+3]
-            stop_nt_seq += nt
+            stop_nt_seq = nt + stop_nt_seq
 
         if upstream_stop == 0:
             upstream_stop = cur_position
@@ -81,8 +83,10 @@ def get_additional_ORF_information(genome_seq, cur_stop, strand, start_codons, s
         cur_position = cur_stop
         nt=genome_seq[cur_position:cur_position+3]
         stop_nt_seq=nt
-        while nt not in reverse_stop_codons:
+
+        while nt not in reverse_stop_codons or loop_counter == 0:
             cur_position += 3
+            loop_counter+=1
             if cur_position > len(genome_seq):
                 upstream_stop = ""
                 upstream_nt_stop = ""
@@ -103,6 +107,7 @@ def get_additional_ORF_information(genome_seq, cur_stop, strand, start_codons, s
 
             nt = genome_seq[cur_position:cur_position+3]
 
+        stop_nt_seq = str(Seq(stop_nt_seq).reverse_complement())
         longest_start = cur_position + 2
         longest_nt = str(Seq(genome_seq[cur_stop:longest_start+1]).reverse_complement())
         upstream_nt_start = str(Seq(genome_seq[longest_start:longest_start+15]).reverse_complement())
@@ -116,29 +121,94 @@ def postprocess_excel_file(args, genome_dict):
 
     xlsx_df = pd.read_excel(args.in_xlsx, sheet_name=None)["all"]
 
-    header = xlsx_df.columns
-    rows = []
+    header = list(xlsx_df.columns)
+    nTuple_gff = collections.namedtuple('Pandas', ["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+
+    dynamic_header_part1 = [x for x in header if "_peak_height" in x or "_log2FC" in x]
+    dynamic_header_part2 = [x for x in header if "_relative_density" in x or "'distance" in x]
+
+    new_header = ["identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Gene_type",\
+                  "Shortest_codon_count", "Shortest_start_codon", "Position_upstream_start", \
+                  "Longest_codon_count", "Longest_start_codon", "Stop_codon"] + dynamic_header_part1 +\
+                 ["Shortest_15nt_upstream", "Shortest_Nucleotide_seq", "Shortest_Aminoacid_seq", \
+                  "Longest_15nt_upstream", "Longest_Nucleotide_seq", "Longest_Aminoacid_seq", \
+                  "Upstream_stop_codon", "Upstream_stop", "Stop_to_stop_nucleotide_seq"] + dynamic_header_part2
+
+    rows_short = []
+    rows_long = []
+    name_list = ["s%s" % str(x) for x in range(len(new_header))]
+    nTuple = collections.namedtuple('Pandas', name_list)
+    result_rows = []
     for row in xlsx_df.itertuples(index=False, name='Pandas'):
-        print(row)
+        identifier = getattr(row, "Identifier")
         genome_id = getattr(row, "Genome")
         short_start = int(getattr(row, "Start")) - 1
         main_stop = int(getattr(row, "Stop")) - 1
         strand = getattr(row, "Strand")
+        locus_tag = getattr(row, "Locus_tag")
+        gene_type = getattr(row, "Gene_type")
+        codon_count = getattr(row, "Codon_count")
+        start_codon = getattr(row, "Start_codon")
+        stop_codon = getattr(row, "stop_codon")
+        nucleotide_seq = getattr(row, "Nucleotide_seq")
+        aminoacid_seq = getattr(row, "Aminoacid_seq")
+
+        if strand == "-":
+            main_stop, short_start = short_start, main_stop
+
         ORF_information = get_additional_ORF_information(genome_dict[genome_id][0], main_stop, strand, args.start_codons, args.stop_codons)
-        if ORF_information != None:
-            longest_start, longest_nt, upstream_nt_start, upstream_stop, stop_nt_seq, upstream_nt_stop = ORF_information
+        if ORF_information == None:
+            continue
+
+        longest_start, longest_nt, upstream_nt_start, upstream_stop, stop_nt_seq, upstream_nt_stop = ORF_information
+
+        if strand == "-":
+            main_stop, short_start = short_start, main_stop
 
 
-    # all_df = pd.DataFrame.from_records(rows, columns=header)
-    # dataframe_dict = { "all" : all_df }
-    #
-    # excel_writer(args, dataframe_dict)
+        result = [identifier, genome_id, short_start+1, main_stop+1, strand, locus_tag, gene_type, codon_count, start_codon, longest_start+1] + \
+                 [int(len(longest_nt) / 3), longest_nt[0:3], stop_codon] + [getattr(row, "_%s" % x) for x in range(10, 10+len(dynamic_header_part1))] + \
+                 [getattr(row, "_%s" % (10+len(dynamic_header_part1)))] + [nucleotide_seq, aminoacid_seq] + \
+                 [upstream_nt_start, longest_nt, str(Seq(longest_nt, generic_dna).translate(table=11, to_stop=False))] + \
+                 [upstream_nt_stop, upstream_stop, stop_nt_seq] + [getattr(row, "_%s" % x) for x in range(13 + len(dynamic_header_part1), 13 + len(dynamic_header_part1)+len(dynamic_header_part2))]
+
+        result_rows.append(nTuple(*result))
+
+        attribute_short = "ID=%s;Name=%s;Start_codon=%s;Stop_codon=%s;Codon_count=%s;" % ("%s:%s-%s:%s" % (genome_id, short_start+1, main_stop+1, strand), locus_tag, start_codon, stop_codon, codon_count)
+        cur_tuple_short = nTuple_gff(genome_id, "TTS_finder", "CDS", short_start+1, main_stop+1, ".", strand, ".", attribute_short)
+        if strand == "+":
+            attribute_long = "ID=%s;Name=%s;Start_codon=%s;Stop_codon=%s;Codon_count=%s;" % ("%s:%s-%s:%s" % (genome_id, longest_start+1, main_stop+1, strand), locus_tag, longest_nt[0:3], stop_codon, int(len(longest_nt) / 3))
+            cur_tuple_long = nTuple_gff(genome_id, "TTS_finder", "CDS", longest_start+1, main_stop+1, ".", strand, ".", attribute_long)
+        else:
+            attribute_long = "ID=%s;Name=%s;Start_codon=%s;Stop_codon=%s;Codon_count=%s;" % ("%s:%s-%s:%s" % (genome_id, main_stop+1, longest_start+1, strand), locus_tag, longest_nt[0:3], stop_codon, int(len(longest_nt) / 3))
+            cur_tuple_long = nTuple_gff(genome_id, "TTS_finder", "CDS", main_stop+1, longest_start+1, ".", strand, ".", attribute_long)
+
+        rows_short.append(cur_tuple_short)
+        rows_long.append(cur_tuple_long)
+    df_short = pd.DataFrame.from_records(rows_short, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+    df_long = pd.DataFrame.from_records(rows_long, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+
+    all_df = pd.DataFrame.from_records(result_rows, columns=new_header)
+    dataframe_dict = { "all" : all_df }
+
+
+    with open(args.out_xlsx.replace(".xlsx", "_short.gff"), "w") as f:
+        f.write("##gff-version 3\n")
+    with open(args.out_xlsx.replace(".xlsx", "_short.gff"), "a") as f:
+        df_short.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
+
+    with open(args.out_xlsx.replace(".xlsx", "_long.gff"), "w") as f:
+        f.write("##gff-version 3\n")
+    with open(args.out_xlsx.replace(".xlsx", "_long.gff"), "a") as f:
+        df_long.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
+
+    excel_writer(args, dataframe_dict)
 
 def main():
     # store commandline args
     parser = argparse.ArgumentParser(description='Post processing of the TTS xlsx file returned by the merge_TTS.py script.')
-    parser.add_argument("-i", "--input_xlsx", action="store", dest="in_xlsx", required=True, help= "Output excel file.")
-    parser.add_argument("-g", "--genome_file", action="store", dest="genome_file", required=True, help= "Genome file.")
+    parser.add_argument("-i", "--input_xlsx", action="store", dest="in_xlsx", required=True, help="Output excel file.")
+    parser.add_argument("-g", "--genome_file", action="store", dest="genome_file", required=True, help="Genome file.")
     parser.add_argument("--target_site", action="store", dest="target_site", default="TTS", help="TTS")
     parser.add_argument("-o", "--output_xlsx", action="store", dest="out_xlsx", required=True, help= "Output excel file.")
     parser.add_argument("--start_codons", nargs="+", dest="start_codons", default=["ATG","GTG","TTG"])
