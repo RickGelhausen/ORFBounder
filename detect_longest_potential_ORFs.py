@@ -206,7 +206,7 @@ def postprocess_excel_file(args, genome_dict):
 
 def main():
     # store commandline args
-    parser = argparse.ArgumentParser(description='Post processing of the TTS xlsx file returned by the merge_TTS.py script.')
+    parser = argparse.ArgumentParser(description='Post processing of the TTS xlsx file returned by the merge_TTS.py script. Check for the longest potential ORF using the upstream stop.')
     parser.add_argument("-i", "--input_xlsx", action="store", dest="in_xlsx", required=True, help="Output excel file.")
     parser.add_argument("-g", "--genome_file", action="store", dest="genome_file", required=True, help="Genome file.")
     parser.add_argument("--target_site", action="store", dest="target_site", default="TTS", help="TTS")
