@@ -444,7 +444,7 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
 
         if aa_seq.count("*") > 1:
             continue
-            
+
         if gene_type != "Annotated":
             if strand == "+":
                 out_start, out_stop = cur_start+1, cur_stop+1
@@ -605,7 +605,7 @@ def main():
             print("Skipping...")
             continue
         if key not in rev_wig_dict:
-            print("No forward wig entry found for chrom: %s" % key)
+            print("No reverse wig entry found for chrom: %s" % key)
             print("Skipping...")
             continue
 
