@@ -92,7 +92,6 @@ def calculate_expression_TTS(args, xlsx_df):
 
     rows = []
     for row in xlsx_df.itertuples(index=False, name='Pandas'):
-        identifier = getattr(row, "identifier")
         genome_id = getattr(row, "Genome")
         start = int(getattr(row, "Start"))
         stop = int(getattr(row, "Stop"))
@@ -139,7 +138,7 @@ def calculate_expression_TTS(args, xlsx_df):
 
         long_TE_list = eu.calculate_TE(long_rpkm_list, wildcards, conditions)
 
-        short_result = [identifier, genome_id, start, stop, strand, locus_tag, gene_type, shortest_codon_count, shortest_start_codon, stop_codon] + \
+        short_result = [short_id[:-2], genome_id, int(start), int(stop), strand, locus_tag, gene_type, shortest_codon_count, shortest_start_codon, stop_codon] + \
                        [getattr(row, "_%s" % x) for x in range(13, 13+len(dynamic_header_part1))] + \
                        [shortest_15nt_upstream, shortest_nucleotide_seq, shortest_aminoacid_seq] + \
                        [upstream_stop_codon, upstream_stop, stop_to_stop_nucleotide_seq] + \
@@ -149,7 +148,9 @@ def calculate_expression_TTS(args, xlsx_df):
         genome_id, mid, strand = long_id.split(":")
         start, stop = mid.split("-")
 
-        long_result = [identifier, genome_id, start, stop, strand, locus_tag, gene_type, longest_codon_count, longest_start_codon, stop_codon] + \
+        if gene_type == "Unannotated":
+            locus_tag = long_id
+        long_result = [long_id[:-2], genome_id, int(start), int(stop), strand, locus_tag, gene_type, longest_codon_count, longest_start_codon, stop_codon] + \
                       [getattr(row, "_%s" % x) for x in range(13, 13+len(dynamic_header_part1))] + \
                       [longest_15nt_upstream, longest_nucleotide_seq, longest_aminoacid_seq] + \
                       [upstream_stop_codon, upstream_stop, stop_to_stop_nucleotide_seq] + \
