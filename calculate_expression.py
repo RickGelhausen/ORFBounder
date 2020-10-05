@@ -51,8 +51,46 @@ def get_read_counts(args):
         read_count_dict["%s:%s-%s:%s" % (chromosome, start, stop, strand)] = read_list
     return read_count_dict
 
+# 
+# def calculate_expression_TIS(args, xlsx_df):
+#     header = list(xlsx_df.columns)
+#
+#     dynamic_header_part1 = [x for x in header if "_peak_height" in x or "_log2FC" in x]
+#     dynamic_header_part2 = [x for x in header if "_relative_density" in x or "'distance" in x]
+#
+#     total_mapped_dict = {}
+#     with open(args.total_mapped_reads, "r") as f:
+#         total = f.readlines()
+#
+#     wildcards = []
+#     for line in total:
+#         wildcard, chromosome, value = line.strip().split("\t")
+#         total_mapped_dict[(wildcard, chromosome)] = int(value)
+#         wildcards.append(wildcard)
+#
+#     wildcards = eu.get_unique(wildcards)
+#
+#     TE_header = eu.get_TE_header(wildcards)
+#
+#     conditions = []
+#     for card in wildcards:
+#         conditions.append(card.split("-")[1])
+#
+#     conditions = eu.get_unique(conditions)
+#
+#     read_count_dict = get_read_counts(args)
+#
+#     new_header = ["Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Gene_type",\
+#                   "Codon_count", "Start_codon", "Stop_codon"] + dynamic_header_part1 +\
+#                  ["15nt_upstream", "Nucleotide_seq", "Aminoacid_seq", \
+#                   "Upstream_stop_codon", "Upstream_stop", "Stop_to_stop_nucleotide_seq"] + dynamic_header_part2 +\
+#                  [cond + "_TE" for cond in TE_header] + [card + "_rpkm" for card in wildcards]
+#     name_list = ["s%s" % str(x) for x in range(len(new_header))]
+#     nTuple = collections.namedtuple('Pandas', name_list)
+#
+#     rows = []
+#     for row in xlsx_df.itertuples(index=False, name='Pandas'):
 
-#def calculate_expression_TIS(args, xlsx_df):
 
 def calculate_expression_TTS(args, xlsx_df):
     header = list(xlsx_df.columns)
