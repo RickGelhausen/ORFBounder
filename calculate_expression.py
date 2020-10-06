@@ -81,7 +81,7 @@ def calculate_expression_TIS(args, xlsx_df):
     read_count_dict = get_read_counts(args)
 
     new_header = ["Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Gene_type",\
-                  "Codon_count", "Start_codon", "Stop_codon"] + dynamic_header_part1 +\
+                  "Codon_count", "Start_codon"] + dynamic_header_part1 +\
                  ["15nt_upstream", "Nucleotide_seq", "Aminoacid_seq"] \
                   + dynamic_header_part2 + \
                  [cond + "_TE" for cond in TE_header] + [card + "_rpkm" for card in wildcards]
@@ -89,24 +89,22 @@ def calculate_expression_TIS(args, xlsx_df):
     name_list = ["s%s" % str(x) for x in range(len(new_header))]
     nTuple = collections.namedtuple('Pandas', name_list)
 
+    xlsx_df = xlsx_df.rename(columns={x:y for x,y in zip(xlsx_df.columns,range(0,len(xlsx_df.columns)))})
     rows = []
     for row in xlsx_df.itertuples(index=False, name='Pandas'):
-        identifier = getattr(row, "Identifier")
-        genome_id = getattr(row, "Genome")
-        start = int(getattr(row, "Start"))
-        stop = int(getattr(row, "Stop"))
-        strand = getattr(row, "Strand")
-        locus_tag = getattr(row, "Locus_tag")
-        gene_type = getattr(row, "Gene_type")
-        if "Codon_count" in header:
-            codon_count = int(getattr(row, "Codon_count"))
-        else:
-            codon_count = int(getattr(row, "_7"))
-        start_codon = getattr(row, "Start_codon")
-
-        nucleotide_seq = getattr(row, "Nucleotide_seq")
-        aminoacid_seq = getattr(row, "Aminoacid_seq")
-        upstream_nt = getattr(row, "15nt_window")
+        identifier = getattr(row, "_0")
+        genome_id = getattr(row, "_1")
+        start = int(getattr(row, "_2"))
+        stop = int(getattr(row, "_3"))
+        strand = getattr(row, "_4")
+        locus_tag = getattr(row, "_5")
+        gene_type = getattr(row, "_6")
+        codon_count = int(getattr(row, "_7"))
+        start_codon = getattr(row, "_8")
+        #stop_codon = getattr(row, "Stop_codon")
+        #nucleotide_seq = getattr(row, "Nucleotide_seq")
+        #aminoacid_seq = getattr(row, "Aminoacid_seq")
+#        upstream_nt = getattr(row, "15nt_window")
 
         read_count = read_count_dict[identifier]
 
@@ -119,10 +117,10 @@ def calculate_expression_TIS(args, xlsx_df):
         TE_list = eu.calculate_TE(rpkm_list, wildcards, conditions)
 
         result = [identifier, genome_id, int(start), int(stop), strand, locus_tag, gene_type, \
-                  codon_count, start_codon, stop_codon] + \
+                  codon_count, start_codon] + \
                  [getattr(row, "_%s" % x) for x in range(9, 9+len(dynamic_header_part1))] + \
-                 [upstream_nt, nucleotide_seq, aminoacid_seq] + \
-                 [getattr(row, "_%s" % x) for x in range(9 + len(dynamic_header_part1), 9 + len(dynamic_header_part1)+len(dynamic_header_part2))] + \
+                 [getattr(row, "_%s" % (11+len(dynamic_header_part1))), getattr(row, "_%s" % (10+len(dynamic_header_part1))), getattr(row, "_%s" % (9+len(dynamic_header_part1)))] + \
+                 [getattr(row, "_%s" % x) for x in range(12 + len(dynamic_header_part1), 12 + len(dynamic_header_part1)+len(dynamic_header_part2))] + \
                   TE_list + rpkm_list
 
         rows.append(nTuple(*result))
@@ -167,8 +165,8 @@ def calculate_expression_TTS(args, xlsx_df):
                  ["Shortest_15nt_upstream", "Shortest_Nucleotide_seq", "Shortest_Aminoacid_seq", \
                   "Longest_15nt_upstream", "Longest_Nucleotide_seq", "Longest_Aminoacid_seq", \
                   "Upstream_stop_codon", "Upstream_stop", "Stop_to_stop_nucleotide_seq"] + dynamic_header_part2 + \
-                 ["Shortest_" + cond + "_TE" for cond in TE_header] + ["Shortest" + card + "_rpkm" for card in wildcards] +
-                 ["Longest_" + cond + "_TE" for cond in TE_header] + ["Longest" + card + "_rpkm" for card in wildcards]
+                 ["Shortest_" + cond + "_TE" for cond in TE_header] + ["Shortest_" + card + "_rpkm" for card in wildcards] +\
+                 ["Longest_" + cond + "_TE" for cond in TE_header] + ["Longest_" + card + "_rpkm" for card in wildcards]
     name_list = ["s%s" % str(x) for x in range(len(new_header))]
     nTuple = collections.namedtuple('Pandas', name_list)
 
@@ -193,7 +191,7 @@ def calculate_expression_TTS(args, xlsx_df):
         longest_nucleotide_seq = getattr(row, "Longest_Nucleotide_seq")
         longest_aminoacid_seq = getattr(row, "Longest_Aminoacid_seq")
         upstream_stop_codon = getattr(row, "Upstream_stop_codon")
-        upstream_stop = int(getattr(row, "Upstream_stop"))
+        upstream_stop = getattr(row, "Upstream_stop")
         stop_to_stop_nucleotide_seq = getattr(row, "Stop_to_stop_nucleotide_seq")
 
         short_id = "%s:%s-%s:%s" % (genome_id, start, stop, strand)
@@ -225,7 +223,7 @@ def calculate_expression_TTS(args, xlsx_df):
                   longest_codon_count, longest_start_codon, stop_codon] + \
                  [getattr(row, "_%s" % x) for x in range(13, 13+len(dynamic_header_part1))] + \
                  [shortest_15nt_upstream, shortest_nucleotide_seq, shortest_aminoacid_seq, \
-                  longest_15nt_upstream, longest_nucleotide_seq, longest_aminoacid_seq, + \
+                  longest_15nt_upstream, longest_nucleotide_seq, longest_aminoacid_seq, \
                   upstream_stop_codon, upstream_stop, stop_to_stop_nucleotide_seq] + \
                  [getattr(row, "_%s" % x) for x in range(22 + len(dynamic_header_part1), 22 + len(dynamic_header_part1)+len(dynamic_header_part2))] + \
                   short_TE_list + short_rpkm_list + long_TE_list + long_rpkm_list
@@ -252,8 +250,8 @@ def main():
 
     if "Position_upstream_start" in header:
         calculate_expression_TTS(args, xlsx_df)
-    #else:
-        #calculate_expression_TIS(args, xlsx_df)
+    else:
+        calculate_expression_TIS(args, xlsx_df)
 
 
 

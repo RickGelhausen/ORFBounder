@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
 
-source activate featurecounting
 
 bam_path="/mnt/datavault/SPP2002/analysis/exp28/bam"
 input_annotation=""
@@ -39,6 +38,6 @@ echo "${bam_list[@]}"
 echo "$output_annotation"
 echo "$input_annotation"
 
-python3 total_mapped_reads.py -b "${bam_list[@]}" -m "$output_mapped" -l "$output_length"
-python3 call_featurecounts.py -b "${bam_list[@]}" -s 1 --with_O -o "$output_rawreads" -t 8 -a "$input_annotation"
-python3 map_reads_to_annotation.py -i "$output_rawreads" -a "$input_annotation" -o "$output_annotation"
+python3 /mnt/datavault/SPP2002/analysis/TTS_analysis/total_mapped_reads.py -b "${bam_list[@]}" -m "$output_mapped" -l "$output_length"
+python3 /mnt/datavault/SPP2002/analysis/TTS_analysis/call_featurecounts.py -b "${bam_list[@]}" -s 1 --with_O -o "$output_rawreads" -t 8 -a "$input_annotation"
+python3 /mnt/datavault/SPP2002/analysis/TTS_analysis/map_reads_to_annotation.py -i "$output_rawreads" -a "$input_annotation" -o "$output_annotation"
