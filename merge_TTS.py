@@ -149,7 +149,7 @@ def create_excel_file(args):
     """
     meta_dict, wildcard_dicts, wildcards, contrasts = parse_input(args)
 
-    header = ["Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Gene_type", "Codon_count", "Start_codon", "stop_codon"] +\
+    header = ["Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Gene_type", "Codon_count", "Start_codon", "Stop_codon"] +\
              create_wildcard_header(wildcards, contrasts) + ["15nt upstream", "Nucleotide_seq", "Aminoacid_seq"] +\
              ["%s_relative_density" % (sample) for sample in wildcards] + ["5'distance", "3'distance"]
 

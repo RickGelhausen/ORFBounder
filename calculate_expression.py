@@ -81,7 +81,7 @@ def calculate_expression_TIS(args, xlsx_df):
     read_count_dict = get_read_counts(args)
 
     new_header = ["Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Gene_type",\
-                  "Codon_count", "Start_codon"] + dynamic_header_part1 +\
+                  "Codon_count", "Start_codon", "Stop_codon"] + dynamic_header_part1 +\
                  ["15nt_upstream", "Nucleotide_seq", "Aminoacid_seq"] \
                   + dynamic_header_part2 + \
                  [cond + "_TE" for cond in TE_header] + [card + "_rpkm" for card in wildcards]
@@ -101,7 +101,7 @@ def calculate_expression_TIS(args, xlsx_df):
         gene_type = getattr(row, "_6")
         codon_count = int(getattr(row, "_7"))
         start_codon = getattr(row, "_8")
-        #stop_codon = getattr(row, "Stop_codon")
+        stop_codon = getattr(row, "_9")
         #nucleotide_seq = getattr(row, "Nucleotide_seq")
         #aminoacid_seq = getattr(row, "Aminoacid_seq")
 #        upstream_nt = getattr(row, "15nt_window")
@@ -117,10 +117,10 @@ def calculate_expression_TIS(args, xlsx_df):
         TE_list = eu.calculate_TE(rpkm_list, wildcards, conditions)
 
         result = [identifier, genome_id, int(start), int(stop), strand, locus_tag, gene_type, \
-                  codon_count, start_codon] + \
-                 [getattr(row, "_%s" % x) for x in range(9, 9+len(dynamic_header_part1))] + \
-                 [getattr(row, "_%s" % (11+len(dynamic_header_part1))), getattr(row, "_%s" % (10+len(dynamic_header_part1))), getattr(row, "_%s" % (9+len(dynamic_header_part1)))] + \
-                 [getattr(row, "_%s" % x) for x in range(12 + len(dynamic_header_part1), 12 + len(dynamic_header_part1)+len(dynamic_header_part2))] + \
+                  codon_count, start_codon, stop_codon] + \
+                 [getattr(row, "_%s" % x) for x in range(10, 10+len(dynamic_header_part1))] + \
+                 [getattr(row, "_%s" % (10+len(dynamic_header_part1))), getattr(row, "_%s" % (11+len(dynamic_header_part1))), getattr(row, "_%s" % (12+len(dynamic_header_part1)))] + \
+                 [getattr(row, "_%s" % x) for x in range(13 + len(dynamic_header_part1), 13 + len(dynamic_header_part1)+len(dynamic_header_part2))] + \
                   TE_list + rpkm_list
 
         rows.append(nTuple(*result))
