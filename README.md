@@ -50,9 +50,9 @@ For TIS predictions this is not necessary, as we start from the predicted start-
 
 7. In a final step, expression information is added to all tables for all predicted ORF intervals. This includes both read per kilobase million (RPKM) values and translational efficiency (TE) values. To do this, the read counts are collected using subread-featureCounts. These readcounts are then used in order to calculate both the RPKM and the TE for every sample.
 
-**IMPORTANT:** The scripts are written to be compatible with the HRIBO workflow, all samples must be in the form |method|-|condition|-|replicate|. |method| is either RIBO, RNA, TIS, RNATIS. TTS and RNATTS will be supported soon, until then we suggest labeling TTS files TIS. |condition| can be any string and |replicate| can be any integer.
+ :warning: **IMPORTANT:** The scripts are written to be compatible with the HRIBO workflow, all samples must be in the form |method|-|condition|-|replicate|. |method| is either RIBO, RNA, TIS, RNATIS. TTS and RNATTS will be supported soon, until then we suggest labeling TTS files TIS. |condition| can be any string and |replicate| can be any integer.
 
-The chosen thresholds, offsets and coverage mappings can change for each organism, therefore it is advised to investigate the data first to ensure that the right parameters are chosen.
+The chosen thresholds, offsets and coverage mappings can change for each organism, therefore it is advised to investigate the data first to ensure that the right parameters are chosen. :warning:
 
 # Scripts
 
