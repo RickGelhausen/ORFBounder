@@ -6,7 +6,7 @@ These scripts were created to be used with the metagene-profiling and coverage (
 Nevertheless, the TTS/TIS_finder scripts can also be used with any other coverage files and metagene-profiling tools.
 
 # Requirements
-
+## Required packages
 The scripts used in the analysis exclusively require python3.
 Packages required are:
 * pandas
@@ -25,13 +25,26 @@ conda create -n "TTS_finder" -c bioconda -c conda-forge pysam numpy pandas biopy
 conda activate TTS_finder
 ```
 
+## Required files
+If you used the HRIBO workflow, you will have all files required to run the analysis. 
+It is important to note that you can also run the analysis partially, by manually calling the individual scripts provided in this repository (e.g. if you do not require expression values, you do not require bam files).
+
+* `wig files:` The wig files for the desired mappings/normalizations. For easy usage, these should be in the HRIBO notation. `path/experiment/mapping/normalization/|method|-|condition|-|replicate|.normalization.forward.wig`. (e.g `/path_to_user/exp1/threeprimetracks/min/TIS-A-1.min.forward.wig`)
+If you do not have .wig files from `HRIBO`, either create an according folder structure or write your own script tailored to your data, using the scripts provided in this repository. Explanation for each script are provided in the `scripts` section.
+
+* `bam files`: `HRIBO` provides `.bam` files containing all read counts. These should be named using the `|method|-|condition|-|replicate|.bam` naming scheme. `|method|` is either `RIBO`, `RNA`, `TIS`, `RNATIS`. `TTS` and `RNATTS` will be supported soon, until then we suggest labeling `TTS` files `TIS`. `|condition|` can be any string and `|replicate|` can be any integer.
+
+* `genome file`: a genome file in fasta format for the analysed organism.
+* `annotation file`: an annotation file in .gff3 format for the analysed organism. (Tested using annotation files from NCBI)
+
+
 # Running the analysis scripts
 
 # Analysis 
-To run the scripts, coverage files in .wig format are required. We generated the coverage files using HRIBO [[1]](#1). HRIBO generates coverage files with centered, threeprime, fiveprime and global mappings. Additionally, it provides raw and normalized coverage files for each of the methods (raw, min, mil). 
+To run the scripts, coverage files in `.wig format` are required. We generated the coverage files using `HRIBO` [[1]](#1). `HRIBO` generates coverage files with centered, threeprime, fiveprime and global mappings. Additionally, it provides raw and normalized coverage files for each of the methods (raw, min, mil). 
 Then metagene-profiling is performed on all coverage files. 
-From the resulting metagene-profiling results, we determined the best p-site-offsets for interesting mapping / normalization combinations. These were then analysed with the TTS_finder scripts.
-HRIBO additionally provides .bam files containing all read lengths. If you want to investigate specific read lengths, an example script for filtering .bam files for different read-lengths is provided in this repository.
+From the resulting metagene-profiling results, we determined the best p-site-offsets for interesting mapping / normalization combinations. These were then analysed with the `TTS_finder` scripts.
+`HRIBO` additionally provides `.bam files` containing all read lengths. If you want to investigate specific read lengths, an example script for filtering .bam files for different read-lengths is provided in this repository.
 
 The analysis is done in multiple steps:
 
@@ -39,7 +52,7 @@ The analysis is done in multiple steps:
 
 2. Next, the requested .wig files are read and if a position passes a given read_count_threshold (default 5), all codon intervals overlapping with the given position are retrieved and their peak_height is incremented by the read count of the position detected. This matches the coverage peaks with given stop(start) codons. 
 
-3. Then, we iterate over all potential codons that have a peak attributed to them. For each stop(codon) the next in-frame start(stop) codon is searched and formed into an ORF prediction. These ORFs are collected and written into a .gff and a .xlsx (excel table) file. The excel file contains a lot of additional information for each predicted ORF (e.g. gene_type, start, stop, strand, locus_tag, codon_count, peak_height, 15nt upstream of the start, nucleotide sequence, amino acid sequence, etc...). Additionally, .gff files for each gene_type are generated for easier investigation in a genome_browser.
+3. Then, we iterate over all potential codons that have a peak attributed to them. For each stop(codon) the next in-frame start(stop) codon is searched and formed into an ORF prediction. These ORFs are collected and written into a `.gff` and a `.xlsx` (excel table) file. The excel file contains a lot of additional information for each predicted ORF (e.g. gene_type, start, stop, strand, locus_tag, codon_count, peak_height, 15nt upstream of the start, nucleotide sequence, amino acid sequence, etc...). Additionally, .gff files for each gene_type are generated for easier investigation in a genome_browser.
 
 4. If the script was used on different RIBO-seq, RNA-seq and TIS or TTS samples, all result tables are bundled into one big excel file, by combining ORF predicted for multiple samples into one row, providing the peak_height information for all involved samples. Contrasts can be given in form of a list of file prefixes (e.g RIBO-A-1_TIS_A-1, RIBO-A-2_TIS_A-1). This will add additional columns with log2foldchange for the given prefix combinations.
 
@@ -50,7 +63,7 @@ For TIS predictions this is not necessary, as we start from the predicted start-
 
 7. In a final step, expression information is added to all tables for all predicted ORF intervals. This includes both read per kilobase million (RPKM) values and translational efficiency (TE) values. To do this, the read counts are collected using subread-featureCounts. These readcounts are then used in order to calculate both the RPKM and the TE for every sample.
 
- :warning: **IMPORTANT:** The scripts are written to be compatible with the HRIBO workflow, all samples must be in the form |method|-|condition|-|replicate|. |method| is either RIBO, RNA, TIS, RNATIS. TTS and RNATTS will be supported soon, until then we suggest labeling TTS files TIS. |condition| can be any string and |replicate| can be any integer.
+ :warning: **IMPORTANT:** The scripts are written to be compatible with the HRIBO workflow, all samples must be in the form `|method|-|condition|-|replicate|`. `|method|` is either `RIBO`, `RNA`, `TIS`, `RNATIS`. `TTS` and `RNATTS` will be supported soon, until then we suggest labeling `TTS` files `TIS`. `|condition|` can be any string and `|replicate|` can be any integer.
 
 The chosen thresholds, offsets and coverage mappings can change for each organism, therefore it is advised to investigate the data first to ensure that the right parameters are chosen. :warning:
 
