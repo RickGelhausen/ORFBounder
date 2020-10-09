@@ -38,8 +38,6 @@ If you do not have .wig files from `HRIBO`, either create an according folder st
 * `annotation file`: an annotation file in .gff3 format for the analysed organism. (Tested using annotation files from NCBI)
 
 
-# Running the analysis scripts
-
 # Analysis 
 To run the scripts, coverage files in `.wig format` are required. We generated the coverage files using `HRIBO` [[1]](#1). `HRIBO` generates coverage files with centered, threeprime, fiveprime and global mappings. Additionally, it provides raw and normalized coverage files for each of the methods (raw, min, mil). 
 Then metagene-profiling is performed on all coverage files. 
@@ -67,11 +65,34 @@ For TIS predictions this is not necessary, as we start from the predicted start-
 
 The chosen thresholds, offsets and coverage mappings can change for each organism, therefore it is advised to investigate the data first to ensure that the right parameters are chosen. :warning:
 
-# Scripts
 
-## Main script
-* **tts_finder_analysis_TIS.sh:**
-* **tts_finder_analysis_TTS.sh:**
+# Running the analysis scripts
+The analysis is made up of multiple python3 and bash scripts. If all data is collected as described in the required files section, running the script will be straight-forward.
+Simply run either `tts_finder_analysis_TTS.sh` or `tts_finder_analysis_TIS.sh` depending on the site that is to be analysed.
+
+The following commandline arguments are required:
+| Name                | Argument | Description                                                                                                           |
+|---------------------|----------|-----------------------------------------------------------------------------------------------------------------------|
+| path                | -p       | Path to the project folder, where the wig file folder is located and the result folder will be placed.                |
+| scriptpath          | -s       | Path to the TTS_analysis folder, in which all scripts necessary for computation are located.                          |
+| annotationpath      | -a       | The annotation file for the organism that is analysed (`.gff3` format)                                                |
+| genomepath          | -g       | The genome file for the organism that is analysed (`.fasta` format)                                                   |
+| experiments         | -e       | The experiment to be analysed (if more than one, use this option multiple times e.g `-e exp1 -e exp2 ...`)            |
+| mappings            | -m       | The mappings to be used for analysis (e.g threeprime, fiveprime, etc...) ( any subfolder under experiment). If more than one, use this option multiple times (e.g. `-m threeprime -m threeprime30 -m fiveprime ...`)       |    
+| offsets             | -o       | The p-site offset used for each of the mappings. If you use multiple mappings, ensure that you use the same amount of offsets. (e.g. `-m threeprime -m fiveprime`, `-o 8 -o 10` means that the 3' files have an offset of 8 and the 5' files have an offset of 10).                          |
+| normalizations      | -n       | The normalizations to be used (e.g. raw, mil, min) (any subfolder under mapping).                                     |
+| contrasts           | -c       | The contrasts used for the experiment. If you want log2FC for certain peak-heights in a table you can use this option to indicate which samples should be compared (e.g. RIBO-A-1_TIS-A-1)                                                                                                       |
+| bamfolder           | -b       | The path to the bamfiles, ensure that each bamfile has an according index file. If not, use `samtools index |bamfile|` for all files missing the index. If installed you can also use `parallel`[[2]](#2),  `parallel  samtools index ::: *.bam` to run it on all bam files.              |
+| tmpfolder           | -t       | The folder where temporary files will be dumped.                                                                      |
+| readcountthreshold  | -r       | The readcount threshold used in the analysis, if a position has less than this amount of reads it is ignored (>0)     |
+
+
+
+If you have your own data, you can run the scripts individually, each of them is described in the [scripts section](#Scripts) below.
+
+
+
+# Scripts
 
 ## Sub-scripts
 * **TTS_finder.py:**
@@ -91,3 +112,7 @@ Gelhausen, R. (2020).
 HRIBO - High-throughput analysis of bacterial ribosome profiling data 
 ([BioRxiv](https://www.biorxiv.org/content/10.1101/2020.04.27.046219v1))
 
+<a id="2">[2]</a> 
+Tange, O. (2011).
+[GNU Parallel](http://www.gnu.org/software/parallel/) - The Command-Line Power Tool
+[DOI](http://dx.doi.org/10.5281/zenodo.16303)
