@@ -515,48 +515,30 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
     df_internal_out = pd.DataFrame.from_records(rows_internal_out, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
 
     print("Generating gff files...")
-    with open(args.output_gff, "w") as f:
-        f.write("##gff-version 3\n")
     with open(args.output_gff, "a") as f:
         df_all.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
-
-    with open(args.output_gff.replace(".gff", "_annotated.gff"), "w") as f:
-        f.write("##gff-version 3\n")
     with open(args.output_gff.replace(".gff", "_annotated.gff"), "a") as f:
         df_annotated.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
-
-    with open(args.output_gff.replace(".gff", "_unannotated.gff"), "w") as f:
-        f.write("##gff-version 3\n")
     with open(args.output_gff.replace(".gff", "_unannotated.gff"), "a") as f:
         df_unannotated.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
-
-    with open(args.output_gff.replace(".gff", "_near_annotated.gff"), "w") as f:
-        f.write("##gff-version 3\n")
     with open(args.output_gff.replace(".gff", "_near_annotated.gff"), "a") as f:
         df_near_annotated.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
-
-    with open(args.output_gff.replace(".gff", "_internal_inframe.gff"), "w") as f:
-        f.write("##gff-version 3\n")
     with open(args.output_gff.replace(".gff", "_internal_inframe.gff"), "a") as f:
         df_internal_inframe.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
-
-    with open(args.output_gff.replace(".gff", "_internal_inframe.gff"), "w") as f:
-        f.write("##gff-version 3\n")
     with open(args.output_gff.replace(".gff", "_internal_inframe.gff"), "a") as f:
         df_internal_inframe.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
-
-    with open(args.output_gff.replace(".gff", "_n_terminal.gff"), "w") as f:
-        f.write("##gff-version 3\n")
     with open(args.output_gff.replace(".gff", "_n_terminal.gff"), "a") as f:
         df_n_terminal.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
-
-    with open(args.output_gff.replace(".gff", "_internal_out.gff"), "w") as f:
-        f.write("##gff-version 3\n")
     with open(args.output_gff.replace(".gff", "_internal_out.gff"), "a") as f:
         df_internal_out.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
+
     print("Done.")
     print("Generating output_table...")
-    pd.DataFrame.from_records(result_rows, columns=[header[x] for x in range(len(header))]).to_csv(args.output_file, sep="\t", index=False, quoting=csv.QUOTE_NONE)
+    output_df = pd.DataFrame.from_records(result_rows, columns=[header[x] for x in range(len(header))])
+    if not os.path.isfile(args.output_file):
+        output_df.to_csv(args.output_file, sep="\t", index=False, quoting=csv.QUOTE_NONE)
+    else:
+        output_df.to_csv(args.output_file, sep="\t", index=False, quoting=csv.QUOTE_NONE, header=False, mode="a")
     print("Done.")
 
 def main():
@@ -594,6 +576,27 @@ def main():
     #print(gene_density_dict["Cj0004c"])
     #chrom = max(genome_dict.items(), key=operator.itemgetter(1))[0]
     #print("Chromosome: %s" % chrom)
+
+    print("Preparing empty output files")
+    with open(args.output_gff, "w") as f:
+        f.write("##gff-version 3\n")
+    with open(args.output_gff.replace(".gff", "_annotated.gff"), "w") as f:
+        f.write("##gff-version 3\n")
+    with open(args.output_gff.replace(".gff", "_unannotated.gff"), "w") as f:
+        f.write("##gff-version 3\n")
+    with open(args.output_gff.replace(".gff", "_near_annotated.gff"), "w") as f:
+        f.write("##gff-version 3\n")
+    with open(args.output_gff.replace(".gff", "_internal_inframe.gff"), "w") as f:
+        f.write("##gff-version 3\n")
+    with open(args.output_gff.replace(".gff", "_internal_inframe.gff"), "w") as f:
+        f.write("##gff-version 3\n")
+    with open(args.output_gff.replace(".gff", "_n_terminal.gff"), "w") as f:
+        f.write("##gff-version 3\n")
+    with open(args.output_gff.replace(".gff", "_internal_out.gff"), "w") as f:
+        f.write("##gff-version 3\n")
+
+    if os.path.isfile(args.output_file):
+        sys.exit("File already found! Please ensure that prior output tables with the same name are deleted.")
 
     fwd_wig_dict = load_wig(args.fwd_wig_file)
     rev_wig_dict = load_wig(args.rev_wig_file)

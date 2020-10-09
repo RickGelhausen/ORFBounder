@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
+# bash TTS_analysis/tts_finder_analysis_TTS.sh -p /mnt/datavault/SPP2002/analysis/campy_tt_analysis -s /mnt/datavault/SPP2002/analysis/TTS_analysis -a /mnt/datavault/SPP2002/analysis/exp28/annotation/annotation.gff -g /mnt/datavault/SPP2002/analysis/exp28/genomes/genome.fa -e exp28 -m fiveprime56 -m fiveprime56 -n raw -o -17 -o -30 -c RIBO-A-1_TIS-A-1 -c RIBO-A-1_TIS-A-3 -b /mnt/datavault/SPP2002/analysis/exp28/bam/ -t /mnt/datavault/SPP2002/analysis/campy_tt_analysis/tmp/
 
 # path="/mnt/datavault/SPP2002/analysis/campy_tt_analysis"
 # scriptpath="/mnt/datavault/SPP2002/analysis/TTS_analysis"
-# annotationpath="/mnt/datavault/SPP2002/analysis/exp28/annotation/"
-# genomepath="/mnt/datavault/SPP2002/analysis/exp28/genomes/"
+# annotationpath="/mnt/datavault/SPP2002/analysis/exp28/annotation/annotation.gff"
+# genomepath="/mnt/datavault/SPP2002/analysis/exp28/genomes/genome.fa"
 # experiments=("exp28" "exp28_no_tRNA")
 # normalizations=("raw" "min" "mil")
 # mappings=("fiveprime56" "fiveprime56" "fiveprime56" "fiveprime56" "fiveprime56-57" "fiveprime56-57" "fiveprimetracks" "fiveprimetracks" "threeprime56" "threeprime56" "threeprime29-31" "threeprime30" "threeprime30" "threeprime30" "threeprime30" "threeprimetracks")
@@ -13,7 +14,7 @@
 # tmpfolder="/mnt/datavault/SPP2002/analysis/campy_tt_analysis/tmp/"
 
 # Handling input
-while getopts "h?p:s:a:g:e:m:n:o:c:b:t:" opt; do
+while getopts "h?p:s:a:g:e:m:n:o:c:b:t:r:" opt; do
     case "$opt" in
     h|\?)
         exit 0
@@ -26,24 +27,24 @@ while getopts "h?p:s:a:g:e:m:n:o:c:b:t:" opt; do
         ;;
     g)  genomepath=$OPTARG
         ;;
-    e)  experiments+=($OPTARG)
+    e)  experiments+=("$OPTARG")
         ;;
-    n)  normalizations+=($OPTARG)
+    n)  normalizations+=("$OPTARG")
         ;;
-    m)  mappings=+=($OPTARG)
+    m)  mappings+=("$OPTARG")
         ;;
-    o)  offsets+=($OPTARG)
+    o)  offsets+=("$OPTARG")
         ;;
-    c)  contrasts+=($OPTARG)
+    c)  contrasts+=("$OPTARG")
         ;;
     b)  bamfolder=$OPTARG
         ;;
     t)  tmpfolder=$OPTARG
         ;;
+    r)  readcountthreshold=$OPTARG
+        ;;
     esac
 done
-
-mkdir -p $tmpfolder
 
 echo "----------------------------------------------------"
 for experiment in ${experiments[*]}; do
@@ -58,7 +59,8 @@ for experiment in ${experiments[*]}; do
             echo $respath
 
             prefix_list=()
-            for file in $wigpath/*.wig; do
+            for file in "$wigpath"/*.wig; do
+                echo $file
                 file_base="$(basename "$file")"
                 IFS="." read -r -a prefix_arr <<< "$file_base"
 
@@ -68,13 +70,14 @@ for experiment in ${experiments[*]}; do
                   prefix_list+=("$prefix")
                 fi
             done
+            echo "${prefix_list[@]}"
             echo "$experiment ${mappings[m_i]} $norm"
             uniq_prefix=($(printf "%s\n" "${prefix_list[@]}" | sort -u | tr '\n' ' '))
 
             for sample in ${uniq_prefix[@]}; do
                 python3 $scriptpath/TTS_finder.py --fwd_file=$path/$experiment/${mappings[m_i]}/$norm/$sample.$norm.forward.wig --rev_file=$path/$experiment/${mappings[m_i]}/$norm/$sample.$norm.reverse.wig \
-                                                  --annotation_file=$annotationpath/annotation.gff --genome_file=$genomepath/genome.fa -o=$respath/$sample.$norm.csv --target_site=TTS --p_offset=${offsets[m_i]} \
-                                                  --output_gff=$respath/$sample.$norm.gff --codon_interval_out=$respath/$sample.${norm}_codons.gff
+                                                  --annotation_file=$annotationpath --genome_file=$genomepath -o=$respath/$sample.$norm.csv --target_site=TTS --p_offset=${offsets[m_i]} \
+                                                  --output_gff=$respath/$sample.$norm.gff --codon_interval_out=$respath/$sample.${norm}_codons.gff -c $readcountthreshold
             done
 
             infiles=()
@@ -82,12 +85,12 @@ for experiment in ${experiments[*]}; do
             do
                 infiles+=($entry)
             done
-            python3 $scriptpath/merge_TTS.py -t ${infiles[@]} --contrasts ${contrasts[@]} -x $respath/${experiment}_${norm}_intermediate.xlsx
+            python3 $scriptpath/merge_TTS.py -t ${infiles[@]} --contrasts ${contrasts[@]} -x $tmpfolder/${experiment}_${norm}_intermediate.xlsx
 
-            python3 $scriptpath/detect_longest_potential_ORFs.py -i=$respath/${experiment}_${norm}_intermediate.xlsx -g=$genomepath/genome.fa -o=$respath/${experiment}_${norm}_overview.xlsx
-            python3 $scriptpath/post_filter_tts.py -i $respath/${experiment}_${norm}_overview.xlsx --size 25 --direction both --target_site TTS -a $annotationpath/annotation.gff -o $respath/${experiment}_${norm}_overview_filtered_both_ends.xlsx
-            python3 $scriptpath/post_filter_tts.py -i $respath/${experiment}_${norm}_overview.xlsx --size 25 --direction up --target_site TTS -a $annotationpath/annotation.gff -o $respath/${experiment}_${norm}_overview_filtered_upstream.xlsx
-            python3 $scriptpath/post_filter_tts.py -i $respath/${experiment}_${norm}_overview.xlsx --size 25 --direction down --target_site TTS -a $annotationpath/annotation.gff -o $respath/${experiment}_${norm}_overview_filtered_downstream.xlsx
+            python3 $scriptpath/detect_longest_potential_ORFs.py -i $tmpfolder/${experiment}_${norm}_intermediate.xlsx -g $genomepath -o $respath/${experiment}_${norm}_overview.xlsx
+            python3 $scriptpath/post_filter_tts.py -i $respath/${experiment}_${norm}_overview.xlsx --size 25 --direction both --target_site TTS -a $annotationpath -o $respath/${experiment}_${norm}_overview_filtered_both_ends.xlsx
+            python3 $scriptpath/post_filter_tts.py -i $respath/${experiment}_${norm}_overview.xlsx --size 25 --direction up --target_site TTS -a $annotationpath -o $respath/${experiment}_${norm}_overview_filtered_upstream.xlsx
+            python3 $scriptpath/post_filter_tts.py -i $respath/${experiment}_${norm}_overview.xlsx --size 25 --direction down --target_site TTS -a $annotationpath -o $respath/${experiment}_${norm}_overview_filtered_downstream.xlsx
 
             python3 $scriptpath/xlsx_to_gff.py -i $respath/${experiment}_${norm}_overview.xlsx -o $tmpfolder/${experiment}_${norm}_overview.gff
             python3 $scriptpath/xlsx_to_gff.py -i $respath/${experiment}_${norm}_overview_filtered_both_ends.xlsx -o $tmpfolder/${experiment}_${norm}_overview_filtered_both_ends.gff

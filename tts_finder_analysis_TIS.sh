@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
 
+# bash TTS_analysis/tts_finder_analysis_TIS.sh -p /mnt/datavault/SPP2002/analysis/campy_tt_analysis -s /mnt/datavault/SPP2002/analysis/TTS_analysis -a /mnt/datavault/SPP2002/analysis/haloferax_TIS/annotation/annotation.gff -g /mnt/datavault/SPP2002/analysis/haloferax_TIS/genomes/genome.fa -e haloferax_TIS -m fiveprimetracks -m threeprimetracks -n raw -o 0 -o 31 -c RIBO-A-1_TIS-A-1 -c RIBO-A-2_TIS-A-1 -b /mnt/datavault/SPP2002/analysis/haloferax_TIS/bam/ -t /mnt/datavault/SPP2002/analysis/campy_tt_analysis/tmp/ -r 5
+
 # path="/mnt/datavault/SPP2002/analysis/campy_tt_analysis"
 # scriptpath="/mnt/datavault/SPP2002/analysis/TTS_analysis"
-# annotationpath="/mnt/datavault/SPP2002/analysis/haloferax_TIS/annotation/"
-# genomepath="/mnt/datavault/SPP2002/analysis/haloferax_TIS/genomes/"
+# annotationpath="/mnt/datavault/SPP2002/analysis/haloferax_TIS/annotation/annotation.gff"
+# genomepath="/mnt/datavault/SPP2002/analysis/haloferax_TIS/genomes/genome.fa"
 # experiments=("haloferax_TIS")
 # normalizations=("raw" "min" "mil")
 # mappings=("threeprimetracks" "fiveprimetracks")
@@ -11,8 +13,9 @@
 # bamfolder="/mnt/datavault/SPP2002/analysis/haloferax_TIS/bam/"
 # tmpfolder="/mnt/datavault/SPP2002/analysis/campy_tt_analysis/tmp/"
 
+read_count_threshold=5
 # Handling input
-while getopts "h?p:s:a:g:e:m:n:o:c:b:t:" opt; do
+while getopts "h?p:s:a:g:e:m:n:o:c:b:t:r:" opt; do
     case "$opt" in
     h|\?)
         exit 0
@@ -25,19 +28,21 @@ while getopts "h?p:s:a:g:e:m:n:o:c:b:t:" opt; do
         ;;
     g)  genomepath=$OPTARG
         ;;
-    e)  experiments+=($OPTARG)
+    e)  experiments+=("$OPTARG")
         ;;
-    n)  normalizations+=($OPTARG)
+    n)  normalizations+=("$OPTARG")
         ;;
-    m)  mappings=+=($OPTARG)
+    m)  mappings+=("$OPTARG")
         ;;
-    o)  offsets+=($OPTARG)
+    o)  offsets+=("$OPTARG")
         ;;
-    c)  contrasts+=($OPTARG)
+    c)  contrasts+=("$OPTARG")
         ;;
     b)  bamfolder=$OPTARG
         ;;
     t)  tmpfolder=$OPTARG
+        ;;
+    r)  readcountthreshold=$OPTARG
         ;;
     esac
 done
@@ -72,8 +77,8 @@ for experiment in ${experiments[*]}; do
 
             for sample in ${uniq_prefix[@]}; do
                 python3 $scriptpath/TTS_finder.py --fwd_file=$path/$experiment/${mappings[m_i]}/$norm/$sample.$norm.forward.wig --rev_file=$path/$experiment/${mappings[m_i]}/$norm/$sample.$norm.reverse.wig \
-                                                  --annotation_file=$annotationpath/annotation.gff --genome_file=$genomepath/genome.fa -o=$respath/$sample.$norm.csv --target_site=TIS --p_offset=${offsets[m_i]} \
-                                                  --output_gff=$respath/$sample.$norm.gff --codon_interval_out=$respath/$sample.${norm}_codons.gff
+                                                  --annotation_file=$annotationpath --genome_file=$genomepath -o=$respath/$sample.$norm.csv --target_site=TIS --p_offset=${offsets[m_i]} \
+                                                  --output_gff=$respath/$sample.$norm.gff --codon_interval_out=$respath/$sample.${norm}_codons.gff -c $readcountthreshold
             done
 
             infiles=()
@@ -82,10 +87,10 @@ for experiment in ${experiments[*]}; do
                 infiles+=($entry)
             done
 
-            python3 $scriptpath/merge_TTS.py -t ${infiles[@]} --contrasts RIBO-A-1_TIS-A-1 RIBO-A-2_TIS-A-1 -x $respath/${experiment}_${norm}_overview.xlsx
-            python3 $scriptpath/post_filter_tts.py -i $respath/${experiment}_${norm}_overview.xlsx --size 25 --direction both --target_site TIS -a $annotationpath/annotation.gff -o $respath/${experiment}_${norm}_overview_filtered_both_ends.xlsx
-            python3 $scriptpath/post_filter_tts.py -i $respath/${experiment}_${norm}_overview.xlsx --size 25 --direction up --target_site TIS -a $annotationpath/annotation.gff -o $respath/${experiment}_${norm}_overview_filtered_upstream.xlsx
-            python3 $scriptpath/post_filter_tts.py -i $respath/${experiment}_${norm}_overview.xlsx --size 25 --direction down --target_site TIS -a $annotationpath/annotation.gff -o $respath/${experiment}_${norm}_overview_filtered_downstream.xlsx
+            python3 $scriptpath/merge_TTS.py -t ${infiles[@]} --contrasts ${contrasts[@]} -x $respath/${experiment}_${norm}_overview.xlsx
+            python3 $scriptpath/post_filter_tts.py -i $respath/${experiment}_${norm}_overview.xlsx --size 25 --direction both --target_site TIS -a $annotationpath -o $respath/${experiment}_${norm}_overview_filtered_both_ends.xlsx
+            python3 $scriptpath/post_filter_tts.py -i $respath/${experiment}_${norm}_overview.xlsx --size 25 --direction up --target_site TIS -a $annotationpath -o $respath/${experiment}_${norm}_overview_filtered_upstream.xlsx
+            python3 $scriptpath/post_filter_tts.py -i $respath/${experiment}_${norm}_overview.xlsx --size 25 --direction down --target_site TIS -a $annotationpath -o $respath/${experiment}_${norm}_overview_filtered_downstream.xlsx
 
             python3 $scriptpath/xlsx_to_gff.py -i $respath/${experiment}_${norm}_overview.xlsx -o $tmpfolder/${experiment}_${norm}_overview.gff
             python3 $scriptpath/xlsx_to_gff.py -i $respath/${experiment}_${norm}_overview_filtered_both_ends.xlsx -o $tmpfolder/${experiment}_${norm}_overview_filtered_both_ends.gff

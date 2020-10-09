@@ -59,12 +59,12 @@ def xlsx_to_gff3(args):
 
             rows.append(cur_tuple)
 
-        df_gff = pd.DataFrame.from_records(rows, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+    df_gff = pd.DataFrame.from_records(rows, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
 
-        with open(args.out_gff, "w") as f:
-            f.write("##gff-version 3\n")
-        with open(args.out_gff, "a") as f:
-            df_gff.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
+    with open(args.out_gff, "w") as f:
+        f.write("##gff-version 3\n")
+    with open(args.out_gff, "a") as f:
+        df_gff.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
 
 
 def main():

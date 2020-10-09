@@ -163,14 +163,15 @@ def create_excel_file(args):
         chrom, mid, strand = unique_id.split(":")
         start, stop = mid.split("-")
 
-        result = [unique_id, chrom, start, stop, strand, meta_info[0], meta_info[1], meta_info[2], meta_info[3], meta_info[4]] +\
+        result = [unique_id, chrom, int(start), int(stop), strand, meta_info[0], meta_info[1], meta_info[2], meta_info[3], meta_info[4]] +\
                  calculate_fold_changes(unique_id, wildcard_dicts, contrasts) + [meta_info[5], meta_info[6], meta_info[7]] +\
                  get_relative_density(unique_id, wildcard_dicts) + [meta_info[8], meta_info[9]]
 
         all_sheet.append(nTuple(*result))
     all_df = pd.DataFrame.from_records(all_sheet, columns=[header[x] for x in range(len(header))])
+    all_df = all_df.astype({"Start" : "int32", "Stop" : "int32"})
+    all_df = all_df.sort_values(by=["Genome", "Start", "Stop"])
     dataframe_dict = { "all" : all_df }
-
     excel_writer(args, dataframe_dict)
 
 def main():

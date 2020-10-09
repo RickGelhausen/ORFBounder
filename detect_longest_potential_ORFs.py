@@ -149,7 +149,7 @@ def postprocess_excel_file(args, genome_dict):
         gene_type = getattr(row, "Gene_type")
         codon_count = getattr(row, "Codon_count")
         start_codon = getattr(row, "Start_codon")
-        stop_codon = getattr(row, "stop_codon")
+        stop_codon = getattr(row, "Stop_codon")
         nucleotide_seq = getattr(row, "Nucleotide_seq")
         aminoacid_seq = getattr(row, "Aminoacid_seq")
 
