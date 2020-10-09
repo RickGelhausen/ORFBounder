@@ -30,7 +30,7 @@ If you used the HRIBO workflow, you will have all files required to run the anal
 It is important to note that you can also run the analysis partially, by manually calling the individual scripts provided in this repository (e.g. if you do not require expression values, you do not require bam files).
 
 * `wig files:` The wig files for the desired mappings/normalizations. For easy usage, these should be in the HRIBO notation. `path/experiment/mapping/normalization/|method|-|condition|-|replicate|.normalization.forward.wig`. (e.g `/path_to_user/exp1/threeprimetracks/min/TIS-A-1.min.forward.wig`)
-If you do not have .wig files from `HRIBO`, either create an according folder structure or write your own script tailored to your data, using the scripts provided in this repository. Explanation for each script are provided in the `scripts` section.
+If you do not have .wig files from `HRIBO`, either create an according folder structure or write your own script tailored to your data, using the scripts provided in this repository. Explanation for each script are provided in the [scripts section](#Scripts).
 
 * `bam files`: `HRIBO` provides `.bam` files containing all read counts. These should be named using the `|method|-|condition|-|replicate|.bam` naming scheme. `|method|` is either `RIBO`, `RNA`, `TIS`, `RNATIS`. `TTS` and `RNATTS` will be supported soon, until then we suggest labeling `TTS` files `TIS`. `|condition|` can be any string and `|replicate|` can be any integer.
 
@@ -67,7 +67,7 @@ The chosen thresholds, offsets and coverage mappings can change for each organis
 
 
 # Running the analysis scripts
-The analysis is made up of multiple python3 and bash scripts. If all data is collected as described in the required files section, running the script will be straight-forward.
+The analysis is made up of multiple python3 and bash scripts. If all data is collected as described in the [required files section](##Required-files), running the script will be straight-forward.
 Simply run either `tts_finder_analysis_TTS.sh` or `tts_finder_analysis_TIS.sh` depending on the site that is to be analysed.
 
 The following commandline arguments are required:
