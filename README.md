@@ -67,7 +67,7 @@ The chosen thresholds, offsets and coverage mappings can change for each organis
 
 
 # Running the analysis scripts
-The analysis is made up of multiple python3 and bash scripts. If all data is collected as described in the [required files section](##Required-files), running the script will be straight-forward.
+The analysis is made up of multiple python3 and bash scripts. If all data is collected as described in the [required files section](#Required-files), running the script will be straight-forward.
 Simply run either `tts_finder_analysis_TTS.sh` or `tts_finder_analysis_TIS.sh` depending on the site that is to be analysed.
 
 The following commandline arguments are required:
