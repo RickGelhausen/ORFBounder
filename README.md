@@ -30,6 +30,7 @@ If you used the HRIBO workflow, you will have all files required to run the anal
 It is important to note that you can also run the analysis partially, by manually calling the individual scripts provided in this repository (e.g. if you do not require expression values, you do not require bam files).
 
 * `wig files:` The wig files for the desired mappings/normalizations. For easy usage, these should be in the HRIBO notation. `path/experiment/mapping/normalization/|method|-|condition|-|replicate|.normalization.forward.wig`. (e.g `/path_to_user/exp1/threeprimetracks/min/TIS-A-1.min.forward.wig`)
+Wig files must be split into two individual files, one for each strand. (forward, reverse)
 If you do not have .wig files from `HRIBO`, either create an according folder structure or write your own script tailored to your data, using the scripts provided in this repository. Explanation for each script are provided in the [scripts section](#Scripts).
 
 * `bam files`: `HRIBO` provides `.bam` files containing all read counts. These should be named using the `|method|-|condition|-|replicate|.bam` naming scheme. `|method|` is either `RIBO`, `RNA`, `TIS`, `RNATIS`. `TTS` and `RNATTS` will be supported soon, until then we suggest labeling `TTS` files `TIS`. `|condition|` can be any string and `|replicate|` can be any integer.
@@ -71,31 +72,43 @@ The analysis is made up of multiple python3 and bash scripts. If all data is col
 Simply run either `tts_finder_analysis_TTS.sh` or `tts_finder_analysis_TIS.sh` depending on the site that is to be analysed.
 
 The following commandline arguments are required:
-| Name                | Argument | Description                                                                                                           |
-|---------------------|----------|-----------------------------------------------------------------------------------------------------------------------|
-| path                | -p       | Path to the project folder, where the wig file folder is located and the result folder will be placed.                |
-| scriptpath          | -s       | Path to the TTS_analysis folder, in which all scripts necessary for computation are located.                          |
-| annotationpath      | -a       | The annotation file for the organism that is analysed (`.gff3` format)                                                |
-| genomepath          | -g       | The genome file for the organism that is analysed (`.fasta` format)                                                   |
-| experiments         | -e       | The experiment to be analysed (if more than one, use this option multiple times e.g `-e exp1 -e exp2 ...`)            |
-| mappings            | -m       | The mappings to be used for analysis (e.g threeprime, fiveprime, etc...) ( any subfolder under experiment). If more than one, use this option multiple times (e.g. `-m threeprime -m threeprime30 -m fiveprime ...`)       |    
-| offsets             | -o       | The p-site offset used for each of the mappings. If you use multiple mappings, ensure that you use the same amount of offsets. (e.g. `-m threeprime -m fiveprime`, `-o 8 -o 10` means that the 3' files have an offset of 8 and the 5' files have an offset of 10).                          |
-| normalizations      | -n       | The normalizations to be used (e.g. raw, mil, min) (any subfolder under mapping).                                     |
-| contrasts           | -c       | The contrasts used for the experiment. If you want log2FC for certain peak-heights in a table you can use this option to indicate which samples should be compared (e.g. RIBO-A-1_TIS-A-1)                                                                                                       |
-| bamfolder           | -b       | The path to the bamfiles, ensure that each bamfile has an according index file. If not, use `samtools index |bamfile|` for all files missing the index. If installed you can also use `parallel`[[2]](#2),  `parallel  samtools index ::: *.bam` to run it on all bam files.              |
-| tmpfolder           | -t       | The folder where temporary files will be dumped.                                                                      |
-| readcountthreshold  | -r       | The readcount threshold used in the analysis, if a position has less than this amount of reads it is ignored (>0)     |
+| Name                | Command Line Argument | Description                                                                                                           |
+|---------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------|
+| path                | -p                    | Path to the project folder, where the wig file folder is located and the result folder will be placed.                |
+| scriptpath          | -s                    | Path to the TTS_analysis folder, in which all scripts necessary for computation are located.                          |
+| annotationpath      | -a                    | The annotation file for the organism that is analysed (`.gff3` format)                                                |
+| genomepath          | -g                    | The genome file for the organism that is analysed (`.fasta` format)                                                   |
+| experiments         | -e                    | The experiment to be analysed (if more than one, use this option multiple times e.g `-e exp1 -e exp2 ...`)            |
+| mappings            | -m                    | The mappings to be used for analysis (e.g threeprime, fiveprime, etc...) ( any subfolder under experiment). If more than one, use this option multiple times (e.g. `-m threeprime -m threeprime30 -m fiveprime ...`)       |    
+| offsets             | -o                    | The p-site offset used for each of the mappings. If you use multiple mappings, ensure that you use the same amount of offsets. (e.g. `-m threeprime -m fiveprime`, `-o 8 -o 10` means that the 3' files have an offset of 8 and the 5' files have an offset of 10).                          |
+| normalizations      | -n                    | The normalizations to be used (e.g. raw, mil, min) (any subfolder under mapping).                                     |
+| contrasts           | -c                    | The contrasts used for the experiment. If you want log2FC for certain peak-heights in a table you can use this option to indicate which samples should be compared (e.g. RIBO-A-1_TIS-A-1)                                                                                                       |
+| bamfolder           | -b                    | The path to the bamfiles, ensure that each bamfile has an according index file. If not, use `samtools index |bamfile|` for all files missing the index. If installed you can also use `parallel`[[2]](#2),  `parallel  samtools index ::: *.bam` to run it on all bam files.              |
+| tmpfolder           | -t                    | The folder where temporary files will be dumped.                                                                      |
+| readcountthreshold  | -r                    | The readcount threshold used in the analysis, if a position has less than this amount of reads it is ignored (>0)     |
 
 
 
 If you have your own data, you can run the scripts individually, each of them is described in the [scripts section](#Scripts) below.
 
-
-
 # Scripts
+This section contains short descriptions of each of the scripts and the commandline parameters.
+* **TTS_finder.py:** is the main script which uses annotation, genome and wig files to detect potential ORFs using TIS or TTS read coverage peaks. 
+| Name                 | Command Line Argument | Description                                                                                                           |
+|----------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------|
+| fwd_file             | -f                    | The forward wig file used for the analysis.                                                                           |
+| rev_file             | -r                    | The reverse wig file used for the analysis, complementary to the forward wig file.                                    |
+| annotation_file      | -a                    | The annotation file for the organism that is analysed (`.gff3` format)                                                |
+| genome_file          | -g                    | The genome file for the organism that is analysed (`.fasta` format)                                                   |
+| start_codons         | --start_codons        | A space-seperated list of start_codons. (Default: ATG, CTG, TTG)                                                      |
+| stop_codons          | --stop_codons         | A space-seperated list of stop_codons. (Default: TAG, TAA, TGA)                                                       |    
+| p_offset             | --p_offset            | The p-site offset to be used for the current wig files.                                                               |
+| output_gff           | --output_gff          | The output folder for the .gff files for genome browser inspection of the result.                                     |
+| target_site          | --target_site         | The site you are interested in (TIS / TTS)                                                                            |
+| read_count_threshold | -c                    | The readcount threshold used in the analysis, if a position has less than this amount of reads it is ignored (>0)     |
+| codon_interval_out   | -codon_interval_out   | The output .gff file for the codon intervals which are used to test overlap with a potential codon.                   |
+| output_file          | -o                    | The output .csv file for further processing in the other included scripts.                                            |
 
-## Sub-scripts
-* **TTS_finder.py:**
 * **calculate_expression.py:**
 * **call_featurecounts.py:**
 * **detect_longest_potential_ORFs.py:**
