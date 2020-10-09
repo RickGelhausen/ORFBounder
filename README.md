@@ -94,6 +94,7 @@ If you have your own data, you can run the scripts individually, each of them is
 # Scripts
 This section contains short descriptions of each of the scripts and the commandline parameters.
 * **TTS_finder.py:** is the main script which uses annotation, genome and wig files to detect potential ORFs using TIS or TTS read coverage peaks. 
+
 | Name                 | Command Line Argument | Description                                                                                                           |
 |----------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------|
 | fwd_file             | -f                    | The forward wig file used for the analysis.                                                                           |
