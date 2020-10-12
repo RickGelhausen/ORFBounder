@@ -30,7 +30,7 @@ If you used the HRIBO workflow, you will have all files required to run the anal
 It is important to note that you can also run the analysis partially, by manually calling the individual scripts provided in this repository (e.g. if you do not require expression values, you do not require bam files).
 
 * `wig files:` The wig files for the desired mappings/normalizations. For easy usage, these should be in the HRIBO notation. `path/experiment/mapping/normalization/|method|-|condition|-|replicate|.normalization.forward.wig`. (e.g `/path_to_user/exp1/threeprimetracks/min/TIS-A-1.min.forward.wig`)
-Wig files must be split into two individual files, one for each strand. (forward, reverse)
+Wig files must be split into two individual files, one for each strand. (forward, reverse) A folder can contain wig files of the according mapping and normalization for multiple samples. The scripts will be run on all files and bundled into one result file.
 If you do not have .wig files from `HRIBO`, either create an according folder structure or write your own script tailored to your data, using the scripts provided in this repository. Explanation for each script are provided in the [scripts section](#Scripts).
 
 * `bam files`: `HRIBO` provides `.bam` files containing all read counts. These should be named using the `|method|-|condition|-|replicate|.bam` naming scheme. `|method|` is either `RIBO`, `RNA`, `TIS`, `RNATIS`. `TTS` and `RNATTS` will be supported soon, until then we suggest labeling `TTS` files `TIS`. `|condition|` can be any string and `|replicate|` can be any integer.
@@ -51,9 +51,9 @@ The analysis is done in multiple steps:
 
 2. Next, the requested .wig files are read and if a position passes a given read_count_threshold (default 5), all codon intervals overlapping with the given position are retrieved and their peak_height is incremented by the read count of the position detected. This matches the coverage peaks with given stop(start) codons. 
 
-3. Then, we iterate over all potential codons that have a peak attributed to them. For each stop(codon) the next in-frame start(stop) codon is searched and formed into an ORF prediction. These ORFs are collected and written into a `.gff` and a `.xlsx` (excel table) file. The excel file contains a lot of additional information for each predicted ORF (e.g. gene_type, start, stop, strand, locus_tag, codon_count, peak_height, 15nt upstream of the start, nucleotide sequence, amino acid sequence, etc...). Additionally, .gff files for each gene_type are generated for easier investigation in a genome_browser.
+3. Then, we iterate over all potential codons that have a peak attributed to them. For each stop(codon) the next in-frame start(stop) codon is searched and formed into an ORF prediction. These ORFs are collected and written into a `.gff` and a `.csv` (table) file.  Additionally, .gff files for each gene_type are generated for easier investigation in a genome_browser.
 
-4. If the script was used on different RIBO-seq, RNA-seq and TIS or TTS samples, all result tables are bundled into one big excel file, by combining ORF predicted for multiple samples into one row, providing the peak_height information for all involved samples. Contrasts can be given in form of a list of file prefixes (e.g RIBO-A-1_TIS_A-1, RIBO-A-2_TIS_A-1). This will add additional columns with log2foldchange for the given prefix combinations.
+4. If the script was used on different RIBO-seq, RNA-seq and TIS or TTS samples, all result tables are bundled into one big excel file, by combining ORFs that have been predicted for multiple samples into one row, providing the peak_height information for all involved samples. The excel file contains a lot of additional information for each predicted ORF (e.g. gene_type, start, stop, strand, locus_tag, codon_count, peak_height, 15nt upstream of the start, nucleotide sequence, amino acid sequence, etc...). Contrasts can be given in form of a list of file prefixes (e.g RIBO-A-1_TIS_A-1, RIBO-A-2_TIS_A-1). This will add additional columns with log2foldchange for the given prefix combinations.
 
 5. (TTS_only) For the TTS predictions, it is hard to find the best start codon matching the predicted stop codon, as multiple start codons can be present in-frame upstream of the predicted stop codon. The method used in the TTS_finder script, finds the shortest possible ORF, by choosing the first in-frame start-codon. In this step, the longest possible ORF is added to the results for a given predicted stop. First, the first in-frame stop codon upstream of the current predicted stop-codon is searched, then the first start-codon downstream of the upstream stop-codon is chosen. This ensures that the detected start-codon is the furthest possible in-frame start-codon that ensures that no additional in-frame stop-codon is between the predicted stop-codon and the attributed start-codon. This provides us with the longest possible ORF.
 For TIS predictions this is not necessary, as we start from the predicted start-codon and look for the first in-frame stop-codon.
@@ -62,7 +62,7 @@ For TIS predictions this is not necessary, as we start from the predicted start-
 
 7. In a final step, expression information is added to all tables for all predicted ORF intervals. This includes both read per kilobase million (RPKM) values and translational efficiency (TE) values. To do this, the read counts are collected using subread-featureCounts. These readcounts are then used in order to calculate both the RPKM and the TE for every sample.
 
- :warning: **IMPORTANT:** The scripts are written to be compatible with the HRIBO workflow, all samples must be in the form `|method|-|condition|-|replicate|`. `|method|` is either `RIBO`, `RNA`, `TIS`, `RNATIS`. `TTS` and `RNATTS` will be supported soon, until then we suggest labeling `TTS` files `TIS`. `|condition|` can be any string and `|replicate|` can be any integer.
+ :warning: **IMPORTANT:** The scripts are written to be compatible with the HRIBO workflow, all samples must be in the form `|method|-|condition|-|replicate|`. `|method|` is either `RIBO`, `RNA`, `TIS`, `RNATIS`. `|condition|` can be any string and `|replicate|` can be any integer.
 
 The chosen thresholds, offsets and coverage mappings can change for each organism, therefore it is advised to investigate the data first to ensure that the right parameters are chosen. :warning:
 
@@ -92,7 +92,7 @@ The following commandline arguments are required:
 If you have your own data, you can run the scripts individually, each of them is described in the [scripts section](#Scripts) below.
 
 # Scripts
-This section contains short descriptions of each of the scripts and the commandline parameters.
+This section contains short descriptions of each of the scripts (in execution order) and the commandline parameters.
 * **TTS_finder.py:** is the main script which uses annotation, genome and wig files to detect potential ORFs using TIS or TTS read coverage peaks. 
 
 | Name                 | Command Line Argument | Description                                                                                                           |
@@ -110,15 +110,47 @@ This section contains short descriptions of each of the scripts and the commandl
 | codon_interval_out   | -codon_interval_out   | The output .gff file for the codon intervals which are used to test overlap with a potential codon.                   |
 | output_file          | -o                    | The output .csv file for further processing in the other included scripts.                                            |
 
-* **calculate_expression.py:**
+* **merge_TTS.py:** merges the .csv files resulting from the `TTS_finder.py` script, for different samples (RIBO-A-1, RIBO-A-2, TIS-A-1, etc...). The merged results are infused with additional information including log2 fold-changes for the different desired contrasts, nucleotide and amino-acid sequences. The resulting information is then written to an excel output file (.xlsx).
+
+| Name                 | Command Line Argument | Description                                                                                                   |
+|----------------------|-----------------------|---------------------------------------------------------------------------------------------------------------|
+| tables               | -t/--tables           | A list of .csv tables resulting from `TTS_finder.py` that will be merged                                      |
+| contrasts            | --contrasts           | The contrasts used for the experiment. If you want log2FC for certain peak-heights in the table you can use this option to indicate which samples should be compared (e.g. RIBO-A-1_TIS-A-1)|
+| xlsx                 | -x                    | The output excel file                                                                                         |
+
+* **detect_longest_potential_ORFs.py:** (optional) is a script only useful for TTS predictions, it detects the longest ORF in addition to the shortest ORF. This means that for a given predicted stop, the next upstream start codon is chosen (shortest ORF) and farthest upstream start codon is chosen, that still ensures that no additional in-frame stop-codon is between the start codon and the predicted stop codon.
+
+| Name                 | Command Line Argument | Description                                                                                                   |
+|----------------------|-----------------------|---------------------------------------------------------------------------------------------------------------|
+| input_xlsx           | -i                    | An input xlsx file resulting from the `merge_TTS.py` script                                                   |
+| genome_file          | -g                    | The genome file for the organism that is analysed (`.fasta` format)                                           |
+| output_xlsx          | -o                    | The output excel file                                                                                         |
+| start_codons         | --start_codons        | A space-seperated list of start_codons. (Default: ATG, CTG, TTG)                                              |
+| stop_codons          | --stop_codons         | A space-seperated list of stop_codons. (Default: TAG, TAA, TGA)                                               |            
+
+* **post_filter_tts.py:** does an additional post-filtering step on the final .xlsx file, ensuring that no annotated start/stop codons are close to the predicted ORF boundaries. This might help narrowing down results to find good candidates for closer experimental inspection.
+
+| Name                 | Command Line Argument | Description                                                                                                   |
+|----------------------|-----------------------|---------------------------------------------------------------------------------------------------------------|
+| input_xlsx           | -i                    | An input xlsx file to be filtered                                                                             |
+| annotation_gff       | -a                    | The annotation file for the organism that is analysed (`.gff3` format)                                        |
+| target_site          | --target_site         | The site that is currently analysed (TIS / TTS)                                                               |
+| direction            | --direction           | The direction from the (start/stop) that will be filtered. (up/down/both)                                     |
+| size                 | --size                | The size of the interval used for filtering in the current direction (if both is selected the interval spans over 2xsize                            |            
+| output_xlsx          | -o                    | The filtered output excel file                                                                                |            
+
+* **xlsx_to_gff.py:** creates simple .gff files from the .xlsx table  
+
 * **call_featurecounts.py:**
-* **detect_longest_potential_ORFs.py:**
-* **excel_utils.py:**
 * **get_readcount_gff.sh:**
+
+* **calculate_expression.py:**
+
 * **map_reads_to_annotation.py:**
-* **merge_TTS.py:**
-* **post_filter_tts.py:**
-* **
+
+
+
+* **excel_utils.py:**
 
 ## References
 <a id="1">[1]</a> 
