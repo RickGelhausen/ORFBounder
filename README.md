@@ -168,10 +168,37 @@ This section contains short descriptions of each of the scripts (in execution or
 | output_xlsx          | -o                    | The filtered output excel file                                                                                |  
 
 ## Additional scripts
-* **excel_utils.py:**
-* **call_featurecounts.py:** 
-* **total_mapped_reads.py:**
-* **map_reads_to_annotation.py:**
+* **excel_utils.py:** is a python library script used for the `calculate_expression.py` script.
+* **call_featurecounts.py:** calls `subread featureCount` to count the number of reads overlapping with a certain entry of an annotation file for a given sample.
+
+| Name                 | Command Line Argument | Description                                                                                                           |
+|----------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------|
+| bamfiles             | -b                    | Bam files of the samples used in the analysis, used for read-counting.                                                |
+| strandness           | -s                    | Whether strandedness should be considered (Default: 1 stranded)                                                       |
+| with_O               | --with_O              | Activate `subread featureCount` command O. (Assign reads to all overlapping meta-features.)                           |
+| with_M               | --with_M              | Activate `subread featureCount` command M. (Multi-mapping reads will be counted)                                      |
+| fraction             | --fraction            | Assign fractional counts to features.                                                                                 |
+| annotation           | -a                    | The annotation file that will be processed with `subread featureCount`.                                               |
+| threads              | -t                    | Number of threads used by `subread featureCount`.                                                                     |
+| output               | -o                    | The output annotation file with the read counts.                                                                      |
+| for_diff_expr        | --for_diff_expr       | not required                                                                                                          |
+
+* **map_reads_to_annotation.py:** map the read-counts calculated by `subread featureCount` back to the original annotation file.
+
+| Name                 | Command Line Argument | Description                                                                                                           |
+|----------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------|
+| input                | -i                    | The raw file output by `subread featureCount`.                                                                        |
+| annotation           | -a                    | Original annotation used for `subread featureCount`.                                                                  |
+| output               | -o                    | The output gff file with read counts.                                                                                 |
+
+* **total_mapped_reads.py:** counts the total number of mapped reads for a list of bam files. Additionally, determine the average read length.
+
+| Name                 | Command Line Argument | Description                                                                                                           |
+|----------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------|
+| bamfiles             | -b                    | Bam files of the samples used in the analysis, used for counting the total number of mapped reads.                    |
+| out_mapped           | -m                    | The output file with total number of mapped reads.                                                                    |
+| out_length           | -l                    | The output file with the average read length.                                                                         |
+
 
 ## References
 <a id="1">[1]</a> 
