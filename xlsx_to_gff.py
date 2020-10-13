@@ -71,7 +71,7 @@ def main():
     # store commandline args
     parser = argparse.ArgumentParser(description='Transfer TTS/TIS xlsx file to gff3 for further anaylsis.')
     parser.add_argument("-i", "--input_xlsx", action="store", dest="in_xlsx", required=True, help="Input excel file.")
-    parser.add_argument("-o", "--output_xlsx", action="store", dest="out_gff", required=True, help= "Output gff file.")
+    parser.add_argument("-o", "--output_gff", action="store", dest="out_gff", required=True, help= "Output gff file.")
 
     args = parser.parse_args()
 

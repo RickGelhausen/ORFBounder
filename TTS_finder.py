@@ -547,7 +547,7 @@ def main():
     parser.add_argument("-f", "--fwd_file", action="store", dest="fwd_wig_file", help="input forward wig file.", required=True)
     parser.add_argument("-r", "--rev_file", action="store", dest="rev_wig_file", help="input reverse wig file.", required=True)
     parser.add_argument("-a", "--annotation_file", action="store", dest="annotation_file", help="input annotation file.", required=True)
-    parser.add_argument("-s", "--genome_file", action="store", dest="genome_file", help="input sequence file.", required=True)
+    parser.add_argument("-g", "--genome_file", action="store", dest="genome_file", help="input sequence file.", required=True)
     parser.add_argument("--start_codons", nargs="+", dest="start_codons", default=["ATG","GTG","TTG"])
     parser.add_argument("--stop_codons", nargs="+", dest="stop_codons", default=["TAG","TAA","TGA"])
     parser.add_argument("--p_offset", action="store", dest="p_offset", type=int, default=15)

@@ -86,26 +86,15 @@ for experiment in ${experiments[*]}; do
                 infiles+=($entry)
             done
             python3 $scriptpath/merge_TTS.py -t ${infiles[@]} --contrasts ${contrasts[@]} -x $tmpfolder/${experiment}_${norm}_intermediate.xlsx
-
             python3 $scriptpath/detect_longest_potential_ORFs.py -i $tmpfolder/${experiment}_${norm}_intermediate.xlsx -g $genomepath -o $respath/${experiment}_${norm}_overview.xlsx
-            python3 $scriptpath/post_filter_tts.py -i $respath/${experiment}_${norm}_overview.xlsx --size 25 --direction both --target_site TTS -a $annotationpath -o $respath/${experiment}_${norm}_overview_filtered_both_ends.xlsx
-            python3 $scriptpath/post_filter_tts.py -i $respath/${experiment}_${norm}_overview.xlsx --size 25 --direction up --target_site TTS -a $annotationpath -o $respath/${experiment}_${norm}_overview_filtered_upstream.xlsx
-            python3 $scriptpath/post_filter_tts.py -i $respath/${experiment}_${norm}_overview.xlsx --size 25 --direction down --target_site TTS -a $annotationpath -o $respath/${experiment}_${norm}_overview_filtered_downstream.xlsx
-
             python3 $scriptpath/xlsx_to_gff.py -i $respath/${experiment}_${norm}_overview.xlsx -o $tmpfolder/${experiment}_${norm}_overview.gff
-            python3 $scriptpath/xlsx_to_gff.py -i $respath/${experiment}_${norm}_overview_filtered_both_ends.xlsx -o $tmpfolder/${experiment}_${norm}_overview_filtered_both_ends.gff
-            python3 $scriptpath/xlsx_to_gff.py -i $respath/${experiment}_${norm}_overview_filtered_upstream.xlsx -o $tmpfolder/${experiment}_${norm}_overview_filtered_upstream.gff
-            python3 $scriptpath/xlsx_to_gff.py -i $respath/${experiment}_${norm}_overview_filtered_downstream.xlsx -o $tmpfolder/${experiment}_${norm}_overview_filtered_downstream.gff
-
             bash $scriptpath/get_readcount_gff.sh -i $tmpfolder/${experiment}_${norm}_overview.gff -r $tmpfolder/${experiment}_${norm}_overview_readcounts.raw -o $tmpfolder/${experiment}_${norm}_overview_readcounts.gff -b $bamfolder -m $tmpfolder/${experiment}_${norm}_overview_total_mapped.txt -l $tmpfolder/${experiment}_${norm}_overview_lengths.txt
-            bash $scriptpath/get_readcount_gff.sh -i $tmpfolder/${experiment}_${norm}_overview_filtered_both_ends.gff -r $tmpfolder/${experiment}_${norm}_overview_filtered_both_ends_readcounts.raw -o $tmpfolder/${experiment}_${norm}_overview_filtered_both_ends_readcounts.gff -b $bamfolder -m $tmpfolder/${experiment}_${norm}_overview_filtered_both_ends_total_mapped.txt -l $tmpfolder/${experiment}_${norm}_overview_filtered_both_ends_lengths.txt
-            bash $scriptpath/get_readcount_gff.sh -i $tmpfolder/${experiment}_${norm}_overview_filtered_upstream.gff -r $tmpfolder/${experiment}_${norm}_overview_filtered_upstream_readcounts.raw -o $tmpfolder/${experiment}_${norm}_overview_filtered_upstream_readcounts.gff -b $bamfolder -m $tmpfolder/${experiment}_${norm}_overview_filtered_upstream_total_mapped.txt -l $tmpfolder/${experiment}_${norm}_overview_filtered_upstream_lengths.txt
-            bash $scriptpath/get_readcount_gff.sh -i $tmpfolder/${experiment}_${norm}_overview_filtered_downstream.gff -r $tmpfolder/${experiment}_${norm}_overview_filtered_downstream_readcounts.raw -o $tmpfolder/${experiment}_${norm}_overview_filtered_downstream_readcounts.gff -b $bamfolder -m $tmpfolder/${experiment}_${norm}_overview_filtered_downstream_total_mapped.txt -l $tmpfolder/${experiment}_${norm}_overview_filtered_downstream_lengths.txt
-
             python3 $scriptpath/calculate_expression.py -i $respath/${experiment}_${norm}_overview.xlsx -m $tmpfolder/${experiment}_${norm}_overview_total_mapped.txt -r $tmpfolder/${experiment}_${norm}_overview_readcounts.gff -o $respath/${experiment}_${norm}_overview_final.xlsx
-            python3 $scriptpath/calculate_expression.py -i $respath/${experiment}_${norm}_overview_filtered_both_ends.xlsx -m $tmpfolder/${experiment}_${norm}_overview_filtered_both_ends_total_mapped.txt -r $tmpfolder/${experiment}_${norm}_overview_filtered_both_ends_readcounts.gff -o $respath/${experiment}_${norm}_overview_filtered_both_ends_final.xlsx
-            python3 $scriptpath/calculate_expression.py -i $respath/${experiment}_${norm}_overview_filtered_upstream.xlsx -m $tmpfolder/${experiment}_${norm}_overview_filtered_upstream_total_mapped.txt -r $tmpfolder/${experiment}_${norm}_overview_filtered_upstream_readcounts.gff -o $respath/${experiment}_${norm}_overview_filtered_upstream_final.xlsx
-            python3 $scriptpath/calculate_expression.py -i $respath/${experiment}_${norm}_overview_filtered_downstream.xlsx -m $tmpfolder/${experiment}_${norm}_overview_filtered_downstream_total_mapped.txt -r $tmpfolder/${experiment}_${norm}_overview_filtered_downstream_readcounts.gff -o $respath/${experiment}_${norm}_overview_filtered_downstream_final.xlsx
+
+            python3 $scriptpath/post_filter_tts.py -i $respath/${experiment}_${norm}_overview_final.xlsx --size 25 --direction both --target_site TTS -a $annotationpath -o $respath/${experiment}_${norm}_overview_final_filtered_both_ends.xlsx
+            python3 $scriptpath/post_filter_tts.py -i $respath/${experiment}_${norm}_overview_final.xlsx --size 25 --direction up --target_site TTS -a $annotationpath -o $respath/${experiment}_${norm}_overview_final_filtered_upstream.xlsx
+            python3 $scriptpath/post_filter_tts.py -i $respath/${experiment}_${norm}_overview_final.xlsx --size 25 --direction down --target_site TTS -a $annotationpath -o $respath/${experiment}_${norm}_overview_final_filtered_downstream.xlsx
+
         done
     done
 done
