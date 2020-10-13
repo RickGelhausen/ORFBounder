@@ -128,6 +128,34 @@ This section contains short descriptions of each of the scripts (in execution or
 | start_codons         | --start_codons        | A space-seperated list of start_codons. (Default: ATG, CTG, TTG)                                              |
 | stop_codons          | --stop_codons         | A space-seperated list of stop_codons. (Default: TAG, TAA, TGA)                                               |            
 
+* **xlsx_to_gff.py:** creates simple .gff files from an .xlsx table to be used to run featureCounts. This will add read counts for each entry in the .gff file for each sample.
+
+| Name                 | Command Line Argument | Description                                                                                                   |
+|----------------------|-----------------------|---------------------------------------------------------------------------------------------------------------|
+| input_xlsx           | -i                    | An input excel file                                                                                           |
+| output_gff           | -o                    | The output annotation file (.gff)                                                                             |
+
+
+* **get_readcount_gff.sh:** creates the .gff files containing readcounts for all samples. This bash script uses the additional scripts `call_featurrecounts.py`, `total_mapped_reads.py` and `map_read_to_annotation.py`. 
+
+| Name                 | Command Line Argument | Description                                                                                                   |
+|----------------------|-----------------------|---------------------------------------------------------------------------------------------------------------|
+| bam_path             | -b                    | Path to the bam file folder. Bam files for the samples used in the analysis.                                  |
+| input_annotation     | -i                    | The input annotation created by `xlsx_to_gff.py`                                                              |
+| output_rawreads      | -r                    | The output file for the raw files (temporary file)                                                            |
+| output_mapped        | -m                    | The output file for the total mapped reads for each plasmid/chromosome.                                       | 
+| output_length        | -l                    | The output file for the average read lengths for each plasmid/chromosome. (currently not required.)           |   
+| output_annotation    | -o                    | The output annotation containing the read counts for each entry.                                              |
+
+* **calculate_expression.py:** calculates expression values (TE and RPKM) for each sample used and adds them to the final table. For TTS predictions, it uses both the short and the long ORF.
+
+| Name                 | Command Line Argument | Description                                                                                                   |
+|----------------------|-----------------------|---------------------------------------------------------------------------------------------------------------|
+| input_xlsx           | -i                    | An input excel file that will be expended by adding translational efficiency and RPKM values.                 |
+| mapped_reads         | -m                    | A file containing the total number of mapped reads for each sample and chromosome/plasmid, created by `get_readcount_gff.sh` |
+| read_counts          | -r                    | A file containing all read counts for each ORF and each sample, created by `get_readcount_gff.sh`             |
+| output_xlsx          | -o                    | The filtered output excel file                                                                                |  
+
 * **post_filter_tts.py:** does an additional post-filtering step on the final .xlsx file, ensuring that no annotated start/stop codons are close to the predicted ORF boundaries. This might help narrowing down results to find good candidates for closer experimental inspection.
 
 | Name                 | Command Line Argument | Description                                                                                                   |
@@ -136,21 +164,14 @@ This section contains short descriptions of each of the scripts (in execution or
 | annotation_gff       | -a                    | The annotation file for the organism that is analysed (`.gff3` format)                                        |
 | target_site          | --target_site         | The site that is currently analysed (TIS / TTS)                                                               |
 | direction            | --direction           | The direction from the (start/stop) that will be filtered. (up/down/both)                                     |
-| size                 | --size                | The size of the interval used for filtering in the current direction (if both is selected the interval spans over 2xsize                            |            
-| output_xlsx          | -o                    | The filtered output excel file                                                                                |            
+| size                 | --size                | The size of the interval used for filtering in the current direction (if both is selected the interval spans over 2xsize | 
+| output_xlsx          | -o                    | The filtered output excel file                                                                                |  
 
-* **xlsx_to_gff.py:** creates simple .gff files from the .xlsx table  
-
-* **call_featurecounts.py:**
-* **get_readcount_gff.sh:**
-
-* **calculate_expression.py:**
-
-* **map_reads_to_annotation.py:**
-
-
-
+## Additional scripts
 * **excel_utils.py:**
+* **call_featurecounts.py:** 
+* **total_mapped_reads.py:**
+* **map_reads_to_annotation.py:**
 
 ## References
 <a id="1">[1]</a> 
