@@ -86,7 +86,8 @@ The following commandline arguments are required:
 | bamfolder           | -b                    | The path to the bamfiles, ensure that each bamfile has an according index file. If not, use `samtools index |bamfile|` for all files missing the index. If installed you can also use `parallel`[[2]](#2),  `parallel  samtools index ::: *.bam` to run it on all bam files.              |
 | tmpfolder           | -t                    | The folder where temporary files will be dumped.                                                                      |
 | readcountthreshold  | -r                    | The readcount threshold used in the analysis, if a position has less than this amount of reads it is ignored (>0)     |
-
+| start_codons        | -x                    | A list of start_codons. (Default: ATG, GTG, TTG) (e.g `-x ATG -x GTG -x TTG ...`)                                                  |
+| stop_codons         | -y                    | A list of stop_codons. (Default: TAG, TAA, TGA) (e.g `-y TAG -y TAA -y TGA ...`)                                                      |
 
 
 If you have your own data, you can run the scripts individually, each of them is described in the [scripts section](#Scripts) below.
