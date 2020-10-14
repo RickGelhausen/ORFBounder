@@ -13,8 +13,9 @@
 # bamfolder="/mnt/datavault/SPP2002/analysis/exp28/bam/"
 # tmpfolder="/mnt/datavault/SPP2002/analysis/campy_tt_analysis/tmp/"
 
+read_count_threshold=5
 # Handling input
-while getopts "h?p:s:a:g:e:m:n:o:c:b:t:r:" opt; do
+while getopts "h?p:s:a:g:e:m:n:o:c:b:t:r:x:y:" opt; do
     case "$opt" in
     h|\?)
         exit 0
@@ -43,8 +44,22 @@ while getopts "h?p:s:a:g:e:m:n:o:c:b:t:r:" opt; do
         ;;
     r)  readcountthreshold=$OPTARG
         ;;
+    x)  start_codons+=("$OPTARG")
+        ;;
+    y)  stop_codons+=("$OPTARG")
+        ;;
     esac
 done
+
+if [ ${#start_codons[@]} -eq 0 ]; then
+    start_codons=("ATG" "GTG" "TTG")
+fi
+
+if [ ${#stop_codons[@]} -eq 0 ]; then
+    stop_codons=("TAG" "TAA" "TGA")
+fi
+
+mkdir -p $tmpfolder
 
 echo "----------------------------------------------------"
 for experiment in ${experiments[*]}; do
@@ -77,7 +92,8 @@ for experiment in ${experiments[*]}; do
             for sample in ${uniq_prefix[@]}; do
                 python3 $scriptpath/TTS_finder.py --fwd_file=$path/$experiment/${mappings[m_i]}/$norm/$sample.$norm.forward.wig --rev_file=$path/$experiment/${mappings[m_i]}/$norm/$sample.$norm.reverse.wig \
                                                   --annotation_file=$annotationpath --genome_file=$genomepath -o=$respath/$sample.$norm.csv --target_site=TTS --p_offset=${offsets[m_i]} \
-                                                  --output_gff=$respath/$sample.$norm.gff --codon_interval_out=$respath/$sample.${norm}_codons.gff -c $readcountthreshold
+                                                  --output_gff=$respath/$sample.$norm.gff --codon_interval_out=$respath/$sample.${norm}_codons.gff -c $readcountthreshold \
+                                                  --start_codons ${start_codons[@]} --stop_codons ${stop_codons[@]}
             done
 
             infiles=()
@@ -86,7 +102,7 @@ for experiment in ${experiments[*]}; do
                 infiles+=($entry)
             done
             python3 $scriptpath/merge_TTS.py -t ${infiles[@]} --contrasts ${contrasts[@]} -x $tmpfolder/${experiment}_${norm}_intermediate.xlsx
-            python3 $scriptpath/detect_longest_potential_ORFs.py -i $tmpfolder/${experiment}_${norm}_intermediate.xlsx -g $genomepath -o $respath/${experiment}_${norm}_overview.xlsx
+            python3 $scriptpath/detect_longest_potential_ORFs.py -i $tmpfolder/${experiment}_${norm}_intermediate.xlsx -g $genomepath -o $respath/${experiment}_${norm}_overview.xlsx --start_codons ${start_codons[@]} --stop_codons ${stop_codons[@]}
             python3 $scriptpath/xlsx_to_gff.py -i $respath/${experiment}_${norm}_overview.xlsx -o $tmpfolder/${experiment}_${norm}_overview.gff
             bash $scriptpath/get_readcount_gff.sh -i $tmpfolder/${experiment}_${norm}_overview.gff -r $tmpfolder/${experiment}_${norm}_overview_readcounts.raw -o $tmpfolder/${experiment}_${norm}_overview_readcounts.gff -b $bamfolder -m $tmpfolder/${experiment}_${norm}_overview_total_mapped.txt -l $tmpfolder/${experiment}_${norm}_overview_lengths.txt
             python3 $scriptpath/calculate_expression.py -i $respath/${experiment}_${norm}_overview.xlsx -m $tmpfolder/${experiment}_${norm}_overview_total_mapped.txt -r $tmpfolder/${experiment}_${norm}_overview_readcounts.gff -o $respath/${experiment}_${norm}_overview_final.xlsx

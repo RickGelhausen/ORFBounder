@@ -15,7 +15,7 @@
 
 read_count_threshold=5
 # Handling input
-while getopts "h?p:s:a:g:e:m:n:o:c:b:t:r:" opt; do
+while getopts "h?p:s:a:g:e:m:n:o:c:b:t:r:x:y:" opt; do
     case "$opt" in
     h|\?)
         exit 0
@@ -44,8 +44,20 @@ while getopts "h?p:s:a:g:e:m:n:o:c:b:t:r:" opt; do
         ;;
     r)  readcountthreshold=$OPTARG
         ;;
+    x)  start_codons+=("$OPTARG")
+        ;;
+    y)  stop_codons+=("$OPTARG")
+        ;;
     esac
 done
+
+if [ ${#start_codons[@]} -eq 0 ]; then
+    start_codons=("ATG" "GTG" "TTG")
+fi
+
+if [ ${#stop_codons[@]} -eq 0 ]; then
+    stop_codons=("TAG" "TAA" "TGA")
+fi
 
 mkdir -p $tmpfolder
 
@@ -76,9 +88,10 @@ for experiment in ${experiments[*]}; do
             uniq_prefix=($(printf "%s\n" "${prefix_list[@]}" | sort -u | tr '\n' ' '))
 
             for sample in ${uniq_prefix[@]}; do
-                python3 $scriptpath/TTS_finder.py --fwd_file=$path/$experiment/${mappings[m_i]}/$norm/$sample.$norm.forward.wig --rev_file=$path/$experiment/${mappings[m_i]}/$norm/$sample.$norm.reverse.wig \
-                                                  --annotation_file=$annotationpath --genome_file=$genomepath -o=$respath/$sample.$norm.csv --target_site=TIS --p_offset=${offsets[m_i]} \
-                                                  --output_gff=$respath/$sample.$norm.gff --codon_interval_out=$respath/$sample.${norm}_codons.gff -c $readcountthreshold
+                python3 $scriptpath/TTS_finder.py --fwd_file $path/$experiment/${mappings[m_i]}/$norm/$sample.$norm.forward.wig --rev_file $path/$experiment/${mappings[m_i]}/$norm/$sample.$norm.reverse.wig \
+                                                  --annotation_file $annotationpath --genome_file $genomepath -o $respath/$sample.$norm.csv --target_site TIS --p_offset ${offsets[m_i]} \
+                                                  --output_gff $respath/$sample.$norm.gff --codon_interval_out $respath/$sample.${norm}_codons.gff -c $readcountthreshold \
+                                                  --start_codons ${start_codons[@]} --stop_codons ${stop_codons[@]}
             done
 
             infiles=()
