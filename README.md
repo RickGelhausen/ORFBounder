@@ -33,7 +33,7 @@ It is important to note that you can also run the analysis partially, by manuall
 Wig files must be split into two individual files, one for each strand. (forward, reverse) A folder can contain wig files of the according mapping and normalization for multiple samples. The scripts will be run on all files and bundled into one result file.
 If you do not have .wig files from `HRIBO`, either create an according folder structure or write your own script tailored to your data, using the scripts provided in this repository. Explanation for each script are provided in the [scripts section](#Scripts).
 
-* `bam files`: `HRIBO` provides `.bam` files containing all read counts. These should be named using the `|method|-|condition|-|replicate|.bam` naming scheme. `|method|` is either `RIBO`, `RNA`, `TIS`, `RNATIS`. `TTS` and `RNATTS` will be supported soon, until then we suggest labeling `TTS` files `TIS`. `|condition|` can be any string and `|replicate|` can be any integer.
+* `bam files`: `HRIBO` provides `.bam` files containing all read counts. These should be named using the `|method|-|condition|-|replicate|.bam` naming scheme. `|method|` is either `RIBO`, `RNA`, `TIS`, `RNATIS`, `TTS`, `RNATTS` . `|condition|` can be any string and `|replicate|` can be any integer.
 
 * `genome file`: a genome file in fasta format for the analysed organism.
 * `annotation file`: an annotation file in .gff3 format for the analysed organism. (Tested using annotation files from NCBI)
@@ -62,7 +62,7 @@ For TIS predictions this is not necessary, as we start from the predicted start-
 
 7. In a final step, expression information is added to all tables for all predicted ORF intervals. This includes both read per kilobase million (RPKM) values and translational efficiency (TE) values. To do this, the read counts are collected using subread-featureCounts. These readcounts are then used in order to calculate both the RPKM and the TE for every sample.
 
- :warning: **IMPORTANT:** The scripts are written to be compatible with the HRIBO workflow, all samples must be in the form `|method|-|condition|-|replicate|`. `|method|` is either `RIBO`, `RNA`, `TIS`, `RNATIS`. `|condition|` can be any string and `|replicate|` can be any integer.
+ :warning: **IMPORTANT:** The scripts are written to be compatible with the HRIBO workflow, all samples must be in the form `|method|-|condition|-|replicate|`. `|method|` is either `RIBO`, `RNA`, `TIS`, `RNATIS`, `TTS`, `RNATTS`. `|condition|` can be any string and `|replicate|` can be any integer.
 
 The chosen thresholds, offsets and coverage mappings can change for each organism, therefore it is advised to investigate the data first to ensure that the right parameters are chosen. :warning:
 
@@ -101,7 +101,7 @@ This section contains short descriptions of each of the scripts (in execution or
 | rev_file             | -r                    | The reverse wig file used for the analysis, complementary to the forward wig file.                                    |
 | annotation_file      | -a                    | The annotation file for the organism that is analysed (`.gff3` format)                                                |
 | genome_file          | -g                    | The genome file for the organism that is analysed (`.fasta` format)                                                   |
-| start_codons         | --start_codons        | A space-seperated list of start_codons. (Default: ATG, CTG, TTG)                                                      |
+| start_codons         | --start_codons        | A space-seperated list of start_codons. (Default: ATG, GTG, TTG)                                                      |
 | stop_codons          | --stop_codons         | A space-seperated list of stop_codons. (Default: TAG, TAA, TGA)                                                       |    
 | p_offset             | --p_offset            | The p-site offset to be used for the current wig files.                                                               |
 | output_gff           | --output_gff          | The output folder for the .gff files for genome browser inspection of the result.                                     |
@@ -125,7 +125,7 @@ This section contains short descriptions of each of the scripts (in execution or
 | input_xlsx           | -i                    | An input xlsx file resulting from the `merge_TTS.py` script                                                   |
 | genome_file          | -g                    | The genome file for the organism that is analysed (`.fasta` format)                                           |
 | output_xlsx          | -o                    | The output excel file                                                                                         |
-| start_codons         | --start_codons        | A space-seperated list of start_codons. (Default: ATG, CTG, TTG)                                              |
+| start_codons         | --start_codons        | A space-seperated list of start_codons. (Default: ATG, GTG, TTG)                                              |
 | stop_codons          | --stop_codons         | A space-seperated list of stop_codons. (Default: TAG, TAA, TGA)                                               |            
 
 * **xlsx_to_gff.py:** creates simple .gff files from an .xlsx table to be used to run featureCounts. This will add read counts for each entry in the .gff file for each sample.
