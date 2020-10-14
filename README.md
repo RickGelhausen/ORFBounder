@@ -101,7 +101,7 @@ This section contains short descriptions of each of the scripts (in execution or
 | rev_file             | -r                    | The reverse wig file used for the analysis, complementary to the forward wig file.                                    |
 | annotation_file      | -a                    | The annotation file for the organism that is analysed (`.gff3` format)                                                |
 | genome_file          | -g                    | The genome file for the organism that is analysed (`.fasta` format)                                                   |
-| start_codons         | --start_codons        | A space-seperated list of start_codons. (Default: ATG, CTG, TTG)                                                      |
+| start_codons         | --start_codons        | A space-seperated list of start_codons. (Default: ATG, GTG, TTG)                                                      |
 | stop_codons          | --stop_codons         | A space-seperated list of stop_codons. (Default: TAG, TAA, TGA)                                                       |    
 | p_offset             | --p_offset            | The p-site offset to be used for the current wig files.                                                               |
 | output_gff           | --output_gff          | The output folder for the .gff files for genome browser inspection of the result.                                     |
@@ -125,7 +125,7 @@ This section contains short descriptions of each of the scripts (in execution or
 | input_xlsx           | -i                    | An input xlsx file resulting from the `merge_TTS.py` script                                                   |
 | genome_file          | -g                    | The genome file for the organism that is analysed (`.fasta` format)                                           |
 | output_xlsx          | -o                    | The output excel file                                                                                         |
-| start_codons         | --start_codons        | A space-seperated list of start_codons. (Default: ATG, CTG, TTG)                                              |
+| start_codons         | --start_codons        | A space-seperated list of start_codons. (Default: ATG, GTG, TTG)                                              |
 | stop_codons          | --stop_codons         | A space-seperated list of stop_codons. (Default: TAG, TAA, TGA)                                               |            
 
 * **xlsx_to_gff.py:** creates simple .gff files from an .xlsx table to be used to run featureCounts. This will add read counts for each entry in the .gff file for each sample.
