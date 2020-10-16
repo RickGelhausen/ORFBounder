@@ -74,7 +74,8 @@ Simply run either `tts_finder_analysis_TTS.sh` or `tts_finder_analysis_TIS.sh` d
 The following commandline arguments are required:
 | Name                | Command Line Argument | Description                                                                                                           |
 |---------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------|
-| path                | -p                    | Path to the project folder, where the wig file folder is located and the result folder will be placed.                |
+| path                | -p                    | Path where the result folder will be placed.                                                                          |
+| coveragepath        | -p                    | Path to the folder containing the experiments that will be analysed                                                   |
 | scriptpath          | -s                    | Path to the TTS_analysis folder, in which all scripts necessary for computation are located.                          |
 | annotationpath      | -a                    | The annotation file for the organism that is analysed (`.gff3` format)                                                |
 | genomepath          | -g                    | The genome file for the organism that is analysed (`.fasta` format)                                                   |
@@ -199,6 +200,29 @@ This section contains short descriptions of each of the scripts (in execution or
 | bamfiles             | -b                    | Bam files of the samples used in the analysis, used for counting the total number of mapped reads.                    |
 | out_mapped           | -m                    | The output file with total number of mapped reads.                                                                    |
 | out_length           | -l                    | The output file with the average read length.                                                                         |
+
+## Extramapping script
+
+If you want to analyse specific read-lengts, you will require both filtered wig and bam files.
+In facilitate the creation of these files, we added the bash script `extramapping.sh`, which automatically generates the required files.
+
+This is a script that is seperate from the analysis and requires different dependencies.
+All required packages are easily retrievable via conda.
+
+```
+conda create -n "extramapping" -c bioconda -c conda-forge pandas samtools ucsc-wigtobigwig
+conda activate extramapping
+```
+
+In addition, it also requires some scripts from `HRIBO` in order to do the mapping. If you do not have an `HRIBO` installation, you can simply download the `mapping.py` script from [GitHub repository](https://github.com/RickGelhausen/HRIBO/blob/master/scripts/mapping.py). (You will also need the `total_mapped_reads.py` script, but this is present in the TTS_analysis folder too. Ensure that both scripts are in the same folder.)
+
+| Name                 | Command Line Argument | Description                                                                                                           |
+|----------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------|
+| bamfolder            | -b                    | Bam files of the samples used in the analysis, used for counting the total number of mapped reads.                    |
+| readlengths          | -r                    | A list of read length for which you want new bam/wig files (intervals are allowed) (e.g. `-r 32 -r 29-31` etc... an interval will create one bam files containing only reads from 29 to 31 in length.                                                                                               |
+| outputfolder         | -o                    | The output folder containing all .bam and .wig files.                                                                 |
+| hriboscriptpath      | -s                    | The path to the `HRIBO scripts` folder. Must contain `total_mapped_reads.py` and  `mapping.py`.                       |
+| genomesizes          | -g                    | A file with the genome sizes. This can be created using samtools: `samtools faidx genome.fa; cut -f1,2 {input[0]} > genomes/sizes.genome;`                                                                                                                                                 |
 
 
 ## References
