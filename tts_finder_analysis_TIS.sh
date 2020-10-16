@@ -15,12 +15,14 @@
 
 read_count_threshold=5
 # Handling input
-while getopts "h?p:s:a:g:e:m:n:o:c:b:t:r:x:y:" opt; do
+while getopts "h?p:s:a:g:e:m:n:o:c:b:t:r:x:y:w:" opt; do
     case "$opt" in
     h|\?)
         exit 0
         ;;
     p)  path=$OPTARG
+        ;;
+    w)  coveragepath=$OPTARG
         ;;
     s)  scriptpath=$OPTARG
         ;;
@@ -65,7 +67,7 @@ echo "----------------------------------------------------"
 for experiment in ${experiments[*]}; do
     for m_i in ${!mappings[@]}; do
         for norm in ${normalizations[*]}; do
-            wigpath="$path/$experiment/${mappings[m_i]}/$norm"
+            wigpath="$coveragepath/$experiment/${mappings[m_i]}/$norm"
             respath="$path/TTS_finder_results/TIS/$experiment/${mappings[m_i]}/${offsets[m_i]}/$norm"
             mkdir -p $respath
             mkdir -p $wigpath
@@ -88,7 +90,7 @@ for experiment in ${experiments[*]}; do
             uniq_prefix=($(printf "%s\n" "${prefix_list[@]}" | sort -u | tr '\n' ' '))
 
             for sample in ${uniq_prefix[@]}; do
-                python3 $scriptpath/TTS_finder.py --fwd_file $path/$experiment/${mappings[m_i]}/$norm/$sample.$norm.forward.wig --rev_file $path/$experiment/${mappings[m_i]}/$norm/$sample.$norm.reverse.wig \
+                python3 $scriptpath/TTS_finder.py --fwd_file $coveragepath/$experiment/${mappings[m_i]}/$norm/$sample.$norm.forward.wig --rev_file $coveragepath/$experiment/${mappings[m_i]}/$norm/$sample.$norm.reverse.wig \
                                                   --annotation_file $annotationpath --genome_file $genomepath -o $respath/$sample.$norm.csv --target_site TIS --p_offset ${offsets[m_i]} \
                                                   --output_gff $respath/$sample.$norm.gff --codon_interval_out $respath/$sample.${norm}_codons.gff -c $readcountthreshold \
                                                   --start_codons ${start_codons[@]} --stop_codons ${stop_codons[@]}
