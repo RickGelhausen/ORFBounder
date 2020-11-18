@@ -234,4 +234,4 @@ HRIBO - High-throughput analysis of bacterial ribosome profiling data
 <a id="2">[2]</a> 
 Tange, O. (2011).
 [GNU Parallel](http://www.gnu.org/software/parallel/) - The Command-Line Power Tool
-[DOI](http://dx.doi.org/10.5281/zenodo.16303)
+[http://dx.doi.org/10.5281/zenodo.16303](http://dx.doi.org/10.5281/zenodo.16303)
