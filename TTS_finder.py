@@ -196,11 +196,11 @@ def create_codon_interlaps(args, chrom, genome_seq, codons):
         # TODO MERGE TOGETHER ONCE IT IS CLEAR THAT IT STAYS LIKE THIS
         if codon in codons:
             if args.target_site == "TIS":
-                interval_start = pos + args.p_offset - 3
-                interval_stop = pos + args.p_offset + 3
+                interval_start = pos + args.p_offset - 2
+                interval_stop = pos + args.p_offset + 2
             else:
-                interval_start = pos + args.p_offset - 3
-                interval_stop = pos + args.p_offset + 3
+                interval_start = pos + args.p_offset - 2
+                interval_stop = pos + args.p_offset + 2
             if interval_start < 0 or interval_stop > len(genome_seq)-2:
                 continue
             key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "+")
@@ -208,11 +208,11 @@ def create_codon_interlaps(args, chrom, genome_seq, codons):
             codon_dict[key] = [codon, 0]
         elif codon in reverse_codons:
             if args.target_site == "TIS":
-                interval_start = pos - args.p_offset+2 - 3
-                interval_stop = pos - args.p_offset+2 + 3
+                interval_start = pos - args.p_offset+2 - 2
+                interval_stop = pos - args.p_offset+2 + 2
             else:
-                interval_start = pos - args.p_offset+2 - 3
-                interval_stop = pos - args.p_offset+2 + 3
+                interval_start = pos - args.p_offset+2 - 2
+                interval_stop = pos - args.p_offset+2 + 2
             if interval_start < 0 or interval_stop > len(genome_seq)-2:
                 continue
             key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "-")
@@ -231,7 +231,7 @@ def screen_wig_for_tts(wig_file_data, codon_interlap, codon_dict, read_count_thr
         position = int(position)-1
         read_count = abs(float(read_count))
         # if read_count > x here could be a readcount restriction
-        if read_count <= read_count_threshold:
+        if read_count <= read_count_threshold:# change here if interval changes
             continue
         matching_codons = list(codon_interlap.find((position, position)))
         for match in matching_codons:
@@ -242,23 +242,45 @@ def get_gene_information(chrom, start_position, stop_position, strand, gene_dict
     # val : genome, start, stop, strand, 0
     type = "Unannotated"
     for key, val in gene_dict.items():
+
         if val[0] != chrom:
             continue
 
-        if abs(start_position-val[1])<10 and abs(val[1]-start_position)<10 and val[3]==strand:
-            type="Near_Annotated"
-            break
-        elif stop_position==val[2] and val[3]==strand:
-            if start_position > val[1]:
-                type="Internal_Inframe"
+        if strand == "+":
+            gene_start, gene_stop = val[1], val[2]
+
+            if abs(start_position-gene_start)<10 and val[3]==strand:
+                type="Near_Annotated"
                 break
+            elif stop_position==gene_stop and val[3]==strand:
+                if start_position > gene_start:
+                    type="Internal_Inframe"
+                    break
+                else:
+                    type="N-terminal_extension"
+                    break
             else:
-                type="N-terminal_extension"
-                break
+                if start_position >= gene_start and start_position <= gene_stop and val[3]==strand:
+                    type="Internal_OutofFrame"
+                    break
         else:
-            if start_position >= val[1] and start_position <= val[2] and val[3]==strand:
-                type="Internal_OutofFrame"
+            gene_start, gene_stop = val[2], val[1]
+
+            if abs(start_position-gene_start)<10 and val[3]==strand:
+                type="Near_Annotated"
                 break
+            elif stop_position==gene_stop and val[3]==strand:
+                if start_position < gene_start:
+                    type="Internal_Inframe"
+                    break
+                else:
+                    type="N-terminal_extension"
+                    break
+            else:
+                if start_position <= gene_start and start_position >= gene_stop and val[3]==strand:
+                    type="Internal_OutofFrame"
+                    break
+
     if type == "Unannotated":
         key = "%s:%s-%s:%s" % (chrom, start_position, stop_position, strand)
 
@@ -280,16 +302,16 @@ def write_codon_interval_gff(args, codon_gff_path, codon_dict):
 
         if args.target_site == "TIS":
             if strand == "+":
-                cur_position = int(start) - args.p_offset + 3
+                cur_position = int(start) - args.p_offset + 2
             elif strand == "-":
-                cur_position = int(start) + args.p_offset + 3
+                cur_position = int(start) + args.p_offset + 2
 
             attribute = "ID=%s;Peak_height=%s;Name=%s;Start_codon=%s;Original_position=%s" % (key, val[1], val[0], val[0], cur_position)
-        else:
+        else:# change here if interval changes
             if strand == "+":
-                cur_position = int(start) - args.p_offset + 3
+                cur_position = int(start) - args.p_offset + 2
             elif strand == "-":
-                cur_position = int(start) + args.p_offset + 3
+                cur_position = int(start) + args.p_offset + 2
 
             attribute = "ID=%s;Peak_height=%s;Name=%s;Stop_codon=%s;Original_position=%s" % (key, val[1], val[0], val[0], cur_position)
 
@@ -331,7 +353,7 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
 
         if args.target_site == "TIS":
             if strand == "+":
-                cur_start = int(interval_start) - args.p_offset + 3
+                cur_start = int(interval_start) - args.p_offset + 2 # change here if interval changes
                 cur_position = cur_start
 
                 if (chrom, cur_position+1, strand) in a_codon_pos:
@@ -358,7 +380,7 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
                     gene_type, gene_name = get_gene_information(chrom, cur_start+1, cur_stop+1, strand, gene_dict)
 
             elif strand == "-":
-                cur_start = int(interval_start) + 5 + args.p_offset - 2
+                cur_start = int(interval_start) + 4 + args.p_offset - 2 # change here if interval changes
                 cur_position = cur_start - 2
 
                 if (chrom, cur_position+1, strand) in a_codon_pos:
@@ -383,11 +405,11 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
                     aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
                     cur_stop = cur_position
 
-                    gene_type, gene_name = get_gene_information(chrom, cur_stop+1, cur_start+1, strand, gene_dict)
+                    gene_type, gene_name = get_gene_information(chrom, cur_start+1, cur_stop+1, strand, gene_dict)
 
         elif args.target_site == "TTS":
             if strand == "+":
-                cur_stop = int(interval_start) - args.p_offset + 5
+                cur_stop = int(interval_start) - args.p_offset + 4 # change here if interval changes
                 cur_position = cur_stop - 2
 
                 if (chrom, cur_position+1, strand) in a_codon_pos:
@@ -414,7 +436,7 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
                     gene_type, gene_name = get_gene_information(chrom, cur_start+1, cur_stop+1, strand, gene_dict)
 
             elif strand == "-":
-                cur_stop = int(interval_start) + 3 + args.p_offset - 2
+                cur_stop = int(interval_start) + 2 + args.p_offset - 2 # change here if interval changes
                 cur_position = cur_stop
 
                 if (chrom, cur_position+1, strand) in a_codon_pos:
@@ -424,7 +446,7 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
                     aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
                 else:
                     nt=genome_seq[cur_position:cur_position+3]
-                    nt_seq=nt
+                    nt_seq=nt# change here if interval changes
                     while nt not in reverse_match_codons:
                         cur_position+=3
                         if cur_position > len(genome_seq)-2:
@@ -439,7 +461,7 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
                     aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
                     cur_start = cur_position + 2
 
-                    gene_type, gene_name = get_gene_information(chrom, cur_stop+1, cur_start+1, strand, gene_dict)
+                    gene_type, gene_name = get_gene_information(chrom, cur_start+1, cur_stop+1, strand, gene_dict)
 
 
         if aa_seq.count("*") > 1:

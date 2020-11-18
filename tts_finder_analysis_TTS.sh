@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
 # bash TTS_analysis/tts_finder_analysis_TTS.sh -p /mnt/datavault/SPP2002/analysis/campy_tt_analysis -s /mnt/datavault/SPP2002/analysis/TTS_analysis -a /mnt/datavault/SPP2002/analysis/exp28/annotation/annotation.gff -g /mnt/datavault/SPP2002/analysis/exp28/genomes/genome.fa -e exp28 -m fiveprime56 -m fiveprime56 -n raw -o -17 -o -30 -c RIBO-A-1_TIS-A-1 -c RIBO-A-1_TIS-A-3 -b /mnt/datavault/SPP2002/analysis/exp28/bam/ -t /mnt/datavault/SPP2002/analysis/campy_tt_analysis/tmp/
+# bash TTS_analysis/tts_finder_analysis_TTS.sh -p /mnt/datavault/SPP2002/analysis/campy_tt_analysis -w /mnt/datavault/SPP2002/analysis/ -s /mnt/datavault/SPP2002/analysis/TTS_analysis -a /mnt/datavault/SPP2002/analysis/ecoli_TTS/annotation/annotation.gff -g /mnt/datavault/SPP2002/analysis/ecoli_TTS/genomes/genome.fa -e ecoli_TTS -m threeprimetracks -n raw -n mil -n min -o 13 -c TTS-WT-1_RIBO-WT-1 -c TTS-WT-2_RIBO-WT-2 -c TTS-PMN-1_TTS-WT-1 -c TTS-PMN-1_TTS-WT-2 -c RIBO-PMN-1_RIBO-WT-1 -c RIBO-PMN-1_RIBO-WT-2 -c TTS-PMN-1_RIBO-PMN-1 -b /mnt/datavault/SPP2002/analysis/ecoli_TTS/bam/ -t /mnt/datavault/SPP2002/analysis/campy_tt_analysis/tmp/ -r 5 
 
 # path="/mnt/datavault/SPP2002/analysis/campy_tt_analysis"
 # scriptpath="/mnt/datavault/SPP2002/analysis/TTS_analysis"
