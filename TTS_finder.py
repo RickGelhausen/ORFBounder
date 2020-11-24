@@ -193,26 +193,25 @@ def create_codon_interlaps(args, chrom, genome_seq, codons):
     codon_dict = {}
     for pos in range(len(genome_seq)-2):
         codon = genome_seq[pos:pos+3]
-        # TODO MERGE TOGETHER ONCE IT IS CLEAR THAT IT STAYS LIKE THIS
         if codon in codons:
-            if args.target_site == "TIS":
-                interval_start = pos + args.p_offset - 2
-                interval_stop = pos + args.p_offset + 2
-            else:
-                interval_start = pos + args.p_offset - 2
-                interval_stop = pos + args.p_offset + 2
+            # if args.target_site == "TIS":
+            interval_start = pos + args.p_offset - 2
+            interval_stop = pos + args.p_offset + 2
+            # else:
+            #     interval_start = pos + args.p_offset - 2
+            #     interval_stop = pos + args.p_offset + 2
             if interval_start < 0 or interval_stop > len(genome_seq)-2:
                 continue
             key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "+")
             fwd_codon_interlap.add((interval_start, interval_stop, key))
             codon_dict[key] = [codon, 0]
         elif codon in reverse_codons:
-            if args.target_site == "TIS":
-                interval_start = pos - args.p_offset+2 - 2
-                interval_stop = pos - args.p_offset+2 + 2
-            else:
-                interval_start = pos - args.p_offset+2 - 2
-                interval_stop = pos - args.p_offset+2 + 2
+            # if args.target_site == "TIS":
+            interval_start = pos - args.p_offset
+            interval_stop = pos - args.p_offset + 4
+            # else:
+                # interval_start = pos - args.p_offset+2 - 2
+                # interval_stop = pos - args.p_offset+2 + 2
             if interval_start < 0 or interval_stop > len(genome_seq)-2:
                 continue
             key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "-")
@@ -353,7 +352,7 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
 
         if args.target_site == "TIS":
             if strand == "+":
-                cur_start = int(interval_start) - args.p_offset + 2 # change here if interval changes
+                cur_start = int(interval_start) - args.p_offset + 2
                 cur_position = cur_start
 
                 if (chrom, cur_position+1, strand) in a_codon_pos:
@@ -380,7 +379,7 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
                     gene_type, gene_name = get_gene_information(chrom, cur_start+1, cur_stop+1, strand, gene_dict)
 
             elif strand == "-":
-                cur_start = int(interval_start) + 4 + args.p_offset - 2 # change here if interval changes
+                cur_start = int(interval_start) + args.p_offset + 2
                 cur_position = cur_start - 2
 
                 if (chrom, cur_position+1, strand) in a_codon_pos:
@@ -409,7 +408,7 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
 
         elif args.target_site == "TTS":
             if strand == "+":
-                cur_stop = int(interval_start) - args.p_offset + 4 # change here if interval changes
+                cur_stop = int(interval_start) - args.p_offset + 4
                 cur_position = cur_stop - 2
 
                 if (chrom, cur_position+1, strand) in a_codon_pos:
@@ -436,7 +435,7 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
                     gene_type, gene_name = get_gene_information(chrom, cur_start+1, cur_stop+1, strand, gene_dict)
 
             elif strand == "-":
-                cur_stop = int(interval_start) + 2 + args.p_offset - 2 # change here if interval changes
+                cur_stop = int(interval_start) + args.p_offset
                 cur_position = cur_stop
 
                 if (chrom, cur_position+1, strand) in a_codon_pos:
