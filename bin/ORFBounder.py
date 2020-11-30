@@ -194,24 +194,16 @@ def create_codon_interlaps(args, chrom, genome_seq, codons):
     for pos in range(len(genome_seq)-2):
         codon = genome_seq[pos:pos+3]
         if codon in codons:
-            # if args.target_site == "TIS":
             interval_start = pos + args.p_offset - 2
             interval_stop = pos + args.p_offset + 2
-            # else:
-            #     interval_start = pos + args.p_offset - 2
-            #     interval_stop = pos + args.p_offset + 2
             if interval_start < 0 or interval_stop > len(genome_seq)-2:
                 continue
             key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "+")
             fwd_codon_interlap.add((interval_start, interval_stop, key))
             codon_dict[key] = [codon, 0]
         elif codon in reverse_codons:
-            # if args.target_site == "TIS":
             interval_start = pos - args.p_offset
             interval_stop = pos - args.p_offset + 4
-            # else:
-                # interval_start = pos - args.p_offset+2 - 2
-                # interval_stop = pos - args.p_offset+2 + 2
             if interval_start < 0 or interval_stop > len(genome_seq)-2:
                 continue
             key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "-")
