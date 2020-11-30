@@ -1,9 +1,9 @@
-# TTS_analysis
+# ORFBounder
 
 Detection of potential start/stop codons based on Translation Initiation Site (TIS) or Translatation Termination Site (TTS) peaks, using a similar concept than the [RETscript for TIS](https://www.sciencedirect.com/science/article/pii/S1097276519301078).
 
 These scripts were created to be used with the metagene-profiling and coverage (.wig) files created by the [HRIBO workflow](https://github.com/RickGelhausen/HRIBO) [[1]](#1).
-Nevertheless, the TTS/TIS_finder scripts can also be used with any other coverage files and metagene-profiling tools.
+Nevertheless, the ORFBounder scripts can also be used with other standard coverage files and metagene-profiling tools.
 
 # Requirements
 ## Required packages
@@ -21,15 +21,15 @@ Packages required are:
 All required packages are easily retrievable via conda.
 
 ```
-conda create -n "TTS_finder" -c bioconda -c conda-forge pysam numpy pandas biopython subread interlap xlrd xlsxwriter
-conda activate TTS_finder
+conda create -n "ORFBounder" -c bioconda -c conda-forge pysam numpy pandas biopython subread interlap xlrd xlsxwriter
+conda activate ORFBounder
 ```
 
 ## Required files
 If you used the HRIBO workflow, you will have all files required to run the analysis. 
 It is important to note that you can also run the analysis partially, by manually calling the individual scripts provided in this repository (e.g. if you do not require expression values, you do not require bam files).
 
-* `wig files:` The wig files for the desired mappings/normalizations. For easy usage, these should be in the HRIBO notation. `path/experiment/mapping/normalization/|method|-|condition|-|replicate|.normalization.forward.wig`. (e.g `/path_to_user/exp1/threeprimetracks/min/TIS-A-1.min.forward.wig`)
+* `wig files:` The wig files for the desired mappings/normalizations. For easy usage, these should be in the HRIBO output notation: `path/experiment/mapping/normalization/|method|-|condition|-|replicate|.normalization.forward.wig`. (e.g `/path_to_user/exp1/threeprimetracks/min/TIS-A-1.min.forward.wig`)
 Wig files must be split into two individual files, one for each strand. (forward, reverse) A folder can contain wig files of the according mapping and normalization for multiple samples. The scripts will be run on all files and bundled into one result file.
 If you do not have .wig files from `HRIBO`, either create an according folder structure or write your own script tailored to your data, using the scripts provided in this repository. Explanation for each script are provided in the [scripts section](#Scripts).
 
@@ -42,12 +42,14 @@ If you do not have .wig files from `HRIBO`, either create an according folder st
 # Analysis 
 To run the scripts, coverage files in `.wig format` are required. We generated the coverage files using `HRIBO` [[1]](#1). `HRIBO` generates coverage files with centered, threeprime, fiveprime and global mappings. Additionally, it provides raw and normalized coverage files for each of the methods (raw, min, mil). 
 Then metagene-profiling is performed on all coverage files. 
-From the resulting metagene-profiling results, we determined the best p-site-offsets for interesting mapping / normalization combinations. These were then analysed with the `TTS_finder` scripts.
-`HRIBO` additionally provides `.bam files` containing all read lengths. If you want to investigate specific read lengths, an example script for filtering .bam files for different read-lengths is provided in this repository.
+From the resulting metagene-profiling results, we determined the best offsets for interesting mapping / normalization combinations. These were then analysed with the `ORF_Bounder` scripts.
+`HRIBO` additionally provides `.bam` files containing all read lengths. If you want to investigate specific read lengths, an example script for filtering .bam files for different read-lengths is provided in this repository.
 
 The analysis is done in multiple steps:
 
-1. First, all potential stop (or start) codons are collected for the TTS (TIS) analysis. The stop codon position is then expanded into an interval of 7nt. These intervals are collected and saved in an InterLap object. The p/a-site offsets are added/substracted from these intervals, in order to ensure that the correct regions are investigated. (The codon intervals are also written to a .gff file. These can be loaded and investigated in a genome-browser.)
+1. First, using the metagene profiling output, the best mapping and offset combinations are determined before running the scripts. (This is step is done by the user and used as input for the script, the following steps are done by the scripts)
+
+2. Then, all potential stop (or start) codons are collected for the TTS (TIS) analysis. The stop codon position is then expanded into an interval of 5nt. These intervals are collected and saved in an InterLap object. The p/a-site offsets are added/substracted from these intervals, in order to ensure that the correct regions are investigated. The codon intervals are also written to a .gff file. These can be loaded and investigated in a genome-browser.
 
 2. Next, the requested .wig files are read and if a position passes a given read_count_threshold (default 5), all codon intervals overlapping with the given position are retrieved and their peak_height is incremented by the read count of the position detected. This matches the coverage peaks with given stop(start) codons. 
 
