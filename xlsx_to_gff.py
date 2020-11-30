@@ -20,7 +20,7 @@ def xlsx_to_gff3(args):
 
     nTuple_gff = collections.namedtuple('Pandas', ["chromosome","source","type","start","stop","score","strand","phase","attribute"])
     header = list(xlsx_df.columns)
-    if "Position_upstream_start" in header:
+    if "Position_alternativ_start" in header:
         target_site = "TTS"
     else:
         target_site = "TIS"
@@ -31,7 +31,7 @@ def xlsx_to_gff3(args):
             genome_id = getattr(row, "Genome")
             start = int(getattr(row, "Start"))
             stop = int(getattr(row, "Stop"))
-            upstream_start = int(getattr(row, "Position_upstream_start"))
+            upstream_start = int(getattr(row, "Position_alternativ_start"))
             strand = getattr(row, "Strand")
 
             attribute_short = "ID=%s" % ("%s:%s-%s:%s" % (genome_id, start, stop, strand))

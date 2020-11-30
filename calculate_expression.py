@@ -158,9 +158,9 @@ def calculate_expression_TTS(args, xlsx_df):
 
     read_count_dict = get_read_counts(args)
 
-    new_header = ["Identifier_short","Identifier_long", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Gene_type",\
-                  "Shortest_codon_count", "Shortest_start_codon", "Position_upstream_start", \
-                  "Longest_codon_count", "Longest_start_codon", "Stop_codon"] \
+    new_header = ["Identifier_short","Identifier_long", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Shortest_Gene_type",\
+                  "Shortest_codon_count", "Shortest_start_codon", "position_alternativ_start", \
+                  "Longest_Gene_type", "Longest_codon_count", "Longest_start_codon", "Stop_codon"] \
                   + dynamic_header_part1 + \
                  ["Shortest_15nt_upstream", "Shortest_Nucleotide_seq", "Shortest_Aminoacid_seq", \
                   "Longest_15nt_upstream", "Longest_Nucleotide_seq", "Longest_Aminoacid_seq", \
@@ -177,12 +177,13 @@ def calculate_expression_TTS(args, xlsx_df):
         stop = int(getattr(row, "Stop"))
         strand = getattr(row, "Strand")
         locus_tag = getattr(row, "Locus_tag")
-        gene_type = getattr(row, "Gene_type")
+        shortest_gene_type = getattr(row, "Shortest_Gene_type")
         shortest_codon_count = int(getattr(row, "Shortest_codon_count"))
         longest_codon_count = int(getattr(row, "Longest_codon_count"))
         shortest_start_codon = getattr(row, "Shortest_start_codon")
         longest_start_codon = getattr(row, "Longest_start_codon")
-        position_upstream_start = int(getattr(row, "Position_upstream_start"))
+        position_alternativ_start = int(getattr(row, "Position_alternativ_start"))
+        longest_gene_type = getattr(row, "Longest_Gene_type")
         stop_codon = getattr(row, "Stop_codon")
         shortest_15nt_upstream = getattr(row, "Shortest_15nt_upstream")
         longest_15nt_upstream = getattr(row, "Longest_15nt_upstream")
@@ -196,9 +197,9 @@ def calculate_expression_TTS(args, xlsx_df):
 
         short_id = "%s:%s-%s:%s" % (genome_id, start, stop, strand)
         if strand == "+":
-            long_id = "%s:%s-%s:%s" % (genome_id, position_upstream_start, stop, strand)
+            long_id = "%s:%s-%s:%s" % (genome_id, position_alternativ_start, stop, strand)
         else:
-            long_id = "%s:%s-%s:%s" % (genome_id, start, position_upstream_start, strand)
+            long_id = "%s:%s-%s:%s" % (genome_id, start, position_alternativ_start, strand)
 
         short_read_count = read_count_dict[short_id]
         long_read_count = read_count_dict[long_id]
@@ -218,19 +219,20 @@ def calculate_expression_TTS(args, xlsx_df):
 
         long_TE_list = eu.calculate_TE(long_rpkm_list, wildcards, conditions)
 
-        result = [short_id, long_id, genome_id, int(start), int(stop), strand, locus_tag, gene_type, \
-                  shortest_codon_count, shortest_start_codon, position_upstream_start, \
-                  longest_codon_count, longest_start_codon, stop_codon] + \
-                 [getattr(row, "_%s" % x) for x in range(13, 13+len(dynamic_header_part1))] + \
+        result = [short_id, long_id, genome_id, int(start), int(stop), strand, locus_tag, shortest_gene_type, \
+                  shortest_codon_count, shortest_start_codon, position_alternativ_start, \
+                  longest_gene_type, longest_codon_count, longest_start_codon, stop_codon] + \
+                 [getattr(row, "_%s" % x) for x in range(14, 14+len(dynamic_header_part1))] + \
                  [shortest_15nt_upstream, shortest_nucleotide_seq, shortest_aminoacid_seq, \
                   longest_15nt_upstream, longest_nucleotide_seq, longest_aminoacid_seq, \
                   upstream_stop_codon, upstream_stop, stop_to_stop_nucleotide_seq] + \
-                 [getattr(row, "_%s" % x) for x in range(22 + len(dynamic_header_part1), 22 + len(dynamic_header_part1)+len(dynamic_header_part2))] + \
+                 [getattr(row, "_%s" % x) for x in range(23 + len(dynamic_header_part1), 23 + len(dynamic_header_part1)+len(dynamic_header_part2))] + \
                   short_TE_list + short_rpkm_list + long_TE_list + long_rpkm_list
 
         rows.append(nTuple(*result))
 
     all_df = pd.DataFrame.from_records(rows, columns=new_header)
+    all_df = all_df.sort_values(by=["Start", "Stop"])
     dataframe_dict = { "all" : all_df }
 
     excel_writer(args, dataframe_dict)
@@ -248,7 +250,7 @@ def main():
     xlsx_df = pd.read_excel(args.in_xlsx, sheet_name=None)["all"]
     header = list(xlsx_df.columns)
 
-    if "Position_upstream_start" in header:
+    if "Position_alternativ_start" in header:
         calculate_expression_TTS(args, xlsx_df)
     else:
         calculate_expression_TIS(args, xlsx_df)

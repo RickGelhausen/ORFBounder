@@ -177,7 +177,7 @@ def get_gene_information(chrom, start_position, stop_position, strand, gene_dict
                     break
         else:
             gene_start, gene_stop = val[2], val[1]
-            print()
+
             if start_position == gene_start and stop_position == gene_stop:
                 type="Annotated"
                 break
