@@ -82,7 +82,7 @@ for experiment in ${experiments[*]}; do
 
             for sample in ${uniq_prefix[@]}; do
                 python3 $scriptpath/ORFBounder.py --fwd_file $coveragepath/$experiment/${mappings[m_i]}/$norm/$sample.$norm.forward.wig --rev_file $coveragepath/$experiment/${mappings[m_i]}/$norm/$sample.$norm.reverse.wig \
-                                                  --annotation_file $annotationpath --genome_file $genomepath -o $respath/$sample.$norm.csv --target_site TIS --p_offset ${offsets[m_i]} \
+                                                  --annotation_file $annotationpath --genome_file $genomepath -o $respath/$sample.$norm.csv --target_site TIS --offset ${offsets[m_i]} \
                                                   --output_gff $respath/$sample.$norm.gff --codon_interval_out $respath/$sample.${norm}_codons.gff -c $readcountthreshold \
                                                   --start_codons ${start_codons[@]} --stop_codons ${stop_codons[@]}
             done

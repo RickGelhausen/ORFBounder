@@ -563,7 +563,7 @@ def main():
     parser.add_argument("-g", "--genome_file", action="store", dest="genome_file", help="input sequence file.", required=True)
     parser.add_argument("--start_codons", nargs="+", dest="start_codons", default=["ATG","GTG","TTG"])
     parser.add_argument("--stop_codons", nargs="+", dest="stop_codons", default=["TAG","TAA","TGA"])
-    parser.add_argument("--p_offset", action="store", dest="p_offset", type=int, default=15)
+    parser.add_argument("--offset", action="store", dest="p_offset", type=int, default=15)
     parser.add_argument("--output_gff", action="store", dest="output_gff", required=True, help="The gff output path.")
     parser.add_argument("--target_site", action="store", dest="target_site", default="TTS", help="TTS / TIS")
     parser.add_argument("-c", "--read_count_threshold", action="store", dest="read_count_threshold", default=5, type=int, help="skip reads lower than this threshold.")
