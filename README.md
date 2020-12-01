@@ -80,7 +80,7 @@ The following commandline arguments are required:
 | Name                | Command Line Argument | Description                                                                                                           |
 |---------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------|
 | path                | -p                    | Path where the result folder will be placed.                                                                          |
-| coveragepath        | -p                    | Path to the folder containing the experiments that will be analysed                                                   |
+| coveragepath        | -w                    | Path to the folder containing the experiments that will be analysed                                                   |
 | scriptpath          | -s                    | Path to the TTS_analysis folder, in which all scripts necessary for computation are located.                          |
 | annotationpath      | -a                    | The annotation file for the organism that is analysed (`.gff3` format)                                                |
 | genomepath          | -g                    | The genome file for the organism that is analysed (`.fasta` format)                                                   |
@@ -90,7 +90,7 @@ The following commandline arguments are required:
 | normalizations      | -n                    | The normalizations to be used (e.g. raw, mil, min) (any subfolder under mapping).                                     |
 | contrasts           | -c                    | The contrasts used for the experiment. If you want log2FC for certain peak-heights in a table you can use this option to indicate which samples should be compared (e.g. RIBO-A-1_TIS-A-1)                                                                                                       |
 | bamfolder           | -b                    | The path to the bamfiles, ensure that each bamfile has an according index file. If not, use `samtools index |bamfile|` for all files missing the index. If installed you can also use `parallel`[[2]](#2),  `parallel  samtools index ::: *.bam` to run it on all bam files.              |
-| tmpfolder           | -t                    | The folder where temporary files will be dumped.                                                                      |
+| tmpfolder           | -t                    | The folder where temporary files will be stored. This can be deleted after the analysis.                              |
 | readcountthreshold  | -r                    | The readcount threshold used in the analysis, if a position has less than this amount of reads it is ignored (>0)     |
 | start_codons        | -x                    | A list of start_codons. (Default: ATG, GTG, TTG) (e.g `-x ATG -x GTG -x TTG ...`)                                     |
 | stop_codons         | -y                    | A list of stop_codons. (Default: TAG, TAA, TGA) (e.g `-y TAG -y TAA -y TGA ...`)                                      |
@@ -98,12 +98,16 @@ The following commandline arguments are required:
 
 ##Examples:
 
+```
+bash ORFBounder_analysis_TIS.sh -p <path/to/analysis/output> -w <path/to/the/experiment/folder> -s bin(default) -a <path/to/annotation> -g <path/to/genome> -e <path/to/folder/containing/experiment/data> -m threeprime32 -m fiveprime -n raw -n mil -n min -o 17 -o -15 -b <path/to/bam/folder> -c RIBO-A-1_TIS-A-1 -c RIBO-A-2_TIS-A-2 -c TIS-A-1_TIS-A-2 -t <path/to/temporary/files> -r 5(default) -f (postfiltering activated)  -x ATG -x TTG (default ATG,GTG,TTG) -y TAG (default TAG,TAA,TGA)
+```
 
 If you have your own data, you can run the scripts individually, each of them is described in the [scripts section](#Scripts) below.
 
 # Scripts
-This section contains short descriptions of each of the scripts (in execution order) and the commandline parameters.
-* **TTS_finder.py:** is the main script which uses annotation, genome and wig files to detect potential ORFs using TIS or TTS read coverage peaks. 
+This section contains short descriptions of each of the scripts (in execution order) and the commandline parameters. The scripts can be found in the bin folder.
+
+* **ORFBounder.py:** is the main script which uses annotation, genome and wig files to detect potential ORFs using TIS or TTS read coverage peaks. 
 
 | Name                 | Command Line Argument | Description                                                                                                           |
 |----------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------|
@@ -113,18 +117,18 @@ This section contains short descriptions of each of the scripts (in execution or
 | genome_file          | -g                    | The genome file for the organism that is analysed (`.fasta` format)                                                   |
 | start_codons         | --start_codons        | A space-seperated list of start_codons. (Default: ATG, GTG, TTG)                                                      |
 | stop_codons          | --stop_codons         | A space-seperated list of stop_codons. (Default: TAG, TAA, TGA)                                                       |    
-| p_offset             | --p_offset            | The p-site offset to be used for the current wig files.                                                               |
+| offset               | --offset              | The offset to be used for the current wig files.                                                               |
 | output_gff           | --output_gff          | The output folder for the .gff files for genome browser inspection of the result.                                     |
 | target_site          | --target_site         | The site you are interested in (TIS / TTS)                                                                            |
 | read_count_threshold | -c                    | The readcount threshold used in the analysis, if a position has less than this amount of reads it is ignored (>0)     |
 | codon_interval_out   | -codon_interval_out   | The output .gff file for the codon intervals which are used to test overlap with a potential codon.                   |
 | output_file          | -o                    | The output .csv file for further processing in the other included scripts.                                            |
 
-* **merge_TTS.py:** merges the .csv files resulting from the `TTS_finder.py` script, for different samples (RIBO-A-1, RIBO-A-2, TIS-A-1, etc...). The merged results are infused with additional information including log2 fold-changes for the different desired contrasts, nucleotide and amino-acid sequences. The resulting information is then written to an excel output file (.xlsx).
+* **merge_TTS.py:** merges the .csv files resulting from the `ORFBounder.py` script, for different samples (RIBO-A-1, RIBO-A-2, TIS-A-1, etc...). The merged results are infused with additional information including log2 fold-changes for the different desired contrasts, nucleotide and amino-acid sequences. The resulting information is then written to an excel output file (.xlsx).
 
 | Name                 | Command Line Argument | Description                                                                                                   |
 |----------------------|-----------------------|---------------------------------------------------------------------------------------------------------------|
-| tables               | -t/--tables           | A list of .csv tables resulting from `TTS_finder.py` that will be merged                                      |
+| tables               | -t/--tables           | A list of .csv tables resulting from `ORFBounder.py` that will be merged                                      |
 | contrasts            | --contrasts           | The contrasts used for the experiment. If you want log2FC for certain peak-heights in the table you can use this option to indicate which samples should be compared (e.g. RIBO-A-1_TIS-A-1)|
 | xlsx                 | -x                    | The output excel file                                                                                         |
 
@@ -146,7 +150,7 @@ This section contains short descriptions of each of the scripts (in execution or
 | output_gff           | -o                    | The output annotation file (.gff)                                                                             |
 
 
-* **get_readcount_gff.sh:** creates the .gff files containing readcounts for all samples. This bash script uses the additional scripts `call_featurrecounts.py`, `total_mapped_reads.py` and `map_read_to_annotation.py`. 
+* **get_readcount_gff.sh:** creates the .gff files containing readcounts for all samples. This bash script uses the additional scripts `call_featurecounts.py`, `total_mapped_reads.py` and `map_read_to_annotation.py`. 
 
 | Name                 | Command Line Argument | Description                                                                                                   |
 |----------------------|-----------------------|---------------------------------------------------------------------------------------------------------------|
@@ -211,8 +215,8 @@ This section contains short descriptions of each of the scripts (in execution or
 
 ## Extramapping script
 
-If you want to analyse specific read-lengts, you will require both filtered wig and bam files.
-In facilitate the creation of these files, we added the bash script `extramapping.sh`, which automatically generates the required files.
+If you want to analyse specific read-lengths, you will require both filtered wig and bam files.
+To facilitate the creation of these files, we added the bash script `extramapping.sh`, which automatically generates the required files.
 
 This is a script that is seperate from the analysis and requires different dependencies.
 All required packages are easily retrievable via conda.
@@ -222,7 +226,7 @@ conda create -n "extramapping" -c bioconda -c conda-forge pandas samtools ucsc-w
 conda activate extramapping
 ```
 
-In addition, it also requires some scripts from `HRIBO` in order to do the mapping. If you do not have an `HRIBO` installation, you can simply download the `mapping.py` script from [GitHub repository](https://github.com/RickGelhausen/HRIBO/blob/master/scripts/mapping.py). (You will also need the `total_mapped_reads.py` script, but this is present in the TTS_analysis folder too. Ensure that both scripts are in the same folder.)
+In addition, it also requires some scripts from `HRIBO` in order to do the mapping. If you do not have an `HRIBO` installation, you can simply download the `mapping.py` script from [GitHub repository](https://github.com/RickGelhausen/HRIBO/blob/master/scripts/mapping.py). (You will also need the `total_mapped_reads.py` script, but this is present in the ORFBounder folder too. Ensure that both scripts are in the same folder.)
 
 | Name                 | Command Line Argument | Description                                                                                                           |
 |----------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------|
