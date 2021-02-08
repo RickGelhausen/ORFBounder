@@ -140,11 +140,11 @@ def calculate_density(wig_file_data, annotation_interlap, gene_dict):
 
     return gene_dict
 
-def annotation_interlap(args):
+def annotation_interlap(annotation_file, target_site):
     """
     create an interlap object for the annotation
     """
-    annotation_dict = generate_annotation_dict(args.annotation_file)
+    annotation_dict = generate_annotation_dict(annotation_file)
 
     annotation_fwd_interlap = InterLap()
     annotation_rev_interlap = InterLap()
@@ -169,7 +169,7 @@ def annotation_interlap(args):
         if locus_tag not in gene_dict:
             gene_dict[locus_tag] = [genome, start, stop, strand, 0]
 
-            if args.target_site == "TIS":
+            if target_site == "TIS":
                 if strand == "+":
                     a_codon_pos[(genome, int(start), strand)] = (start, stop, locus_tag)
                 else:
@@ -182,7 +182,7 @@ def annotation_interlap(args):
 
     return annotation_fwd_interlap, annotation_rev_interlap, gene_dict, a_codon_pos
 
-def create_codon_interlaps(args, chrom, genome_seq, codons):
+def create_codon_interlaps(chrom, genome_seq, codons, p_offset):
     """
     create interlaps around each codon, incorporating the offset
     """
@@ -194,16 +194,16 @@ def create_codon_interlaps(args, chrom, genome_seq, codons):
     for pos in range(len(genome_seq)-2):
         codon = genome_seq[pos:pos+3]
         if codon in codons:
-            interval_start = pos + args.p_offset - 2
-            interval_stop = pos + args.p_offset + 2
+            interval_start = pos + p_offset - 2
+            interval_stop = pos + p_offset + 2
             if interval_start < 0 or interval_stop > len(genome_seq)-2:
                 continue
             key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "+")
             fwd_codon_interlap.add((interval_start, interval_stop, key))
             codon_dict[key] = [codon, 0]
         elif codon in reverse_codons:
-            interval_start = pos - args.p_offset
-            interval_stop = pos - args.p_offset + 4
+            interval_start = pos - p_offset
+            interval_stop = pos - p_offset + 4
             if interval_start < 0 or interval_stop > len(genome_seq)-2:
                 continue
             key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "-")
@@ -212,7 +212,7 @@ def create_codon_interlaps(args, chrom, genome_seq, codons):
 
     return fwd_codon_interlap, rev_codon_interlap, codon_dict
 
-def screen_wig_for_tts(wig_file_data, codon_interlap, codon_dict, read_count_threshold):
+def screen_wig_for_tss(wig_file_data, codon_interlap, codon_dict, read_count_threshold):
     """
     screen over wig file and update the according codon entries
     """
@@ -277,7 +277,17 @@ def get_gene_information(chrom, start_position, stop_position, strand, gene_dict
 
     return type, key
 
-def write_codon_interval_gff(args, codon_gff_path, codon_dict):
+
+def write_gff_file(dataframe_out, output_path, output_basename, target_site):
+    """
+    write a dataframe to a gff file
+    """
+    with open(os.path.join(output_path, target_site, output_basename), "w") as f:
+        f.write("##gff-version 3\n")
+    with open(os.path.join(output_path, target_site, output_basename), "a") as f:
+        dataframe_out.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
+
+def write_codon_interval_gff(output_path, output_basename, codon_dict, p_offset, target_site):
     """
     Create a gff3 file with all codon intervals.
     """
@@ -291,30 +301,28 @@ def write_codon_interval_gff(args, codon_gff_path, codon_dict):
         chrom, mid, strand = key.split(":")
         start, stop = mid.split("-")
 
-        if args.target_site == "TIS":
+        if target_site == "TIS":
             if strand == "+":
-                cur_position = int(start) - args.p_offset + 2
+                cur_position = int(start) - p_offset + 2
             elif strand == "-":
-                cur_position = int(start) + args.p_offset + 2
+                cur_position = int(start) + p_offset + 2
 
             attribute = "ID=%s;Peak_height=%s;Name=%s;Start_codon=%s;Original_position=%s" % (key, val[1], val[0], val[0], cur_position)
         else:# change here if interval changes
             if strand == "+":
-                cur_position = int(start) - args.p_offset + 2
+                cur_position = int(start) - p_offset + 2
             elif strand == "-":
-                cur_position = int(start) + args.p_offset + 2
+                cur_position = int(start) + p_offset + 2
 
             attribute = "ID=%s;Peak_height=%s;Name=%s;Stop_codon=%s;Original_position=%s" % (key, val[1], val[0], val[0], cur_position)
 
         rows.append(nTuple_gff(chrom, "TTS_finder", "codon_interval", int(start)+1, int(stop)+1, ".", strand, ".", attribute))
 
     df = pd.DataFrame.from_records(rows, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-    with open(codon_gff_path, "w") as f:
-        f.write("##gff-version 3\n")
-    with open(codon_gff_path, "a") as f:
-        df.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
 
-def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a_codon_pos):
+    write_gff_file(df, output_path, output_basename, target_site):
+
+def detect_potential_CDS(codon_dict, gene_dict, genome_seq, match_codons, a_codon_pos, p_offset, target_site):
     """
     for each relavent codon site, find a matching orf region
     """
@@ -334,6 +342,7 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
     name_list = ["s%s" % str(x) for x in range(len(header))]
     nTuple = collections.namedtuple('Pandas', name_list)
 
+    detected_codons_list = []
     result_rows = []
     for key, val in codon_dict.items():
         if val[1] <= 0:
@@ -342,9 +351,9 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
         chrom, mid, strand = key.split(":")
         interval_start, interval_stop = mid.split("-")
 
-        if args.target_site == "TIS":
+        if target_site == "TIS":
             if strand == "+":
-                cur_start = int(interval_start) - args.p_offset + 2
+                cur_start = int(interval_start) - p_offset + 2
                 cur_position = cur_start
 
                 if (chrom, cur_position+1, strand) in a_codon_pos:
@@ -371,7 +380,7 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
                     gene_type, gene_name = get_gene_information(chrom, cur_start+1, cur_stop+1, strand, gene_dict)
 
             elif strand == "-":
-                cur_start = int(interval_start) + args.p_offset + 2
+                cur_start = int(interval_start) + p_offset + 2
                 cur_position = cur_start - 2
 
                 if (chrom, cur_position+1, strand) in a_codon_pos:
@@ -398,14 +407,14 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
 
                     gene_type, gene_name = get_gene_information(chrom, cur_start+1, cur_stop+1, strand, gene_dict)
 
-        elif args.target_site == "TTS":
+        elif target_site == "TTS":
             if strand == "+":
-                cur_stop = int(interval_start) - args.p_offset + 4
+                cur_stop = int(interval_start) - p_offset + 4
                 cur_position = cur_stop - 2
 
                 if (chrom, cur_position+1, strand) in a_codon_pos:
                     cur_start, cur_stop, gene_name = a_codon_pos[(chrom, cur_position+1, strand)]
-                    gene_type = "Annotated"
+                    gene_type = "Annotated"_internal_out.gff
                     nt_seq = genome_seq[cur_start-1:cur_stop]
                     aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
                 else:
@@ -427,7 +436,7 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
                     gene_type, gene_name = get_gene_information(chrom, cur_start+1, cur_stop+1, strand, gene_dict)
 
             elif strand == "-":
-                cur_stop = int(interval_start) + args.p_offset
+                cur_stop = int(interval_start) + p_offset
                 cur_position = cur_stop
 
                 if (chrom, cur_position+1, strand) in a_codon_pos:
@@ -474,7 +483,7 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
             else:
                 relative_density = "NaN"
 
-            if args.target_site == "TIS":
+            if target_site == "TIS":
                 fiveprime_dist = out_start - gene_dict[gene_name][1]
                 threeprime_dist = gene_dict[gene_name][2] - out_start
             else:
@@ -488,7 +497,7 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
         if gene_type=="N-terminal_extension":
             relative_density = "NaN"
 
-        if args.target_site == "TIS":
+        if target_site == "TIS":
             if strand == "+":
                 nt_window = genome_seq[out_start-16:out_start-1]
             else:
@@ -499,6 +508,11 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
             else:
                 nt_window = str(Seq(genome_seq[out_start-16:out_start-1]).reverse_complement())
 
+        if target_site == "TIS":
+            detected_codons_list.append(out_start)
+        else:
+            detected_codons_list.append(out_stop)
+
         unique_id="%s:%s-%s:%s" % (chrom, out_start, out_stop, strand)
         result = [gene_type, unique_id, chrom, out_start, out_stop, strand, gene_name, int(len(nt_seq)/3), rpm, start_codon, stop_codon, nt_window, nt_seq, aa_seq, relative_density, fiveprime_dist, threeprime_dist]
         result_rows.append(nTuple(*result))
@@ -506,77 +520,152 @@ def prepare_output_file(args, codon_dict, gene_dict, genome_seq, match_codons, a
         attribute = "ID=%s;Name=%s;Peak_height=%s;Start_codon=%s;Stop_codon=%s;AA_length=%s;Type=%s" % (unique_id, gene_name, rpm, start_codon, stop_codon, int(len(nt_seq)/3), gene_type)
         cur_tuple = nTuple_gff(chrom, "TTS_finder", "CDS", out_start, out_stop, ".", strand, ".", attribute)
         rows_all.append(cur_tuple)
-        if gene_type == "Annotated":
-            rows_annotated.append(cur_tuple)
-        elif gene_type == "Unannotated":
-            rows_unannotated.append(cur_tuple)
-        elif gene_type == "Near_Annotated":
-            rows_near_annotated.append(cur_tuple)
-        elif gene_type == "Internal_Inframe":
-            rows_internal_inframe.append(cur_tuple)
-        elif gene_type == "N-terminal_extension":
-            rows_n_terminal.append(cur_tuple)
-        elif gene_type == "Internal_OutofFrame":
-            rows_internal_out.append(cur_tuple)
-
-    df_all = pd.DataFrame.from_records(rows_all, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-    df_annotated = pd.DataFrame.from_records(rows_annotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-    df_unannotated = pd.DataFrame.from_records(rows_unannotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-    df_near_annotated = pd.DataFrame.from_records(rows_near_annotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-    df_internal_inframe = pd.DataFrame.from_records(rows_internal_inframe, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-    df_n_terminal = pd.DataFrame.from_records(rows_n_terminal, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-    df_internal_out = pd.DataFrame.from_records(rows_internal_out, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+        if split_gff:
+            if gene_type == "Annotated":
+                rows_annotated.append(cur_tuple)
+            elif gene_type == "Unannotated":
+                rows_unannotated.append(cur_tuple)
+            elif gene_type == "Near_Annotated":
+                rows_near_annotated.append(cur_tuple)
+            elif gene_type == "Internal_Inframe":
+                rows_internal_inframe.append(cur_tuple)
+            elif gene_type == "N-terminal_extension":
+                rows_n_terminal.append(cur_tuple)
+            elif gene_type == "Internal_OutofFrame":
+                rows_internal_out.append(cur_tuple)
 
     print("Generating gff files...")
-    with open(args.output_gff, "a") as f:
-        df_all.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
-    with open(args.output_gff.replace(".gff", "_annotated.gff"), "a") as f:
-        df_annotated.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
-    with open(args.output_gff.replace(".gff", "_unannotated.gff"), "a") as f:
-        df_unannotated.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
-    with open(args.output_gff.replace(".gff", "_near_annotated.gff"), "a") as f:
-        df_near_annotated.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
-    with open(args.output_gff.replace(".gff", "_internal_inframe.gff"), "a") as f:
-        df_internal_inframe.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
-    with open(args.output_gff.replace(".gff", "_internal_inframe.gff"), "a") as f:
-        df_internal_inframe.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
-    with open(args.output_gff.replace(".gff", "_n_terminal.gff"), "a") as f:
-        df_n_terminal.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
-    with open(args.output_gff.replace(".gff", "_internal_out.gff"), "a") as f:
-        df_internal_out.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
+    df_all = pd.DataFrame.from_records(rows_all, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
 
+    write_gff_file(df_all, output_path, "results_gff/%s.gff" % output_basename, target_site)
+
+    if split_gff:
+        df_annotated = pd.DataFrame.from_records(rows_annotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+        df_unannotated = pd.DataFrame.from_records(rows_unannotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+        df_near_annotated = pd.DataFrame.from_records(rows_near_annotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+        df_internal_inframe = pd.DataFrame.from_records(rows_internal_inframe, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+        df_n_terminal = pd.DataFrame.from_records(rows_n_terminal, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+        df_internal_out = pd.DataFrame.from_records(rows_internal_out, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+
+        write_gff_file(df_annotated, output_path, "results_gff/%s_annotated.gff" % output_basename, target_site)
+        write_gff_file(df_unannotated, output_path, "results_gff/%s_unannotated.gff" % output_basename, target_site)
+        write_gff_file(df_near_annotated, output_path, "results_gff/%s_near_annotated.gff" % output_basename, target_site)
+        write_gff_file(df_internal_inframe, output_path, "results_gff/%s_internal_inframe.gff" % output_basename, target_site)
+        write_gff_file(df_n_terminal, output_path, "results_gff/%s_n_terminal.gff" % output_basename, target_site)
+        write_gff_file(df_internal_out, output_path, "results_gff/%s_internal_out.gff" % output_basename, target_site)
     print("Done.")
+
     print("Generating output_table...")
     output_df = pd.DataFrame.from_records(result_rows, columns=[header[x] for x in range(len(header))])
-    if not os.path.isfile(args.output_file):
-        output_df.to_csv(args.output_file, sep="\t", index=False, quoting=csv.QUOTE_NONE)
+    out_csv = os.path.join(output_path, target_site, "result_tables", "%s.csv" % output_basename)
+    if not os.path.isfile(out_csv):
+        output_df.to_csv(out_csv, sep="\t", index=False, quoting=csv.QUOTE_NONE)
     else:
-        output_df.to_csv(args.output_file, sep="\t", index=False, quoting=csv.QUOTE_NONE, header=False, mode="a")
+        output_df.to_csv(out_csv, sep="\t", index=False, quoting=csv.QUOTE_NONE, header=False, mode="a")
     print("Done.")
+
+    return detected_codons_list
+
+def handle_input(args):
+    """
+    Check if input is valid.
+    """
+
+    if args.fwd_wig_file_TIS != "" and args.rev_wig_file_TIS != "" and args.fwd_wig_file_TTS != "" and args.rev_wig_file_TTS != "":
+        return "allSites"
+
+    if args.fwd_wig_file_TIS != "" and args.rev_wig_file_TIS != "":
+        return "TIS"
+
+    if args.fwd_wig_file_TTS != "" and args.rev_wig_file_TTS != "":
+        return "TTS"
+
+    sys.exit("Please ensure to either provide 2 TIS files, 2 TTS files OR both")
+
+def execute_single_site_prediction(annotation_file, start_codons, stop_codons, fwd_wig_file, rev_wig_file, output_path, output_basename, codon_interval_out, p_offset, target_site, read_count_threshold):
+    """
+    execute the script for either TIS or TTS
+    """
+    if target_site == "TIS":
+        search_codons = start_codons
+        match_codons = stop_codons
+    else:
+        search_codons = stop_codons
+        match_codons = start_codons
+
+    fwd_wig_dict = load_wig(fwd_wig_file)
+    rev_wig_dict = load_wig(rev_wig_file)
+
+    print("Checking output folder...")
+    if os.path.isdir(os.path.join(args.output_path, target_site)):
+        sys.exit("Result directory already found! Please ensure that prior output folders with the same name are deleted.")
+
+    print("Computing predictions...")
+    for key, val in genome_dict.items():
+        print(key)
+        if key not in fwd_wig_dict:
+            print("No forward wig entry found for chrom: %s" % key)
+            print("Skipping...")
+            continue
+        if key not in rev_wig_dict:
+            print("No reverse wig entry found for chrom: %s" % key)
+            print("Skipping...")
+            continue
+
+        annotation_fwd_interlap, annotation_rev_interlap, gene_density_dict, a_codon_pos = annotation_interlap(annotation_file, target_site)
+        gene_density_dict = calculate_density(fwd_wig_dict[key], annotation_fwd_interlap, gene_density_dict)
+        gene_density_dict = calculate_density(rev_wig_dict[key], annotation_rev_interlap, gene_density_dict)
+
+        fwd_codon_interlap, rev_codon_interlap, codon_dict = create_codon_interlaps(args, key, val[0], search_codons)
+        codon_dict = screen_wig_for_tts(fwd_wig_dict[key], fwd_codon_interlap, codon_dict, read_count_threshold)
+        codon_dict = screen_wig_for_tts(rev_wig_dict[key], rev_codon_interlap, codon_dict, read_count_threshold)
+
+
+        write_codon_interval_gff(, "_%s.gff" % key), codon_dict, p_offset, target_site)
+
+        detect_potential_CDS(args, codon_dict, gene_density_dict, val[0], match_codons, p_offset, a_codon_pos, target_site)
+
 
 def main():
     # store commandline args
     parser = argparse.ArgumentParser(description=".")
-    parser.add_argument("-f", "--fwd_file", action="store", dest="fwd_wig_file", help="input forward wig file.", required=True)
-    parser.add_argument("-r", "--rev_file", action="store", dest="rev_wig_file", help="input reverse wig file.", required=True)
+    parser.add_argument("--fwd_file_TIS", action="store", dest="fwd_wig_file_TIS", default="", help="input forward wig file for TIS.")
+    parser.add_argument("--rev_file_TIS", action="store", dest="rev_wig_file_TIS", default="", help="input reverse wig file for TIS.")
+    parser.add_argument("--fwd_file_TTS", action="store", dest="fwd_wig_file_TTS", default="", help="input forward wig file for TTS.")
+    parser.add_argument("--rev_file_TTS", action="store", dest="rev_wig_file_TTS", default="", help="input reverse wig file for TTS.")
+
     parser.add_argument("-a", "--annotation_file", action="store", dest="annotation_file", help="input annotation file.", required=True)
     parser.add_argument("-g", "--genome_file", action="store", dest="genome_file", help="input sequence file.", required=True)
+
     parser.add_argument("--start_codons", nargs="+", dest="start_codons", default=["ATG","GTG","TTG"])
     parser.add_argument("--stop_codons", nargs="+", dest="stop_codons", default=["TAG","TAA","TGA"])
-    parser.add_argument("--offset", action="store", dest="p_offset", type=int, default=15)
-    parser.add_argument("--output_gff", action="store", dest="output_gff", required=True, help="The gff output path.")
-    parser.add_argument("--target_site", action="store", dest="target_site", default="TTS", help="TTS / TIS")
+
+    parser.add_argument("--offset_TIS", action="store", dest="p_offset_TIS", type=int, default=15)
+    parser.add_argument("--offset_TTS", action="store", dest="p_offset_TTS", type=int, default=15)
+
+    parser.add_argument("--split_gff", action="store_true", dest="split_gff", help="Split gff into one for each gene_type.")
+    parser.add_argument("--output_basename", action="store", dest="output_basename", default="result.gff", help="the basename for all output files." )
     parser.add_argument("-c", "--read_count_threshold", action="store", dest="read_count_threshold", default=5, type=int, help="skip reads lower than this threshold.")
-    parser.add_argument("--codon_interval_out", action="store", dest="codon_interval_out", default="", help="If desired report all codon_intervals as gff3 file.")
-    parser.add_argument("-o","--output_file", action="store", dest="output_file", required=True)
+    parser.add_argument("-o","--output_path", action="store", dest="output_path", required=True, help="Output path to the result folder.")
     args = parser.parse_args()
 
-    if args.target_site == "TTS":
-        search_codons = args.stop_codons
-        match_codons = args.start_codons
+
+    site_info = handle_input(args)
+
+    if site_info == "TIS":
+
+    elif site_info == "TTS":
+
+
     else:
-        search_codons = args.start_codons
-        match_codons = args.stop_codons
+        search_codons_TIS = args.start_codons
+        match_codons_TIS = args.stop_codons
+        search_codons_TTS = args.stop_codons
+        match_codons_TTS = args.start_codons
+        fwd_wig_dict_TIS = load_wig(args.fwd_wig_file_TIS)
+        rev_wig_dict_TIS = load_wig(args.rev_wig_file_TIS)
+        fwd_wig_dict_TTS = load_wig(args.fwd_wig_file_TTS)
+        rev_wig_dict_TTS = load_wig(args.rev_wig_file_TTS)
 
     print("Fetching genome...")
     # read the genome file
@@ -590,53 +679,37 @@ def main():
     #chrom = max(genome_dict.items(), key=operator.itemgetter(1))[0]
     #print("Chromosome: %s" % chrom)
 
-    print("Preparing empty output files")
-    with open(args.output_gff, "w") as f:
-        f.write("##gff-version 3\n")
-    with open(args.output_gff.replace(".gff", "_annotated.gff"), "w") as f:
-        f.write("##gff-version 3\n")
-    with open(args.output_gff.replace(".gff", "_unannotated.gff"), "w") as f:
-        f.write("##gff-version 3\n")
-    with open(args.output_gff.replace(".gff", "_near_annotated.gff"), "w") as f:
-        f.write("##gff-version 3\n")
-    with open(args.output_gff.replace(".gff", "_internal_inframe.gff"), "w") as f:
-        f.write("##gff-version 3\n")
-    with open(args.output_gff.replace(".gff", "_internal_inframe.gff"), "w") as f:
-        f.write("##gff-version 3\n")
-    with open(args.output_gff.replace(".gff", "_n_terminal.gff"), "w") as f:
-        f.write("##gff-version 3\n")
-    with open(args.output_gff.replace(".gff", "_internal_out.gff"), "w") as f:
-        f.write("##gff-version 3\n")
 
-    if os.path.isfile(args.output_file):
-        sys.exit("File already found! Please ensure that prior output tables with the same name are deleted.")
 
-    fwd_wig_dict = load_wig(args.fwd_wig_file)
-    rev_wig_dict = load_wig(args.rev_wig_file)
-    print("Computing predictions...")
-    for key, val in genome_dict.items():
-        print(key)
-        if key not in fwd_wig_dict:
-            print("No forward wig entry found for chrom: %s" % key)
-            print("Skipping...")
-            continue
-        if key not in rev_wig_dict:
-            print("No reverse wig entry found for chrom: %s" % key)
-            print("Skipping...")
-            continue
+def execute_multi_site_prediction(start_codons, stop_codons, fwd_wig_dict_TIS, rev_wig_dict_TIS, fwd_wig_dict_TTS, rev_wig_dict_TTS):
+    """
+    execute the script for both TIS and TTS
+    """
 
-        annotation_fwd_interlap, annotation_rev_interlap, gene_density_dict, a_codon_pos = annotation_interlap(args)
-        gene_density_dict = calculate_density(fwd_wig_dict[key], annotation_fwd_interlap, gene_density_dict)
-        gene_density_dict = calculate_density(rev_wig_dict[key], annotation_rev_interlap, gene_density_dict)
+        print("Computing predictions...")
+        for key, val in genome_dict.items():
+            print(key)
+            if key not in fwd_wig_dict:
+                print("No forward wig entry found for chrom: %s" % key)
+                print("Skipping...")
+                continue
+            if key not in rev_wig_dict:
+                print("No reverse wig entry found for chrom: %s" % key)
+                print("Skipping...")
+                continue
 
-        fwd_codon_interlap, rev_codon_interlap, codon_dict = create_codon_interlaps(args, key, val[0], search_codons)
-        codon_dict = screen_wig_for_tts(fwd_wig_dict[key], fwd_codon_interlap, codon_dict, args.read_count_threshold)
-        codon_dict = screen_wig_for_tts(rev_wig_dict[key], rev_codon_interlap, codon_dict, args.read_count_threshold)
+            annotation_fwd_interlap, annotation_rev_interlap, gene_density_dict, a_codon_pos = annotation_interlap(args)
+            gene_density_dict = calculate_density(fwd_wig_dict[key], annotation_fwd_interlap, gene_density_dict)
+            gene_density_dict = calculate_density(rev_wig_dict[key], annotation_rev_interlap, gene_density_dict)
 
-        if args.codon_interval_out != "":
-            write_codon_interval_gff(args, args.codon_interval_out.replace(".gff", "_%s.gff" % key), codon_dict)
+            fwd_codon_interlap, rev_codon_interlap, codon_dict = create_codon_interlaps(args, key, val[0], search_codons)
+            codon_dict = screen_wig_for_tts(fwd_wig_dict[key], fwd_codon_interlap, codon_dict, args.read_count_threshold)
+            codon_dict = screen_wig_for_tts(rev_wig_dict[key], rev_codon_interlap, codon_dict, args.read_count_threshold)
 
-        prepare_output_file(args, codon_dict, gene_density_dict, val[0], match_codons, a_codon_pos)
+            if args.codon_interval_out != "":
+                write_codon_interval_gff(args, args.codon_interval_out.replace(".gff", "_%s.gff" % key), codon_dict)
+
+            prepare_output_file(args, codon_dict, gene_density_dict, val[0], match_codons, a_codon_pos)
 
     print("Terminating...")
 
