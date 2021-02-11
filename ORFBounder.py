@@ -78,7 +78,7 @@ def main():
     parser.add_argument("--offset_TTS", action="store", dest="p_offset_TTS", type=int, default=15)
 
     parser.add_argument("--split_gff", action="store_true", dest="split_gff", help="Split gff into one for each gene_type.")
-    parser.add_argument("--max_ORF_length", action="store", dest="max_ORF_length", help="The max length to search for when using TIS and TTS.")
+    parser.add_argument("--max_ORF_length", action="store", dest="max_ORF_length", default=100, help="The max length to search for when using TIS and TTS combined.")
     parser.add_argument("--output_basename", action="store", dest="output_basename", default="result.gff", help="the basename for all output files." )
     parser.add_argument("-c", "--read_count_threshold", action="store", dest="read_count_threshold", default=5, type=int, help="skip reads lower than this threshold.")
     parser.add_argument("-o","--output_path", action="store", dest="output_path", required=True, help="Output path to the result folder.")
@@ -114,7 +114,8 @@ def main():
                                           args.output_basename, args.p_offset_TTS, "TTS", args.read_count_threshold)
 
 
-        detect_
+        predictions.combined_data_detection(tis_predictions, tts_predictions, args.max_ORF_length)
+
 
     print("Terminating...")
 

@@ -117,7 +117,7 @@ def write_results_to_output_files(df_results, output_path, output_basename, spli
         identifier = getattr(row, "Identifier")
         start_codon = getattr(row, "start_codon")
         stop_codon = getattr(row, "stop_codon")
-        peak_height = gatattr(row, "peak_height")
+        peak_height = float(getattr(row, "peak_height"))
         aa_length = len(getattr(row, "aa_seq"))
         locus_tag = getattr(row, "locus_tag")
 

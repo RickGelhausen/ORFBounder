@@ -257,3 +257,16 @@ def detect_potential_ORFs(codon_dict, gene_dict, genome_seq, match_codons, a_cod
     df_results = pd.DataFrame.from_records(result_rows, columns=[header[x] for x in range(len(header))])
 
     return df_results, detected_codons_list
+
+
+def combined_data_detection(tis_predictions, tts_predictions, max_ORF_length):
+    """
+    Use the detected TIS start position and TTS stop positions to find potentially quality ORFs.
+    """
+
+    combined_ORFs = []
+    for start in tis_predictions:
+        for stop in tts_predictions:
+            if get_frame(start) == get_frame(stop):
+                if stop - start + 1 <= max_ORF_length:
+                    combined_ORFs.append((start, stop))

@@ -177,3 +177,10 @@ def annotation_interlap(annotation_file, method):
                     a_codon_pos[(genome, int(start), strand)] = (start, stop, locus_tag)
 
     return annotation_fwd_interlap, annotation_rev_interlap, gene_dict, a_codon_pos
+
+
+def get_frame(position):
+    """
+    get the reading from for the given position
+    """
+    return position % 3
