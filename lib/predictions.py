@@ -74,14 +74,6 @@ def detect_potential_ORFs(codon_dict, gene_dict, genome_seq, match_codons, a_cod
     reverse_match_codons = [str(Seq(codon).reverse_complement()) for codon in match_codons]
 
     rows_all = []
-    rows_annotated = []
-    rows_unannotated = []
-    rows_near_annotated = []
-    rows_internal_inframe = []
-    rows_n_terminal = []
-    rows_internal_out = []
-
-    nTuple_gff = collections.namedtuple('Pandas', ["chromosome","source","type","start","stop","score","strand","phase","attribute"])
 
     header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "locus_tag", "codon_count", "peak_height", "start_codon", "stop_codon", "15nt window", "nt_seq", "aa_seq", "relative_density", "5'-distance", "3'-distance"]
     name_list = ["s%s" % str(x) for x in range(len(header))]
@@ -110,7 +102,7 @@ def detect_potential_ORFs(codon_dict, gene_dict, genome_seq, match_codons, a_cod
                     nt=genome_seq[cur_position:cur_position+3]
                     nt_seq=nt
                     while nt not in match_codons:
-                        cur_position+=3
+                        cur_position+=3multiple
                         if cur_position > len(genome_seq)-2:
                             breakCDS
                         nt = genome_seq[cur_position:cur_position+3]
@@ -265,54 +257,3 @@ def detect_potential_ORFs(codon_dict, gene_dict, genome_seq, match_codons, a_cod
     df_results = pd.DataFrame.from_records(result_rows, columns=[header[x] for x in range(len(header))])
 
     return df_results, detected_codons_list
-
-
-    #
-    # if split_gff:
-    #     if gene_type == "Annotated":
-    #         rows_annotated.append(cur_tuple)
-    #     elif gene_type == "Unannotated":
-    #         rows_unannotated.append(cur_tuple)
-    #     elif gene_type == "Near_Annotated":
-    #         rows_near_annotated.append(cur_tuple)
-    #     elif gene_type == "Internal_Inframe":
-    #         rows_internal_inframe.append(cur_tuple)
-    #     elif gene_type == "N-terminal_extension":
-    #         rows_n_terminal.append(cur_tuple)
-    #     elif gene_type == "Internal_OutofFrame":
-    #         rows_internal_out.append(cur_tuple)
-    #
-    # df_all = pd.DataFrame.from_records(rows_all, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-    # print("Generating gff files...")
-    #
-    # write_gff_file(df_gff_all, df_ output_path, "results_gff/%s.gff" % output_basename, method)
-    #
-    # if split_gff:
-    #     df_annotated = pd.DataFrame.from_records(rows_annotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-    #     df_unannotated = pd.DataFrame.from_records(rows_unannotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-    #     df_near_annotated = pd.DataFrame.from_records(rows_near_annotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-    #     df_internal_inframe = pd.DataFrame.from_records(rows_internal_inframe, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-    #     df_n_terminal = pd.DataFrame.from_records(rows_n_terminal, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-    #     df_internal_out = pd.DataFrame.from_records(rows_internal_out, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-    #
-    #     write_gff_file(df_annotated, output_path, "results_gff/%s_annotated.gff" % output_basename, method)
-    #     write_gff_file(df_unannotated, output_path, "results_gff/%s_unannotated.gff" % output_basename, method)
-    #     write_gff_file(df_near_annotated, output_path, "results_gff/%s_near_annotated.gff" % output_basename, method)
-    #     write_gff_file(df_internal_inframe, output_path, "results_gff/%s_internal_inframe.gff" % output_basename, method)
-    #     write_gff_file(df_n_terminal, output_path, "results_gff/%s_n_terminal.gff" % output_basename, method)
-    #     write_gff_file(df_internal_out, output_path, "results_gff/%s_internal_out.gff" % output_basename, method)
-    # print("Done.")
-    # print("Generating output_table...")
-    #
-    # out_csv = os.path.join(output_path, method, "result_tables", "%s.csv" % output_basename)
-    # if not os.path.isfile(out_csv):
-    #     output_df.to_csv(out_csv, sep="\t", index=False, quoting=csv.QUOTE_NONE)
-    # else:
-    #     output_df.to_csv(out_csv, sep="\t", index=False, quoting=csv.QUOTE_NONE, header=False, mode="a")
-    # print("Done.")
-    #
-    #     attribute = "ID=%s;Name=%s;Peak_height=%s;Start_codon=%s;Stop_codon=%s;AA_length=%s;Type=%s" % (unique_id, gene_name, rpm, start_codon, stop_codon, int(len(nt_seq)/3), gene_type)
-    #     cur_tuple = nTuple_gff(chrom, "ORFBounder", "CDS", out_start, out_stop, ".", strand, ".", attribute)
-    #
-    #     rows_all.append(cur_tuple)
-    # df_gff_all = pd.DataFrame.from_records(rows_all, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
