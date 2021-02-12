@@ -1,5 +1,13 @@
 #!/usr/bin/env python
 
+from Bio.Seq import Seq
+from Bio import SeqIO
+from Bio.Alphabet import generic_dna
+import collections
+import pandas as pd
+
+import lib.misc as misc
+
 def screen_wig_for_tss(wig_file_data, codon_interlap, codon_dict, read_count_threshold):
     """
     screen over wig file and update the according codon entries
@@ -102,7 +110,7 @@ def detect_potential_ORFs(codon_dict, gene_dict, genome_seq, match_codons, a_cod
                     nt=genome_seq[cur_position:cur_position+3]
                     nt_seq=nt
                     while nt not in match_codons:
-                        cur_position+=3multiple
+                        cur_position+=3
                         if cur_position > len(genome_seq)-2:
                             breakCDS
                         nt = genome_seq[cur_position:cur_position+3]
@@ -151,7 +159,7 @@ def detect_potential_ORFs(codon_dict, gene_dict, genome_seq, match_codons, a_cod
 
                 if (chrom, cur_position+1, strand) in a_codon_pos:
                     cur_start, cur_stop, gene_name = a_codon_pos[(chrom, cur_position+1, strand)]
-                    gene_type = "Annotated"_internal_out.gff
+                    gene_type = "Annotated"
                     nt_seq = genome_seq[cur_start-1:cur_stop]
                     aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
                 else:
@@ -275,13 +283,13 @@ def combined_data_detection(tis_predictions, tts_predictions, max_ORF_length):
     combined_ORFs_gff = []
     for chrom, strand in tis_predictions.keys():
         try:
-            for start in tis_predictions[key]:
-                for stop in tts_predictions[key]:
-                    if get_frame(start) == get_frame(stop):
+            for start in tis_predictions[(chrom,strand)]:
+                for stop in tts_predictions[(chrom,strand)]:
+                    if misc.get_frame(start) == misc.get_frame(stop):
                         if stop - start + 1 <= max_ORF_length:
                             attributes = "ID=%s:%s-%s:%s;Name=%s:%s-%s:%s;" % (chrom, start, stop, strand, stop, start, stop, strand)
 
-                            combined_ORFs_gff.append((chrom, "ORFBounder", start, stop, ".", strand, ".", attributes))
+                            combined_ORFs_gff.append((chrom, "ORFBounder", "CDS", start, stop, ".", strand, ".", attributes))
         except KeyError:
             continue
 

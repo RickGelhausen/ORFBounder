@@ -1,5 +1,12 @@
 #!/usr/bin/env python
 
+import os
+import re
+import csv
+import collections
+import pandas as pd
+from pathlib import Path
+
 from Bio.Seq import Seq
 from Bio import SeqIO
 from Bio.Alphabet import generic_dna
@@ -9,7 +16,7 @@ def generate_genome_dict(genome_file):
     read a genome fasta file into a dictionary
     """
     genome_file = SeqIO.parse(genome_file, "fasta")
-    genome_dict = dict()
+    genome_dict = {}
     for entry in genome_file:
         genome_dict[str(entry.id)] = (str(entry.seq), str(entry.seq.complement()))
 
@@ -56,9 +63,12 @@ def write_gff_file(dataframe_out, output_path, output_filename, method):
     """
     write a dataframe to a gff file
     """
-    with open(os.path.join(output_path, method, output_filename), "w") as f:
+    filename = os.path.join(output_path, method, output_filename)
+    Path(os.path.dirname(filename)).mkdir(parents=True, exist_ok=True)
+
+    with open(filename, "w") as f:
         f.write("##gff-version 3\n")
-    with open(os.path.join(output_path, method, output_filename), "a") as f:
+    with open(filename, "a") as f:
         dataframe_out.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
 
 def write_codon_interval_gff(output_path, output_basename, codon_dict, p_offset, method):
@@ -144,26 +154,33 @@ def write_results_to_output_files(df_results, output_path, output_basename, spli
 
     print("Generating gff files...")
     df_all = pd.DataFrame.from_records(gff_all, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-    write_gff_file(df_all, df_ output_path, os.path.join("results_gff","%s.gff" % output_basename), method)
+    write_gff_file(df_all, output_path, os.path.join("results_gff","%s.gff" % output_basename), method)
 
     if split_gff:
         df_annotated = pd.DataFrame.from_records(gff_annotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-        df_unannotated = pd.DataFrame.from_records(gff_unannotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-        df_near_annotated = pd.DataFrame.from_records(gff_near_annotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-        df_internal_inframe = pd.DataFrame.from_records(gff_internal_inframe, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-        df_n_terminal = pd.DataFrame.from_records(gff_n_terminal, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-        df_internal_out = pd.DataFrame.from_records(gff_internal_out, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-
         write_gff_file(df_annotated, output_path, os.path.join("results_gff","%s_annotated.gff" % output_basename), method)
+
+        df_unannotated = pd.DataFrame.from_records(gff_unannotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
         write_gff_file(df_unannotated, output_path, os.path.join("results_gff","%s_unannotated.gff" % output_basename), method)
+
+        df_near_annotated = pd.DataFrame.from_records(gff_near_annotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
         write_gff_file(df_near_annotated, output_path, os.path.join("results_gff","%s_near_annotated.gff" % output_basename), method)
+
+        df_internal_inframe = pd.DataFrame.from_records(gff_internal_inframe, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
         write_gff_file(df_internal_inframe, output_path, os.path.join("results_gff","%s_internal_inframe.gff" % output_basename), method)
+
+        df_n_terminal = pd.DataFrame.from_records(gff_n_terminal, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
         write_gff_file(df_n_terminal, output_path, os.path.join("results_gff","%s_n_terminal.gff" % output_basename), method)
+
+        df_internal_out = pd.DataFrame.from_records(gff_internal_out, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
         write_gff_file(df_internal_out, output_path, os.path.join("results_gff","%s_internal_out.gff" % output_basename), method)
+
     print("Done.")
 
     print("Generating output_table...")
     out_csv = os.path.join(output_path, method, "result_tables", "%s.csv" % output_basename)
+    Path(os.path.dirname(out_csv)).mkdir(parents=True, exist_ok=True)
+
     if not os.path.isfile(out_csv):
         df_results.to_csv(out_csv, sep="\t", index=False, quoting=csv.QUOTE_NONE)
     else:

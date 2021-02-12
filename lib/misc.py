@@ -1,5 +1,10 @@
 #!/usr/bin/env python
+import re
+import pandas as pd
+
+from Bio.Seq import Seq
 from interlap import InterLap
+
 
 def calculate_density(wig_file_data, annotation_interlap, gene_dict):
     """
