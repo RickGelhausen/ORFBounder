@@ -79,7 +79,7 @@ def detect_potential_ORFs(codon_dict, gene_dict, genome_seq, match_codons, a_cod
     name_list = ["s%s" % str(x) for x in range(len(header))]
     nTuple = collections.namedtuple('Pandas', name_list)
 
-    detected_codons_list = []
+    detected_codons_dict = {}
     result_rows = []
     for key, val in codon_dict.items():
         if val[1] <= 0:
@@ -246,9 +246,15 @@ def detect_potential_ORFs(codon_dict, gene_dict, genome_seq, match_codons, a_cod
                 nt_window = str(Seq(genome_seq[out_start-16:out_start-1]).reverse_complement())
 
         if method == "TIS":
-            detected_codons_list.append(out_start)
+            if (chrom, strand) in detected_codons_dict:
+                detected_codons_dict[(chrom, strand)].append(out_start)
+            else:
+                detected_codons_dict[(chrom, strand)] = []
         else:
-            detected_codons_list.append(out_stop)
+            if (chrom, strand) in detected_codons_dict:
+                detected_codons_dict[(chrom, strand)].append(out_stop)
+            else:
+                detected_codons_dict[(chrom, strand)] = []
 
         unique_id="%s:%s-%s:%s" % (chrom, out_start, out_stop, strand)
         result = [gene_type, unique_id, chrom, out_start, out_stop, strand, gene_name, int(len(nt_seq)/3), rpm, start_codon, stop_codon, nt_window, nt_seq, aa_seq, relative_density, fiveprime_dist, threeprime_dist]
@@ -256,7 +262,7 @@ def detect_potential_ORFs(codon_dict, gene_dict, genome_seq, match_codons, a_cod
 
     df_results = pd.DataFrame.from_records(result_rows, columns=[header[x] for x in range(len(header))])
 
-    return df_results, detected_codons_list
+    return df_results, detected_codons_dict
 
 
 def combined_data_detection(tis_predictions, tts_predictions, max_ORF_length):
@@ -264,9 +270,19 @@ def combined_data_detection(tis_predictions, tts_predictions, max_ORF_length):
     Use the detected TIS start position and TTS stop positions to find potentially quality ORFs.
     """
 
-    combined_ORFs = []
-    for start in tis_predictions:
-        for stop in tts_predictions:
-            if get_frame(start) == get_frame(stop):
-                if stop - start + 1 <= max_ORF_length:
-                    combined_ORFs.append((start, stop))
+    nTuple_gff = collections.namedtuple('Pandas', ["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+
+    combined_ORFs_gff = []
+    for chrom, strand in tis_predictions.keys():
+        try:
+            for start in tis_predictions[key]:
+                for stop in tts_predictions[key]:
+                    if get_frame(start) == get_frame(stop):
+                        if stop - start + 1 <= max_ORF_length:
+                            attributes = "ID=%s:%s-%s:%s;Name=%s:%s-%s:%s;" % (chrom, start, stop, strand, stop, start, stop, strand)
+
+                            combined_ORFs_gff.append((chrom, "ORFBounder", start, stop, ".", strand, ".", attributes))
+        except KeyError:
+            continue
+
+    return pd.DataFrame.from_records(combined_ORFs_gff, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])

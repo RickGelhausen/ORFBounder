@@ -53,12 +53,12 @@ def prediction_call(annotation_file, start_codons, stop_codons, fwd_wig_file, re
         codon_dict = predictions.screen_wig_for_tts(rev_wig_dict[key], rev_codon_interlap, codon_dict, read_count_threshold)
 
 
-        io.write_codon_interval_gff(output_path, "codon_intervals/%s_%s_intervals.gff" % (output_basename, key), codon_dict, p_offset, method)
+        io.write_codon_interval_gff(output_path, os.path.join("codon_intervals","%s_%s_intervals.gff" % (output_basename, key)), codon_dict, p_offset, method)
 
-        df_results, detected_codons_list = predictions.detect_potential_CDS(args, codon_dict, gene_density_dict, val[0], match_codons, p_offset, a_codon_pos, method)
+        df_results, detected_codons_dict = predictions.detect_potential_CDS(args, codon_dict, gene_density_dict, val[0], match_codons, p_offset, a_codon_pos, method)
         io.write_results_to_output_files(df_results, output_path, output_basename, split_gff, method)
 
-    return detected_codons_list
+    return detected_codons_dict
 
 def main():
     # store commandline args
@@ -114,7 +114,9 @@ def main():
                                           args.output_basename, args.p_offset_TTS, "TTS", args.read_count_threshold)
 
 
-        predictions.combined_data_detection(tis_predictions, tts_predictions, args.max_ORF_length)
+        combined_predictions_df = predictions.combined_data_detection(tis_predictions, tts_predictions, args.max_ORF_length)
+
+        io.write_gff_file(df, args.output_path, os.path.join("results_gff", "%s" % args.output_basename), method)
 
 
     print("Terminating...")
