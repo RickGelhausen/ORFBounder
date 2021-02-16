@@ -28,7 +28,7 @@ def handle_input(args):
     """
 
     if args.fwd_wig_file_TIS != "" and args.rev_wig_file_TIS != "" and args.fwd_wig_file_TTS != "" and args.rev_wig_file_TTS != "":
-        return "allSites"
+        return "combined_methods"
 
     if args.fwd_wig_file_TIS != "" and args.rev_wig_file_TIS != "":
         return "TIS"
@@ -106,13 +106,19 @@ def write_codon_interval_gff(output_path, output_basename, codon_dict, p_offset,
 
     write_gff_file(df, output_path, output_basename, method)
 
-def write_results_to_output_files(df_results, output_path, output_basename, split_gff, method):
+def write_results_to_output_files(detected_ORFs_dict, gene_dict, , output_path, output_basename, split_gff, method):
     """
-    write output to file,
-    if split_gff == True then write one additional output file for each gene_type
+    write a csv file containing all information,
+    write a gff file comtaining the ORFs from the csv,
+
+    if split_gff == True then write one additional gff file for each gene_type
     """
 
     nTuple_gff = collections.namedtuple('Pandas', ["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+
+    header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "locus_tag", "codon_count", "peak_height", "start_codon", "stop_codon", "15nt window", "nt_seq", "aa_seq", "relative_density", "5'-distance", "3'-distance"]
+    name_list = ["s%s" % str(x) for x in range(len(header))]
+    nTuple = collections.namedtuple('Pandas', name_list)
 
     gff_all = []
     gff_annotated = []
@@ -122,8 +128,10 @@ def write_results_to_output_files(df_results, output_path, output_basename, spli
     gff_n_terminal = []
     gff_internal_out = []
 
-    for row in df_results.itertuples(index=False, name='Pandas'):
-        gene_type = getattr(row, "Type")
+    for (chrom, strand), (start, stop, rpm_start, rpm_stop) in detected_ORFs_dict.items():
+        gene_type, gene_name = get_gene_information(chrom, start, stop, strand, gene_dict)
+
+
         identifier = getattr(row, "Identifier")
         start_codon = getattr(row, "start_codon")
         stop_codon = getattr(row, "stop_codon")
@@ -135,7 +143,7 @@ def write_results_to_output_files(df_results, output_path, output_basename, spli
         start, stop = mid.split("-")
 
         attribute = "ID=%s;Name=%s;Peak_height=%s;Start_codon=%s;Stop_codon=%s;AA_length=%s;Type=%s" % (identifier, locus_tag, peak_height, start_codon, stop_codon, aa_length, gene_type)
-        cur_tuple = nTuple_gff(chrom, "ORFBounder", "CDS", int(start), int(stop), ".", strand, ".", attribute)
+        cur_tuple = nTuple_gff(chrom, "ORFBounder", "CDS", int(start)-1, int(stop)-1, ".", strand, ".", attribute)
 
         gff_all.append(cur_tuple)
         if split_gff:
@@ -186,3 +194,70 @@ def write_results_to_output_files(df_results, output_path, output_basename, spli
     else:
         df_results.to_csv(out_csv, sep="\t", index=False, quoting=csv.QUOTE_NONE, header=False, mode="a")
     print("Done.")
+
+def write_output_files():
+    """
+
+    """
+
+
+
+            if (chrom, cur_position+1, strand) in a_codon_pos:
+                cur_start, cur_stop, gene_name = a_codon_pos[(chrom, cur_position+1, strand)]
+                gene_type = "Annotated"
+                nt_seq = genome_seq[cur_start-1:cur_stop]
+                aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
+            else:
+            aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
+
+
+        if aa_seq.count("*") > 1:
+            continue
+
+        if gene_type != "Annotated":
+
+        else:
+            out_start, out_stop = cur_start, cur_stop
+
+    if gene_name in gene_dict:
+        gene_rpm = gene_dict[gene_name][4]
+        if gene_rpm != 0:
+            relative_density = rpm / gene_rpm
+        else:
+            relative_density = "NaN"
+
+        if method == "TIS":
+            fiveprime_dist = out_start - gene_dict[gene_name][1]
+            threeprime_dist = gene_dict[gene_name][2] - out_start
+        else:
+            fiveprime_dist = out_stop - gene_dict[gene_name][1]
+            threeprime_dist = gene_dict[gene_name][2] - out_stop
+    else:
+        fiveprime_dist, threeprime_dist, relative_density = "NaN", "NaN", "NaN"
+
+
+        if gene_type=="N-terminal_extension":
+            relative_density = "NaN"
+
+        if method == "TIS":
+            if strand == "+":
+                nt_window = genome_seq[out_start-16:out_start-1]
+            else:
+                nt_window = str(Seq(genome_seq[out_stop:out_stop+15]).reverse_complement())
+        else:
+            if strand == "+":
+                nt_window = genome_seq[out_stop:out_stop+15]
+            else:
+                nt_window = str(Seq(genome_seq[out_start-16:out_start-1]).reverse_complement())
+
+        start_codon, stop_codon = nt_seq[:3], nt_seq[-3:]
+
+            unique_id="%s:%s-%s:%s" % (chrom, out_start, out_stop, strand)
+            result = [gene_type, unique_id, chrom, out_start, out_stop, strand, gene_name, int(len(nt_seq)/3), rpm, start_codon, stop_codon, nt_window, nt_seq, aa_seq, relative_density, fiveprime_dist, threeprime_dist]
+    df_results = pd.DataFrame.from_records(result_rows, columns=[header[x] for x in range(len(header))])
+
+                                attributes = "ID=%s:%s-%s:%s;Name=%s:%s-%s:%s;Start_codon=%s;Stop_codon=%s;Start_peak=%s;Stop_peak=%s" \
+                                                % (chrom, start, stop, strand, stop, start, stop, strand, start_codon, stop_codon, start_rpm, stop_rpm)
+                        combined_ORFs_gff.append((chrom, "ORFBounder", "CDS", start, stop, ".", strand, ".", attributes))
+nTuple_gff = collections.namedtuple('Pandas', ["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+    return pd.DataFrame.from_records(combined_ORFs_gff, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])

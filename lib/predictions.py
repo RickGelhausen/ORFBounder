@@ -33,9 +33,9 @@ def get_gene_information(chrom, start_position, stop_position, strand, gene_dict
         if val[0] != chrom:
             continue
 
-        if strand == "+":
-            gene_start, gene_stop = val[1], val[2]
+        gene_start, gene_stop = val[1], val[2]
 
+        if strand == "+":
             if abs(start_position-gene_start)<10 and val[3]==strand:
                 type="Near_Annotated"
                 break
@@ -51,8 +51,6 @@ def get_gene_information(chrom, start_position, stop_position, strand, gene_dict
                     type="Internal_OutofFrame"
                     break
         else:
-            gene_start, gene_stop = val[2], val[1]
-
             if abs(start_position-gene_start)<10 and val[3]==strand:
                 type="Near_Annotated"
                 break
@@ -74,8 +72,42 @@ def get_gene_information(chrom, start_position, stop_position, strand, gene_dict
     return type, key
 
 
+def search_codon_forward(cur_position, genome_seq, match_codons):
+    """
+    search for the next matching codon 3nt at a time.
+    Return: Position of matching codon or -1 if not found
+    """
 
-def detect_potential_ORFs(codon_dict, gene_dict, genome_seq, match_codons, a_codon_pos, p_offset, method):
+    nt=genome_seq[cur_position:cur_position+3]
+    while nt not in match_codons:
+        cur_position+=3
+        if cur_position > len(genome_seq)-2:
+            break
+        nt = genome_seq[cur_position:cur_position+3]
+
+    if nt not in match_codons:
+        return -1
+
+    return cur_position
+
+def search_codon_reverse(cur_position, genome_seq, match_codons):
+    """
+    search for the next matching codon in reverse 3nt at a time.
+    Return: Position of matching codon or -1 if not found
+    """
+    nt=genome_seq[cur_position:cur_position+3]
+    while nt not in match_codons:
+        cur_position-=3
+        if cur_position < 0:
+            break
+        nt = genome_seq[cur_position:cur_position+3]
+
+    if nt not in match_codons:
+        return -1
+
+    return cur_position
+
+def detect_potential_ORFs(codon_dict, genome_seq, match_codons, p_offset, method):
     """
     for each relavent codon site, find a matching orf region
     """
@@ -83,12 +115,7 @@ def detect_potential_ORFs(codon_dict, gene_dict, genome_seq, match_codons, a_cod
 
     rows_all = []
 
-    header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "locus_tag", "codon_count", "peak_height", "start_codon", "stop_codon", "15nt window", "nt_seq", "aa_seq", "relative_density", "5'-distance", "3'-distance"]
-    name_list = ["s%s" % str(x) for x in range(len(header))]
-    nTuple = collections.namedtuple('Pandas', name_list)
-
-    detected_codons_dict = {}
-    result_rows = []
+    detected_ORFs_dict = {}
     for key, val in codon_dict.items():
         if val[1] <= 0:
             continue
@@ -101,176 +128,57 @@ def detect_potential_ORFs(codon_dict, gene_dict, genome_seq, match_codons, a_cod
                 cur_start = int(interval_start) - p_offset + 2
                 cur_position = cur_start
 
-                if (chrom, cur_position+1, strand) in a_codon_pos:
-                    cur_start, cur_stop, gene_name = a_codon_pos[(chrom, cur_position+1, strand)]
-                    gene_type = "Annotated"
-                    nt_seq = genome_seq[cur_start-1:cur_stop]
-                    aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
-                else:
-                    nt=genome_seq[cur_position:cur_position+3]
-                    nt_seq=nt
-                    while nt not in match_codons:
-                        cur_position+=3
-                        if cur_position > len(genome_seq)-2:
-                            breakCDS
-                        nt = genome_seq[cur_position:cur_position+3]
-                        nt_seq += nt
+                cur_position = search_codon_forward(cur_position, genome_seq, match_codons)
+                if cur_position == -1:
+                    continue
 
-                    if nt not in match_codons:
-                        continue
-
-                    aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
-                    cur_stop = cur_position + 2
-
-                    gene_type, gene_name = get_gene_information(chrom, cur_start+1, cur_stop+1, strand, gene_dict)
+                cur_stop = cur_position + 2
 
             elif strand == "-":
                 cur_start = int(interval_start) + p_offset + 2
                 cur_position = cur_start - 2
 
-                if (chrom, cur_position+1, strand) in a_codon_pos:
-                    cur_start, cur_stop, gene_name = a_codon_pos[(chrom, cur_position+1, strand)]
-                    gene_type = "Annotated"
-                    nt_seq = str(Seq(genome_seq[cur_start-1:cur_stop]).reverse_complement())
-                    aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
-                else:
-                    nt=genome_seq[cur_position:cur_position+3]
-                    nt_seq=nt
-                    while nt not in reverse_match_codons:
-                        cur_position-=3
-                        if cur_position < 0:
-                            break
-                        nt = genome_seq[cur_position:cur_position+3]
-                        nt_seq = nt + nt_seq
+                cur_position = search_codon_reverse(cur_position, genome_seq, reverse_match_codons)
+                if cur_position == -1:
+                    continue
 
-                    if nt not in reverse_match_codons:
-                        continue
-
-                    nt_seq = str(Seq(nt_seq).reverse_complement())
-                    aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
-                    cur_stop = cur_position
-
-                    gene_type, gene_name = get_gene_information(chrom, cur_start+1, cur_stop+1, strand, gene_dict)
+                cur_stop = cur_position
 
         elif method == "TTS":
             if strand == "+":
                 cur_stop = int(interval_start) - p_offset + 4
                 cur_position = cur_stop - 2
 
-                if (chrom, cur_position+1, strand) in a_codon_pos:
-                    cur_start, cur_stop, gene_name = a_codon_pos[(chrom, cur_position+1, strand)]
-                    gene_type = "Annotated"
-                    nt_seq = genome_seq[cur_start-1:cur_stop]
-                    aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
-                else:
-                    nt=genome_seq[cur_position:cur_position+3]
-                    nt_seq=nt
-                    while nt not in match_codons:
-                        cur_position-=3
-                        if cur_position < 0:
-                            break
-                        nt = genome_seq[cur_position:cur_position+3]
-                        nt_seq = nt + nt_seq
+                cur_position = search_codon_reverse(cur_position, genome_seq, match_codons)
+                if cur_position == -1:
+                    continue
 
-                    if nt not in match_codons:
-                        continue
-
-                    aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
-                    cur_start = cur_position
-
-                    gene_type, gene_name = get_gene_information(chrom, cur_start+1, cur_stop+1, strand, gene_dict)
+                cur_start = cur_position
 
             elif strand == "-":
                 cur_stop = int(interval_start) + p_offset
                 cur_position = cur_stop
 
-                if (chrom, cur_position+1, strand) in a_codon_pos:
-                    cur_start, cur_stop, gene_name = a_codon_pos[(chrom, cur_position+1, strand)]
-                    gene_type = "Annotated"
-                    nt_seq = str(Seq(genome_seq[cur_start-1:cur_stop]).reverse_complement())
-                    aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
-                else:
-                    nt=genome_seq[cur_position:cur_position+3]
-                    nt_seq=nt# change here if interval changes
-                    while nt not in reverse_match_codons:
-                        cur_position+=3
-                        if cur_position > len(genome_seq)-2:
-                            break
-                        nt = genome_seq[cur_position:cur_position+3]
-                        nt_seq += nt
+                cur_position = search_codon_forward(cur_position, genome_seq, reverse_match_codons)
+                if cur_position == -1:
+                    continue
 
-                    if nt not in reverse_match_codons:
-                        continue
+                cur_start = cur_position + 2
 
-                    nt_seq = str(Seq(nt_seq).reverse_complement())
-                    aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
-                    cur_start = cur_position + 2
-
-                    gene_type, gene_name = get_gene_information(chrom, cur_start+1, cur_stop+1, strand, gene_dict)
-
-
-        if aa_seq.count("*") > 1:
-            continue
-
-        if gene_type != "Annotated":
-            if strand == "+":
-                out_start, out_stop = cur_start+1, cur_stop+1
-            else:
-                out_start, out_stop = cur_stop+1, cur_start+1
+        if strand == "+":
+            out_start, out_stop = cur_start+1, cur_stop+1
         else:
-            out_start, out_stop = cur_start, cur_stop
+            out_start, out_stop = cur_stop+1, cur_start+1
 
-        rpm = val[1]
-        if gene_name in gene_dict:
-            gene_rpm = gene_dict[gene_name][4]
-            if gene_rpm != 0:
-                relative_density = rpm / gene_rpm
-            else:
-                relative_density = "NaN"
-
+        if (chrom, strand) in detected_ORFs_dict:
             if method == "TIS":
-                fiveprime_dist = out_start - gene_dict[gene_name][1]
-                threeprime_dist = gene_dict[gene_name][2] - out_start
+                detected_ORFs_dict[(chrom, strand)].append((out_start, out_stop, val[1], -1))
             else:
-                fiveprime_dist = out_stop - gene_dict[gene_name][1]
-                threeprime_dist = gene_dict[gene_name][2] - out_stop
+                detected_ORFs_dict[(chrom, strand)].append((out_start, out_stop, -1, val[1]))
         else:
-            fiveprime_dist, threeprime_dist, relative_density = "NaN", "NaN", "NaN"
+            detected_codons_dict[(chrom, strand)] = []
 
-        start_codon, stop_codon = nt_seq[:3], nt_seq[-3:]
-
-        if gene_type=="N-terminal_extension":
-            relative_density = "NaN"
-
-        if method == "TIS":
-            if strand == "+":
-                nt_window = genome_seq[out_start-16:out_start-1]
-            else:
-                nt_window = str(Seq(genome_seq[out_stop:out_stop+15]).reverse_complement())
-        else:
-            if strand == "+":
-                nt_window = genome_seq[out_stop:out_stop+15]
-            else:
-                nt_window = str(Seq(genome_seq[out_start-16:out_start-1]).reverse_complement())
-
-        if method == "TIS":
-            if (chrom, strand) in detected_codons_dict:
-                detected_codons_dict[(chrom, strand)].append(out_start)
-            else:
-                detected_codons_dict[(chrom, strand)] = []
-        else:
-            if (chrom, strand) in detected_codons_dict:
-                detected_codons_dict[(chrom, strand)].append(out_stop)
-            else:
-                detected_codons_dict[(chrom, strand)] = []
-
-        unique_id="%s:%s-%s:%s" % (chrom, out_start, out_stop, strand)
-        result = [gene_type, unique_id, chrom, out_start, out_stop, strand, gene_name, int(len(nt_seq)/3), rpm, start_codon, stop_codon, nt_window, nt_seq, aa_seq, relative_density, fiveprime_dist, threeprime_dist]
-        result_rows.append(nTuple(*result))
-
-    df_results = pd.DataFrame.from_records(result_rows, columns=[header[x] for x in range(len(header))])
-
-    return df_results, detected_codons_dict
+    return detected_ORFs_dict
 
 
 def combined_data_detection(tis_predictions, tts_predictions, max_ORF_length):
@@ -278,19 +186,20 @@ def combined_data_detection(tis_predictions, tts_predictions, max_ORF_length):
     Use the detected TIS start position and TTS stop positions to find potentially quality ORFs.
     """
 
-    nTuple_gff = collections.namedtuple('Pandas', ["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-
-    combined_ORFs_gff = []
+    combined_ORFs_dict = []
     for chrom, strand in tis_predictions.keys():
         try:
-            for start in tis_predictions[(chrom,strand)]:
-                for stop in tts_predictions[(chrom,strand)]:
+            for start, _, start_rpm in sorted(tis_predictions[(chrom,strand)]):
+                for _, stop, _, stop_rpm in sorted(tts_predictions[(chrom,strand)]):
                     if misc.get_frame(start) == misc.get_frame(stop):
-                        if stop - start + 1 <= max_ORF_length:
-                            attributes = "ID=%s:%s-%s:%s;Name=%s:%s-%s:%s;" % (chrom, start, stop, strand, stop, start, stop, strand)
-
-                            combined_ORFs_gff.append((chrom, "ORFBounder", "CDS", start, stop, ".", strand, ".", attributes))
+                        if start < stop and stop - start + 1 <= max_ORF_length:
+                            if (chrom, strand) in combined_ORFs_dict:
+                                combined_ORFs_dict[(chrom, strand)].append((start, stop, start_rpm, stop_rpm))
+                            else:
+                                combined_ORFs_dict[(chrom, strand)] = []
+                        else:
+                            continue
         except KeyError:
             continue
 
-    return pd.DataFrame.from_records(combined_ORFs_gff, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+    return combined_ORFs_dict

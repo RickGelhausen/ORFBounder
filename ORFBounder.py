@@ -60,8 +60,8 @@ def prediction_call(annotation_file, genome_file, start_codons, stop_codons, fwd
 
         io.write_codon_interval_gff(output_path, os.path.join("codon_intervals","%s_%s_intervals.gff" % (output_basename, key)), codon_dict, p_offset, method)
 
-        df_results, detected_codons_dict = predictions.detect_potential_ORFs(codon_dict, gene_density_dict, val[0], match_codons, a_codon_pos, p_offset, method)
-        io.write_results_to_output_files(df_results, output_path, output_basename, split_gff, method)
+        detected_ORFs_dict = predictions.detect_potential_ORFs(codon_dict, val[0], match_codons, p_offset, method)
+        io.write_results_to_output_files(detected_ORFs_dict, val[0], gene_density_dict, a_codon_pos, output_path, output_basename, split_gff, method)
 
     return detected_codons_dict
 
@@ -117,7 +117,7 @@ def main():
 
         combined_predictions_df = predictions.combined_data_detection(tis_predictions, tts_predictions, args.max_ORF_length)
 
-        io.write_gff_file(combined_predictions_df, args.output_path, os.path.join("results_gff", "%s" % args.output_basename), method)
+        io.write_gff_file(combined_predictions_df, args.output_path, os.path.join("results_gff", "%s_combined_results.gff" % args.output_basename), method)
 
 
     print("Terminating...")
