@@ -106,7 +106,7 @@ def write_codon_interval_gff(output_path, output_basename, codon_dict, p_offset,
 
     write_gff_file(df, output_path, output_basename, method)
 
-def write_results_to_output_files(detected_ORFs_dict, gene_dict, genome, output_path, output_basename, split_gff, method):
+def write_results_to_output_files(detected_ORFs_dict, gene_dict_TIS, gene_dict_TTS, genome, output_path, output_basename, split_gff, method):
     """
     write a csv file containing all information,
     write a gff file comtaining the ORFs from the csv,
@@ -141,11 +141,12 @@ def write_results_to_output_files(detected_ORFs_dict, gene_dict, genome, output_
         identifier = "%s:%s-%s:%s" % (chrom, start, stop, strand)
         codon_count = int(len(nt_seq)/3)
 
-        fiveprime_dist, threeprime_dist, relative_density_start, relative_density_stop = \
-                    misc.compute_additional_information(start, stop, rpm_start, rpm_stop, gene_name, gene_type, gene_dict)
+        fiveprime_dist, threeprime_dist = mist.calculate_utr_distance(start, stop, gene_name, gene_dict_TIS, method)
+        relative_density_start = misc.compute_additional_information(rpm_start, gene_name, gene_type, gene_dict_TIS)
+        relative_density_stop = misc.compute_additional_information(rpm_stop, gene_name, gene_type, gene_dict_TTS)
 
-        rpm_start = rpm_start if rpm_start != -1 else "NA"
-        rpm_stop = rpm_stop if rpm_stop != -1 else "NA"
+        rpm_start = rpm_start if rpm_start != -1 else "NaN"
+        rpm_stop = rpm_stop if rpm_stop != -1 else "NaN"
 
         attribute = "ID=%s;Name=%s;Peak_height=%s;Start_codon=%s;Stop_codon=%s;Codon_count=%s;Type=%s" \
                         % (identifier, gene_name, peak_height, start_codon, stop_codon, codon_count, gene_type)

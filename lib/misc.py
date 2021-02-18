@@ -150,7 +150,6 @@ def annotation_interlap(annotation_file, method):
     annotation_fwd_interlap = InterLap()
     annotation_rev_interlap = InterLap()
     gene_dict = {}
-    a_codon_pos = {}
 
     for key, val in annotation_dict.items():
         genome, mid, strand = key.split(":")
@@ -170,18 +169,7 @@ def annotation_interlap(annotation_file, method):
         if locus_tag not in gene_dict:
             gene_dict[locus_tag] = [genome, start, stop, strand, 0]
 
-            if method == "TIS":
-                if strand == "+":
-                    a_codon_pos[(genome, int(start), strand)] = (start, stop, locus_tag)
-                else:
-                    a_codon_pos[(genome, int(stop)-2, strand)] = (start, stop, locus_tag)
-            else:
-                if strand == "+":
-                    a_codon_pos[(genome, int(stop)-2, strand)] = (start, stop, locus_tag)
-                else:
-                    a_codon_pos[(genome, int(start), strand)] = (start, stop, locus_tag)
-
-    return annotation_fwd_interlap, annotation_rev_interlap, gene_dict, a_codon_pos
+    return annotation_fwd_interlap, annotation_rev_interlap, gene_dict
 
 
 def get_frame(position):
@@ -204,8 +192,6 @@ def get_genome_information(start, stop, strand, genome_seq, method):
             nt_window = genome_seq[start-15:start]
         else:
             nt_window = genome_seq[stop+1:stop+16]
-
-
     else:
         nt_seq = str(Seq(genome_seq[start-1:stop]).reverse_complement())
         aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
@@ -221,65 +207,46 @@ def get_genome_information(start, stop, strand, genome_seq, method):
 
 
 def get_gene_information(chrom, start_position, stop_position, strand, gene_dict):
+    """
+    determine the gene_name and gene_type
+    """
     # val : genome, start, stop, strand, 0
     type = "Unannotated"
-    for key, val in gene_dict.items():
+    for gene_name, (gene_chrom, gene_start, gene_stop, gene_strand) in gene_dict.items():
 
-        if val[0] != chrom:
+        if gene_chrom != chrom:
             continue
 
-        gene_start, gene_stop = val[1], val[2]
-
-        if strand == "+":
-            if abs(start_position-gene_start)<10 and val[3]==strand:
-                type="Near_Annotated"
+        if gene_start == start_position and gene_stop == stop_position:
+            type="Annotated"
+            break
+        elif abs(start_position-gene_start)<10 and gene_strand==strand:
+            type="Near_Annotated"
+            break
+        elif stop_position==gene_stop and gene_strand==strand:
+            if start_position > gene_start:
+                type="Internal_Inframe"
                 break
-            elif stop_position==gene_stop and val[3]==strand:
-                if start_position > gene_start:
-                    type="Internal_Inframe"
-                    break
-                else:
-                    type="N-terminal_extension"
-                    break
             else:
-                if start_position >= gene_start and start_position <= gene_stop and val[3]==strand:
-                    type="Internal_OutofFrame"
-                    break
+                type="N-terminal_extension"
+                break
         else:
-            if abs(start_position-gene_start)<10 and val[3]==strand:
-                type="Near_Annotated"
+            if start_position >= gene_start and start_position <= gene_stop and gene_strand==strand:
+                type="Internal_OutofFrame"
                 break
-            elif stop_position==gene_stop and val[3]==strand:
-                if start_position < gene_start:
-                    type="Internal_Inframe"
-                    break
-                else:
-                    type="N-terminal_extension"
-                    break
-            else:
-                if start_position <= gene_start and start_position >= gene_stop and val[3]==strand:
-                    type="Internal_OutofFrame"
-                    break
 
     if type == "Unannotated":
-        key = "%s:%s-%s:%s" % (chrom, start_position, stop_position, strand)
+        gene_name = "%s:%s-%s:%s" % (chrom, start_position, stop_position, strand)
 
-    return type, key
+    return type, gene_name
 
 
-def compute_additional_information(start, stop, rpm_start, rpm_stop, gene_name, gene_type, gene_dict):
+def calculate_utr_distance(start, stop, gene_name, gene_dict, method):
     """
     calculate the relative density fiveprime and threeprime distance
     """
 
     if gene_name in gene_dict:
-        gene_rpm = gene_dict[gene_name][4]
-        if gene_rpm != 0:
-            relative_density_start = rpm_start / gene_rpm
-            relative_density_stop = rpm_stop / gene_rpm
-        else:
-            relative_density_start, relative_density_stop = "NaN", "NaN"
-
         if method == "TIS":
             fiveprime_dist = start - gene_dict[gene_name][1]
             threeprime_dist = gene_dict[gene_name][2] - start
@@ -287,10 +254,23 @@ def compute_additional_information(start, stop, rpm_start, rpm_stop, gene_name, 
             fiveprime_dist = stop - gene_dict[gene_name][1]
             threeprime_dist = gene_dict[gene_name][2] - stop
     else:
-        fiveprime_dist, threeprime_dist, relative_density_start, relative_density_stop = "NaN", "NaN", "NaN", "NaN"
+        fiveprime_dist, threeprime_dist = "NaN", "NaN"
 
-    if gene_type=="N-terminal_extension":
-        relative_density_start, relative_density_stop = "NaN", "NaN"
+    return fiveprime_dist, threeprime_dist
 
-    return fiveprime_dist, threeprime_dist, relative_density_start, relative_density_stop
-    
+def calculate_relative_density(rpm, gene_name, gene_type, gene_dict):
+    """
+    calculate the relative density
+    """
+
+    if gene_dict == {} or gene_type == "N-terminal_extension" or gene_name not in gene_dict:
+        return "NaN"
+
+    else:
+        gene_rpm = gene_dict[gene_name][4]
+        if gene_rpm != 0 and rpm != -1:
+            return rpm / gene_rpm
+        else:
+            return "NaN"
+
+    return "NaN"
