@@ -53,15 +53,15 @@ def prediction_call(annotation_file, genome_file, start_codons, stop_codons, fwd
         gene_density_dict = misc.calculate_density(fwd_wig_dict[key], annotation_fwd_interlap, gene_density_dict)
         gene_density_dict = misc.calculate_density(rev_wig_dict[key], annotation_rev_interlap, gene_density_dict)
 
-        fwd_codon_interlap, rev_codon_interlap, codon_dict = misc.create_codon_interlaps(key, val[0], search_codons, p_offset)
+        fwd_codon_interlap, rev_codon_interlap, codon_dict = misc.create_codon_interlaps(key, val, search_codons, p_offset)
         codon_dict = predictions.screen_wig_for_tss(fwd_wig_dict[key], fwd_codon_interlap, codon_dict, read_count_threshold)
         codon_dict = predictions.screen_wig_for_tss(rev_wig_dict[key], rev_codon_interlap, codon_dict, read_count_threshold)
 
 
         io.write_codon_interval_gff(output_path, os.path.join("codon_intervals","%s_%s_intervals.gff" % (output_basename, key)), codon_dict, p_offset, method)
 
-        detected_ORFs_dict = predictions.detect_potential_ORFs(codon_dict, val[0], match_codons, p_offset, method)
-        io.write_results_to_output_files(detected_ORFs_dict, val[0], gene_density_dict, a_codon_pos, output_path, output_basename, split_gff, method)
+        detected_ORFs_dict = predictions.detect_potential_ORFs(codon_dict, val, match_codons, p_offset, method)
+        io.write_results_to_output_files(detected_ORFs_dict, gene_density_dict, val, output_path, output_basename, split_gff, method)
 
     return detected_codons_dict
 

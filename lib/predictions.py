@@ -25,52 +25,6 @@ def screen_wig_for_tss(wig_file_data, codon_interlap, codon_dict, read_count_thr
             codon_dict[match[2]][1] += read_count
     return codon_dict
 
-def get_gene_information(chrom, start_position, stop_position, strand, gene_dict):
-    # val : genome, start, stop, strand, 0
-    type = "Unannotated"
-    for key, val in gene_dict.items():
-
-        if val[0] != chrom:
-            continue
-
-        gene_start, gene_stop = val[1], val[2]
-
-        if strand == "+":
-            if abs(start_position-gene_start)<10 and val[3]==strand:
-                type="Near_Annotated"
-                break
-            elif stop_position==gene_stop and val[3]==strand:
-                if start_position > gene_start:
-                    type="Internal_Inframe"
-                    break
-                else:
-                    type="N-terminal_extension"
-                    break
-            else:
-                if start_position >= gene_start and start_position <= gene_stop and val[3]==strand:
-                    type="Internal_OutofFrame"
-                    break
-        else:
-            if abs(start_position-gene_start)<10 and val[3]==strand:
-                type="Near_Annotated"
-                break
-            elif stop_position==gene_stop and val[3]==strand:
-                if start_position < gene_start:
-                    type="Internal_Inframe"
-                    break
-                else:
-                    type="N-terminal_extension"
-                    break
-            else:
-                if start_position <= gene_start and start_position >= gene_stop and val[3]==strand:
-                    type="Internal_OutofFrame"
-                    break
-
-    if type == "Unannotated":
-        key = "%s:%s-%s:%s" % (chrom, start_position, stop_position, strand)
-
-    return type, key
-
 
 def search_codon_forward(cur_position, genome_seq, match_codons):
     """
@@ -166,9 +120,9 @@ def detect_potential_ORFs(codon_dict, genome_seq, match_codons, p_offset, method
                 cur_start = cur_position + 2
 
         if strand == "+":
-            out_start, out_stop = cur_start+1, cur_stop+1
+            out_start, out_stop = cur_start, cur_stop
         else:
-            out_start, out_stop = cur_stop+1, cur_start+1
+            out_start, out_stop = cur_stop, cur_start
 
         if (chrom, strand) in detected_ORFs_dict:
             if method == "TIS":

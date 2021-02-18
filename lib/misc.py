@@ -189,3 +189,108 @@ def get_frame(position):
     get the reading from for the given position
     """
     return position % 3
+
+
+def get_genome_information(start, stop, strand, genome_seq, method):
+    """
+    retrieve infomations from genome including nucleotide sequence, start_codon, stop_codon, amino acid sequence, 15nt window
+    """
+
+    if strand == "+":
+        nt_seq = genome_seq[start-1:stop]
+        aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
+
+        if method == "TIS":
+            nt_window = genome_seq[start-15:start]
+        else:
+            nt_window = genome_seq[stop+1:stop+16]
+
+
+    else:
+        nt_seq = str(Seq(genome_seq[start-1:stop]).reverse_complement())
+        aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
+
+        if method == "TIS":
+            nt_window = str(Seq(genome_seq[stop+1:stop+16]).reverse_complement())
+        else:
+            nt_window = str(Seq(genome_seq[start-15:start]).reverse_complement())
+
+    start_codon, stop_codon = nt_seq[:3], nt_seq[-3:]
+
+    return nt_seq, aa_seq, nt_window, start_codon, stop_codon
+
+
+def get_gene_information(chrom, start_position, stop_position, strand, gene_dict):
+    # val : genome, start, stop, strand, 0
+    type = "Unannotated"
+    for key, val in gene_dict.items():
+
+        if val[0] != chrom:
+            continue
+
+        gene_start, gene_stop = val[1], val[2]
+
+        if strand == "+":
+            if abs(start_position-gene_start)<10 and val[3]==strand:
+                type="Near_Annotated"
+                break
+            elif stop_position==gene_stop and val[3]==strand:
+                if start_position > gene_start:
+                    type="Internal_Inframe"
+                    break
+                else:
+                    type="N-terminal_extension"
+                    break
+            else:
+                if start_position >= gene_start and start_position <= gene_stop and val[3]==strand:
+                    type="Internal_OutofFrame"
+                    break
+        else:
+            if abs(start_position-gene_start)<10 and val[3]==strand:
+                type="Near_Annotated"
+                break
+            elif stop_position==gene_stop and val[3]==strand:
+                if start_position < gene_start:
+                    type="Internal_Inframe"
+                    break
+                else:
+                    type="N-terminal_extension"
+                    break
+            else:
+                if start_position <= gene_start and start_position >= gene_stop and val[3]==strand:
+                    type="Internal_OutofFrame"
+                    break
+
+    if type == "Unannotated":
+        key = "%s:%s-%s:%s" % (chrom, start_position, stop_position, strand)
+
+    return type, key
+
+
+def compute_additional_information(start, stop, rpm_start, rpm_stop, gene_name, gene_type, gene_dict):
+    """
+    calculate the relative density fiveprime and threeprime distance
+    """
+
+    if gene_name in gene_dict:
+        gene_rpm = gene_dict[gene_name][4]
+        if gene_rpm != 0:
+            relative_density_start = rpm_start / gene_rpm
+            relative_density_stop = rpm_stop / gene_rpm
+        else:
+            relative_density_start, relative_density_stop = "NaN", "NaN"
+
+        if method == "TIS":
+            fiveprime_dist = start - gene_dict[gene_name][1]
+            threeprime_dist = gene_dict[gene_name][2] - start
+        else:
+            fiveprime_dist = stop - gene_dict[gene_name][1]
+            threeprime_dist = gene_dict[gene_name][2] - stop
+    else:
+        fiveprime_dist, threeprime_dist, relative_density_start, relative_density_stop = "NaN", "NaN", "NaN", "NaN"
+
+    if gene_type=="N-terminal_extension":
+        relative_density_start, relative_density_stop = "NaN", "NaN"
+
+    return fiveprime_dist, threeprime_dist, relative_density_start, relative_density_stop
+    
