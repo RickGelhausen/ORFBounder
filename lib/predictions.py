@@ -130,7 +130,10 @@ def detect_potential_ORFs(codon_dict, genome_seq, match_codons, p_offset, method
             else:
                 detected_ORFs_dict[(chrom, strand)].append((out_start, out_stop, -1, val[1]))
         else:
-            detected_codons_dict[(chrom, strand)] = []
+            if method == "TIS":
+                detected_ORFs_dict[(chrom, strand)] = [(out_start, out_stop, val[1], -1)]
+            else:
+                detected_ORFs_dict[(chrom, strand)] = [(out_start, out_stop, -1, val[1])]
 
     return detected_ORFs_dict
 
@@ -140,11 +143,11 @@ def combined_data_detection(tis_predictions, tts_predictions, max_ORF_length):
     Use the detected TIS start position and TTS stop positions to find potentially quality ORFs.
     """
 
-    combined_ORFs_dict = []
+    combined_ORFs_dict = {}
     for chrom, strand in tis_predictions.keys():
         try:
-            for start, _, start_rpm in sorted(tis_predictions[(chrom,strand)]):
-                for _, stop, _, stop_rpm in sorted(tts_predictions[(chrom,strand)]):
+            for start, _, start_rpm, _ in sorted(tis_predictions[(chrom,strand)], key=lambda x: x[0]):
+                for _, stop, _, stop_rpm in sorted(tts_predictions[(chrom,strand)], key=lambda x: x[1]):
                     if misc.get_frame(start) == misc.get_frame(stop):
                         if start < stop and stop - start + 1 <= max_ORF_length:
                             if (chrom, strand) in combined_ORFs_dict:

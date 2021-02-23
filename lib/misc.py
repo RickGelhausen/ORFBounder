@@ -3,6 +3,9 @@ import re
 import pandas as pd
 
 from Bio.Seq import Seq
+from Bio import SeqIO
+from Bio.Alphabet import generic_dna
+
 from interlap import InterLap
 
 
@@ -185,7 +188,7 @@ def get_genome_information(start, stop, strand, genome_seq, method):
     """
 
     if strand == "+":
-        nt_seq = genome_seq[start-1:stop]
+        nt_seq = genome_seq[start:stop+1]
         aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
 
         if method == "TIS":
@@ -193,7 +196,7 @@ def get_genome_information(start, stop, strand, genome_seq, method):
         else:
             nt_window = genome_seq[stop+1:stop+16]
     else:
-        nt_seq = str(Seq(genome_seq[start-1:stop]).reverse_complement())
+        nt_seq = str(Seq(genome_seq[start:stop+1]).reverse_complement())
         aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
 
         if method == "TIS":
@@ -210,49 +213,75 @@ def get_gene_information(chrom, start_position, stop_position, strand, gene_dict
     """
     determine the gene_name and gene_type
     """
-    # val : genome, start, stop, strand, 0
     type = "Unannotated"
-    for gene_name, (gene_chrom, gene_start, gene_stop, gene_strand) in gene_dict.items():
+    start_position += 1
+    stop_position += 1
+    if strand == "-":
+        start_position, stop_position = stop_position, start_position
+
+    # TODO fix overlapping annotated
+    if gene_start == start_position and gene_stop == stop_position:
+        type="Annotated"
+        break
+
+    for gene_name, (gene_chrom, gene_start, gene_stop, gene_strand, _) in gene_dict.items():
 
         if gene_chrom != chrom:
             continue
 
-        if gene_start == start_position and gene_stop == stop_position:
-            type="Annotated"
-            break
-        elif abs(start_position-gene_start)<10 and gene_strand==strand:
-            type="Near_Annotated"
-            break
-        elif stop_position==gene_stop and gene_strand==strand:
-            if start_position > gene_start:
-                type="Internal_Inframe"
+        if strand == "+":
+
+            if abs(start_position-gene_start)<10 and gene_strand==strand:
+                type="Near_Annotated"
                 break
+            elif stop_position==gene_stop and gene_strand==strand:
+                if start_position > gene_start:
+                    type="Internal_Inframe"
+                    break
+                else:
+                    type="N-terminal_extension"
+                    break
             else:
-                type="N-terminal_extension"
-                break
+                if start_position >= gene_start and start_position <= gene_stop and gene_strand==strand:
+                    type="Internal_OutofFrame"
+                    break
+
         else:
-            if start_position >= gene_start and start_position <= gene_stop and gene_strand==strand:
-                type="Internal_OutofFrame"
+            gene_start, gene_stop = gene_stop, gene_start
+
+            if abs(start_position-gene_start)<10 and gene_strand==strand:
+                type="Near_Annotated"
                 break
+            elif stop_position==gene_stop and gene_strand==strand:
+                if start_position < gene_start:
+                    type="Internal_Inframe"
+                    break
+                else:
+                    type="N-terminal_extension"
+                    break
+            else:
+                if start_position <= gene_start and start_position >= gene_stop and gene_strand==strand:
+                    type="Internal_OutofFrame"
+                    break
 
     if type == "Unannotated":
         gene_name = "%s:%s-%s:%s" % (chrom, start_position, stop_position, strand)
 
     return type, gene_name
 
-
-def calculate_utr_distance(start, stop, gene_name, gene_dict, method):
+def calculate_utr_distance(start_position, stop_position, gene_name, gene_dict, method):
     """
     calculate the relative density fiveprime and threeprime distance
     """
-
+    start_position += 1
+    stop_position += 1
     if gene_name in gene_dict:
         if method == "TIS":
-            fiveprime_dist = start - gene_dict[gene_name][1]
-            threeprime_dist = gene_dict[gene_name][2] - start
+            fiveprime_dist = start_position - gene_dict[gene_name][1]
+            threeprime_dist = gene_dict[gene_name][2] - start_position
         else:
-            fiveprime_dist = stop - gene_dict[gene_name][1]
-            threeprime_dist = gene_dict[gene_name][2] - stop
+            fiveprime_dist = stop_position - gene_dict[gene_name][1]
+            threeprime_dist = gene_dict[gene_name][2] - stop_position
     else:
         fiveprime_dist, threeprime_dist = "NaN", "NaN"
 

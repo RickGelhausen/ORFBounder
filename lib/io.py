@@ -11,6 +11,8 @@ from Bio.Seq import Seq
 from Bio import SeqIO
 from Bio.Alphabet import generic_dna
 
+import lib.misc as misc
+
 def generate_genome_dict(genome_file):
     """
     read a genome fasta file into a dictionary
@@ -116,7 +118,7 @@ def write_results_to_output_files(detected_ORFs_dict, gene_dict_TIS, gene_dict_T
 
     nTuple_gff = collections.namedtuple('Pandas', ["chromosome","source","type","start","stop","score","strand","phase","attribute"])
 
-    header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Amino_acid_length", \
+    header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count", \
               "Peak_height_TIS", "Peak_height_TTS", "Start_codon", "Stop_codon", "15nt window", "Nucleotide_Seq", "Amino_Acid_Seq", \
               "Relative_density_start", "Relative_density_stop", "5'-distance", "3'-distance"]
     name_list = ["s%s" % str(x) for x in range(len(header))]
@@ -131,72 +133,73 @@ def write_results_to_output_files(detected_ORFs_dict, gene_dict_TIS, gene_dict_T
     gff_internal_out = []
 
     result_rows = []
-    for (chrom, strand), (start, stop, rpm_start, rpm_stop) in detected_ORFs_dict.items():
-        gene_type, gene_name = misc.get_gene_information(chrom, start+1, stop+1, strand, gene_dict)
-        nt_seq, aa_seq, nt_window, start_codon, stop_codon = misc.get_genome_information(start, stop, strand, genome[chrom], method)
+    for (chrom, strand) in detected_ORFs_dict.keys():
+        for (start, stop, rpm_start, rpm_stop) in detected_ORFs_dict[(chrom, strand)]:
+            gene_type, gene_name = misc.get_gene_information(chrom, start, stop, strand, gene_dict_TIS)
+            nt_seq, aa_seq, nt_window, start_codon, stop_codon = misc.get_genome_information(start, stop, strand, genome[chrom], method)
 
-        if aa_seq.count("*") > 1:
-            continue
+            if aa_seq.count("*") > 1:
+                continue
 
-        identifier = "%s:%s-%s:%s" % (chrom, start, stop, strand)
-        codon_count = int(len(nt_seq)/3)
+            identifier = "%s:%s-%s:%s" % (chrom, start+1, stop+1, strand)
+            codon_count = int(len(nt_seq)/3)
 
-        fiveprime_dist, threeprime_dist = mist.calculate_utr_distance(start, stop, gene_name, gene_dict_TIS, method)
-        relative_density_start = misc.compute_additional_information(rpm_start, gene_name, gene_type, gene_dict_TIS)
-        relative_density_stop = misc.compute_additional_information(rpm_stop, gene_name, gene_type, gene_dict_TTS)
+            fiveprime_dist, threeprime_dist = misc.calculate_utr_distance(start, stop, gene_name, gene_dict_TIS, method)
+            relative_density_start = misc.calculate_relative_density(rpm_start, gene_name, gene_type, gene_dict_TIS)
+            relative_density_stop = misc.calculate_relative_density(rpm_stop, gene_name, gene_type, gene_dict_TTS)
 
-        rpm_start = rpm_start if rpm_start != -1 else "NaN"
-        rpm_stop = rpm_stop if rpm_stop != -1 else "NaN"
+            rpm_start = rpm_start if rpm_start != -1 else "NaN"
+            rpm_stop = rpm_stop if rpm_stop != -1 else "NaN"
 
-        attribute = "ID=%s;Name=%s;Peak_height=%s;Start_codon=%s;Stop_codon=%s;Codon_count=%s;Type=%s" \
-                        % (identifier, gene_name, peak_height, start_codon, stop_codon, codon_count, gene_type)
-        cur_tuple = nTuple_gff(chrom, "ORFBounder", "CDS", int(start)+1, int(stop)+1, ".", strand, ".", attribute)
+            attribute = "ID=%s;Name=%s;Peak_height_TIS=%s;Peak_height_TTS=%s;Start_codon=%s;Stop_codon=%s;Codon_count=%s;Type=%s" \
+                        % (identifier, gene_name, rpm_start, rpm_stop, start_codon, stop_codon, codon_count, gene_type)
+            cur_tuple = nTuple_gff(chrom, "ORFBounder", "CDS", int(start)+1, int(stop)+1, ".", strand, ".", attribute)
 
-        result = [gene_type, identifier, chrom, start+1, stop+1, strand, gene_name, codon_count, rpm_start, rpm_stop, \
-                  start_codon, stop_codon, nt_window, nt_seq, aa_seq, relative_density_start, relative_density_stop, \
-                  fiveprime_dist, threeprime_dist]
+            result = [gene_type, identifier, chrom, start+1, stop+1, strand, gene_name, codon_count, rpm_start, rpm_stop, \
+                      start_codon, stop_codon, nt_window, nt_seq, aa_seq, relative_density_start, relative_density_stop, \
+                      fiveprime_dist, threeprime_dist]
 
-        gff_all.append(cur_tuple)
+            gff_all.append(cur_tuple)
+            if split_gff:
+                if gene_type == "Annotated":
+                    gff_annotated.append(cur_tuple)
+                elif gene_type == "Unannotated":
+                    gff_unannotated.append(cur_tuple)
+                elif gene_type == "Near_Annotated":
+                    gff_near_annotated.append(cur_tuple)
+                elif gene_type == "Internal_Inframe":
+                    gff_internal_inframe.append(cur_tuple)
+                elif gene_type == "N-terminal_extension":
+                    gff_n_terminal.append(cur_tuple)
+                elif gene_type == "Internal_OutofFrame":
+                    gff_internal_out.append(cur_tuple)
+
+            result_rows.append(nTuple(*result))
+
+        df_results = pd.DataFrame.from_records(result_rows, columns=[header[x] for x in range(len(header))])
+
+        print("Generating gff files...")
+        df_all = pd.DataFrame.from_records(gff_all, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+        write_gff_file(df_all, output_path, os.path.join("results_gff","%s.gff" % output_basename), method)
+
         if split_gff:
-            if gene_type == "Annotated":
-                gff_annotated.append(cur_tuple)
-            elif gene_type == "Unannotated":
-                gff_unannotated.append(cur_tuple)
-            elif gene_type == "Near_Annotated":
-                gff_near_annotated.append(cur_tuple)
-            elif gene_type == "Internal_Inframe":
-                gff_internal_inframe.append(cur_tuple)
-            elif gene_type == "N-terminal_extension":
-                gff_n_terminal.append(cur_tuple)
-            elif gene_type == "Internal_OutofFrame":
-                gff_internal_out.append(cur_tuple)
+            df_annotated = pd.DataFrame.from_records(gff_annotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+            write_gff_file(df_annotated, output_path, os.path.join("results_gff","%s_annotated.gff" % output_basename), method)
 
-        result_rows.append(nTuple(*result))
+            df_unannotated = pd.DataFrame.from_records(gff_unannotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+            write_gff_file(df_unannotated, output_path, os.path.join("results_gff","%s_unannotated.gff" % output_basename), method)
 
-    df_results = pd.DataFrame.from_records(result_rows, columns=[header[x] for x in range(len(header))])
+            df_near_annotated = pd.DataFrame.from_records(gff_near_annotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+            write_gff_file(df_near_annotated, output_path, os.path.join("results_gff","%s_near_annotated.gff" % output_basename), method)
 
-    print("Generating gff files...")
-    df_all = pd.DataFrame.from_records(gff_all, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-    write_gff_file(df_all, output_path, os.path.join("results_gff","%s.gff" % output_basename), method)
+            df_internal_inframe = pd.DataFrame.from_records(gff_internal_inframe, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+            write_gff_file(df_internal_inframe, output_path, os.path.join("results_gff","%s_internal_inframe.gff" % output_basename), method)
 
-    if split_gff:
-        df_annotated = pd.DataFrame.from_records(gff_annotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-        write_gff_file(df_annotated, output_path, os.path.join("results_gff","%s_annotated.gff" % output_basename), method)
+            df_n_terminal = pd.DataFrame.from_records(gff_n_terminal, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+            write_gff_file(df_n_terminal, output_path, os.path.join("results_gff","%s_n_terminal.gff" % output_basename), method)
 
-        df_unannotated = pd.DataFrame.from_records(gff_unannotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-        write_gff_file(df_unannotated, output_path, os.path.join("results_gff","%s_unannotated.gff" % output_basename), method)
-
-        df_near_annotated = pd.DataFrame.from_records(gff_near_annotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-        write_gff_file(df_near_annotated, output_path, os.path.join("results_gff","%s_near_annotated.gff" % output_basename), method)
-
-        df_internal_inframe = pd.DataFrame.from_records(gff_internal_inframe, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-        write_gff_file(df_internal_inframe, output_path, os.path.join("results_gff","%s_internal_inframe.gff" % output_basename), method)
-
-        df_n_terminal = pd.DataFrame.from_records(gff_n_terminal, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-        write_gff_file(df_n_terminal, output_path, os.path.join("results_gff","%s_n_terminal.gff" % output_basename), method)
-
-        df_internal_out = pd.DataFrame.from_records(gff_internal_out, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-        write_gff_file(df_internal_out, output_path, os.path.join("results_gff","%s_internal_out.gff" % output_basename), method)
+            df_internal_out = pd.DataFrame.from_records(gff_internal_out, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+            write_gff_file(df_internal_out, output_path, os.path.join("results_gff","%s_internal_out.gff" % output_basename), method)
 
     print("Done.")
 

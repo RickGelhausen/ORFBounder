@@ -14,14 +14,10 @@ import lib.misc as misc
 import lib.predictions as predictions
 
 
-def prediction_call(annotation_file, genome_file, start_codons, stop_codons, fwd_wig_file, rev_wig_file, output_path, output_basename, p_offset, method, read_count_threshold, split_gff):
+def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd_wig_file, rev_wig_file, output_path, output_basename, p_offset, method, read_count_threshold, split_gff):
     """
     execute the script for either TIS or TTS
     """
-
-    print("Fetching genome...")
-    genome_dict = io.generate_genome_dict(genome_file)
-
 
     if method == "TIS":
         search_codons = start_codons
@@ -60,10 +56,15 @@ def prediction_call(annotation_file, genome_file, start_codons, stop_codons, fwd
         io.write_codon_interval_gff(output_path, os.path.join("codon_intervals","%s_%s_intervals.gff" % (output_basename, key)), codon_dict, p_offset, method)
 
         detected_ORFs_dict = predictions.detect_potential_ORFs(codon_dict, val, match_codons, p_offset, method)
+        # for key in detected_ORFs_dict.keys():
+        #     for val in detected_ORFs_dict[key]:
+        #         print(key, val)
+
         if method == "TIS":
-            io.write_results_to_output_files(detected_ORFs_dict, gene_density_dict, {}, val, output_path, output_basename, split_gff, method)
+            io.write_results_to_output_files(detected_ORFs_dict, gene_density_dict, {}, genome_dict, output_path, output_basename, split_gff, method)
         else:
-            io.write_results_to_output_files(detected_ORFs_dict, {}, gene_density_dict, val, output_path, output_basename, split_gff, method)
+            io.write_results_to_output_files(detected_ORFs_dict, {}, gene_density_dict, genome_dict, output_path, output_basename, split_gff, method)
+
     return detected_ORFs_dict, gene_density_dict
 
 def main():
@@ -92,38 +93,41 @@ def main():
 
     method = io.handle_input(args)
 
+
+    print("Fetching genome...")
+    genome_dict = io.generate_genome_dict(args.genome_file)
     print("Done.")
 
     tis_predictions = {}
     tts_predictions = {}
 
     if method == "TIS":
-        tis_predictions, gene_density_dict_TIS
-                        = prediction_call(args.annotation_file, args.genome_file, args.start_codons, args.stop_codons, \
+        tis_predictions, gene_density_dict_TIS \
+                        = prediction_call(args.annotation_file, genome_dict, args.start_codons, args.stop_codons, \
                                           args.fwd_wig_file_TIS, args.rev_wig_file_TIS, args.output_path, \
                                           args.output_basename, args.p_offset_TIS, "TIS", args.read_count_threshold, args.split_gff)
     elif method == "TTS":
-        tts_predictions, gene_density_dict_TTS
-                        = prediction_call(args.annotation_file, args.genome_file, args.start_codons, args.stop_codons, \
+        tts_predictions, gene_density_dict_TTS \
+                        = prediction_call(args.annotation_file, genome_dict, args.start_codons, args.stop_codons, \
                                           args.fwd_wig_file_TTS, args.rev_wig_file_TTS, args.output_path, \
                                           args.output_basename, args.p_offset_TTS, "TTS", args.read_count_threshold, args.split_gff)
 
     else:
-        tis_predictions, gene_density_dict_TIS
-                        = prediction_call(args.annotation_file, args.genome_file, args.start_codons, args.stop_codons, \
+        tis_predictions, gene_density_dict_TIS \
+                        = prediction_call(args.annotation_file, genome_dict, args.start_codons, args.stop_codons, \
                                           args.fwd_wig_file_TIS, args.rev_wig_file_TIS, args.output_path, \
                                           args.output_basename, args.p_offset_TIS, "TIS", args.read_count_threshold, args.split_gff)
 
-        tts_predictions, gene_density_dict_TTS
-                        = prediction_call(args.annotation_file, args.genome_file, args.start_codons, args.stop_codons, \
+        tts_predictions, gene_density_dict_TTS \
+                        = prediction_call(args.annotation_file, genome_dict, args.start_codons, args.stop_codons, \
                                           args.fwd_wig_file_TTS, args.rev_wig_file_TTS, args.output_path, \
                                           args.output_basename, args.p_offset_TTS, "TTS", args.read_count_threshold, args.split_gff)
 
 
         combined_predictions_dict = predictions.combined_data_detection(tis_predictions, tts_predictions, args.max_ORF_length)
 
-        io.write_gff_file(combined_predictions_df, args.output_path, os.path.join("results_gff", "%s_combined_results.gff" % args.output_basename), method)
-        io.write_results_to_output_files(detected_ORFs_dict, gene_density_dict, args.genome_file, args.output_path, args.output_basename, args.split_gff, method)
+        io.write_results_to_output_files(combined_predictions_dict, gene_density_dict_TIS, gene_density_dict_TTS, \
+                                         genome_dict, args.output_path, args.output_basename, args.split_gff, method)
 
 
     print("Terminating...")
