@@ -212,62 +212,51 @@ def get_genome_information(start, stop, strand, genome_seq, method):
 def get_gene_information(chrom, start_position, stop_position, strand, gene_dict):
     """
     determine the gene_name and gene_type
+    # TODO clean up this function
     """
-    type = "Unannotated"
+
     start_position += 1
     stop_position += 1
     if strand == "-":
         start_position, stop_position = stop_position, start_position
 
-    # TODO fix overlapping annotated
-    if gene_start == start_position and gene_stop == stop_position:
-        type="Annotated"
-        break
+    for gene_name, (gene_chrom, gene_start, gene_stop, gene_strand, _) in gene_dict.items():
+        if gene_start == start_position and gene_stop == stop_position:
+            return "Annotated", gene_name
+
 
     for gene_name, (gene_chrom, gene_start, gene_stop, gene_strand, _) in gene_dict.items():
-
         if gene_chrom != chrom:
             continue
 
         if strand == "+":
-
             if abs(start_position-gene_start)<10 and gene_strand==strand:
-                type="Near_Annotated"
-                break
+                return "Near_Annotated", gene_name
+
             elif stop_position==gene_stop and gene_strand==strand:
                 if start_position > gene_start:
-                    type="Internal_Inframe"
-                    break
+                    return "Internal_Inframe", gene_name
                 else:
-                    type="N-terminal_extension"
-                    break
+                    return "N-terminal_extension", gene_name
             else:
                 if start_position >= gene_start and start_position <= gene_stop and gene_strand==strand:
-                    type="Internal_OutofFrame"
-                    break
-
+                    return "Internal_OutofFrame", gene_name
         else:
             gene_start, gene_stop = gene_stop, gene_start
 
             if abs(start_position-gene_start)<10 and gene_strand==strand:
-                type="Near_Annotated"
-                break
+                return "Near_Annotated", gene_name
+
             elif stop_position==gene_stop and gene_strand==strand:
                 if start_position < gene_start:
-                    type="Internal_Inframe"
-                    break
+                    return "Internal_Inframe", gene_name
                 else:
-                    type="N-terminal_extension"
-                    break
+                    return "N-terminal_extension", gene_name
             else:
                 if start_position <= gene_start and start_position >= gene_stop and gene_strand==strand:
-                    type="Internal_OutofFrame"
-                    break
+                    return "Internal_OutofFrame", gene_name
 
-    if type == "Unannotated":
-        gene_name = "%s:%s-%s:%s" % (chrom, start_position, stop_position, strand)
-
-    return type, gene_name
+    return "Unannotated", "%s:%s-%s:%s" % (chrom, start_position, stop_position, strand)
 
 def calculate_utr_distance(start_position, stop_position, gene_name, gene_dict, method):
     """
