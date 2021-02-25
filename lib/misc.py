@@ -217,13 +217,12 @@ def get_gene_information(chrom, start_position, stop_position, strand, gene_dict
 
     start_position += 1
     stop_position += 1
-    if strand == "-":
-        start_position, stop_position = stop_position, start_position
-
     for gene_name, (gene_chrom, gene_start, gene_stop, gene_strand, _) in gene_dict.items():
         if gene_start == start_position and gene_stop == stop_position:
             return "Annotated", gene_name
 
+    if strand == "-":
+        start_position, stop_position = stop_position, start_position
 
     for gene_name, (gene_chrom, gene_start, gene_stop, gene_strand, _) in gene_dict.items():
         if gene_chrom != chrom:

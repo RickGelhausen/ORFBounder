@@ -30,8 +30,8 @@ def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd
     rev_wig_dict = io.load_wig(rev_wig_file)
 
     print("Checking output folder...")
-    if os.path.isdir(os.path.join(output_path, method)):
-        sys.exit("Result directory already found! Please ensure that prior output folders with the same name are deleted.")
+    if os.path.isfile(os.path.join(output_path, method, "result_tables", output_basename + ".csv")):
+        sys.exit("Result table already found! Please ensure that prior output files with the same name are deleted.")
 
     print("Computing predictions...")
     for key, val in genome_dict.items():
@@ -56,9 +56,6 @@ def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd
         io.write_codon_interval_gff(output_path, os.path.join("codon_intervals","%s_%s_intervals.gff" % (output_basename, key)), codon_dict, p_offset, method)
 
         detected_ORFs_dict = predictions.detect_potential_ORFs(codon_dict, val, match_codons, p_offset, method)
-        # for key in detected_ORFs_dict.keys():
-        #     for val in detected_ORFs_dict[key]:
-        #         print(key, val)
 
         if method == "TIS":
             io.write_results_to_output_files(detected_ORFs_dict, gene_density_dict, {}, genome_dict, output_path, output_basename, split_gff, method)

@@ -119,7 +119,7 @@ def write_results_to_output_files(detected_ORFs_dict, gene_dict_TIS, gene_dict_T
     nTuple_gff = collections.namedtuple('Pandas', ["chromosome","source","type","start","stop","score","strand","phase","attribute"])
 
     header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count", \
-              "Peak_height_TIS", "Peak_height_TTS", "Start_codon", "Stop_codon", "15nt window", "Nucleotide_Seq", "Amino_Acid_Seq", \
+              "Peak_height_TIS", "Peak_height_TTS", "Start_codon", "Stop_codon", "15nt_window", "Nucleotide_Seq", "Amino_Acid_Seq", \
               "Relative_density_start", "Relative_density_stop", "5'-distance", "3'-distance"]
     name_list = ["s%s" % str(x) for x in range(len(header))]
     nTuple = collections.namedtuple('Pandas', name_list)
