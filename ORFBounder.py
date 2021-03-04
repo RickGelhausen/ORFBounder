@@ -14,7 +14,7 @@ import lib.misc as misc
 import lib.predictions as predictions
 
 
-def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd_wig_file, rev_wig_file, output_path, output_basename, p_offset, method, read_count_threshold, split_gff):
+def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd_wig_file, rev_wig_file, output_path, output_basename, p_offset, method, read_count_threshold):
     """
     execute the script for either TIS or TTS
     """
@@ -55,12 +55,8 @@ def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd
 
         io.write_codon_interval_gff(output_path, os.path.join("codon_intervals","%s_%s_intervals.gff" % (output_basename, key)), codon_dict, p_offset, method)
 
-        detected_ORFs_dict = predictions.detect_potential_ORFs(codon_dict, val, match_codons, p_offset, method)
+        detected_ORFs_dict = predictions.detect_potential_ORFs(codon_dict, val, search_codons, match_codons, p_offset, method)
 
-        if method == "TIS":
-            io.write_results_to_output_files(detected_ORFs_dict, gene_density_dict, {}, genome_dict, output_path, output_basename, split_gff, method)
-        else:
-            io.write_results_to_output_files(detected_ORFs_dict, {}, gene_density_dict, genome_dict, output_path, output_basename, split_gff, method)
 
     return detected_ORFs_dict, gene_density_dict
 
@@ -82,6 +78,9 @@ def main():
     parser.add_argument("--offset_TTS", action="store", dest="p_offset_TTS", type=int, default=15)
 
     parser.add_argument("--split_gff", action="store_true", dest="split_gff", help="Split gff into one for each gene_type.")
+    parser.add_argument("--use_longest_TTS_ORF", action="store_true", dest="use_longest_TTS_ORF", help="Use the furthest possible inframe start codon for each detected stop codon to form the longest possible ORF that contains only one inframe stop codon. \
+                                                                                                        Default uses the first detected start codon and may result in very short ORFs.")
+    parser.add_argument("--bam_file", action="store", dest="bam_file", help="(optional) bam file to calculate RPKM and TE values for the final results.")
     parser.add_argument("--max_ORF_length", action="store", dest="max_ORF_length", type=int, default=100, help="The max length to search for when using TIS and TTS combined.")
     parser.add_argument("--output_basename", action="store", dest="output_basename", required=True, help="the basename for all output files." )
     parser.add_argument("-c", "--read_count_threshold", action="store", dest="read_count_threshold", default=5, type=int, help="skip reads lower than this threshold.")
@@ -99,28 +98,35 @@ def main():
     tts_predictions = {}
 
     if method == "TIS":
-        tis_predictions, gene_density_dict_TIS \
+        predictions, gene_density_dict_TIS \
                         = prediction_call(args.annotation_file, genome_dict, args.start_codons, args.stop_codons, \
                                           args.fwd_wig_file_TIS, args.rev_wig_file_TIS, args.output_path, \
-                                          args.output_basename, args.p_offset_TIS, "TIS", args.read_count_threshold, args.split_gff)
+                                          args.output_basename, args.p_offset_TIS, "TIS", args.read_count_threshold)
+
+        io.write_results_to_output_files(tis_predictions, gene_density_dict_TIS, {}, genome_dict, args.output_path,
+                                         args.output_basename, args.split_gff, args.bam_file, method)
+
     elif method == "TTS":
-        tts_predictions, gene_density_dict_TTS \
+        predictions, gene_density_dict_TTS \
                         = prediction_call(args.annotation_file, genome_dict, args.start_codons, args.stop_codons, \
                                           args.fwd_wig_file_TTS, args.rev_wig_file_TTS, args.output_path, \
-                                          args.output_basename, args.p_offset_TTS, "TTS", args.read_count_threshold, args.split_gff)
+                                          args.output_basename, args.p_offset_TTS, "TTS", args.read_count_threshold)
+
+        io.write_results_to_output_files(predictions, {}, gene_density_dict_TTS, genome_dict, args.output_path, \
+                                         args.output_basename, args.split_gff, method)
 
     else:
         tis_predictions, gene_density_dict_TIS \
                         = prediction_call(args.annotation_file, genome_dict, args.start_codons, args.stop_codons, \
                                           args.fwd_wig_file_TIS, args.rev_wig_file_TIS, args.output_path, \
-                                          args.output_basename, args.p_offset_TIS, "TIS", args.read_count_threshold, args.split_gff)
+                                          args.output_basename, args.p_offset_TIS, "TIS", args.read_count_threshold)
 
         tts_predictions, gene_density_dict_TTS \
                         = prediction_call(args.annotation_file, genome_dict, args.start_codons, args.stop_codons, \
                                           args.fwd_wig_file_TTS, args.rev_wig_file_TTS, args.output_path, \
-                                          args.output_basename, args.p_offset_TTS, "TTS", args.read_count_threshold, args.split_gff)
+                                          args.output_basename, args.p_offset_TTS, "TTS", args.read_count_threshold)
 
-
+        merged_predictions_dict =
         combined_predictions_dict = predictions.combined_data_detection(tis_predictions, tts_predictions, args.max_ORF_length)
 
         io.write_results_to_output_files(combined_predictions_dict, gene_density_dict_TIS, gene_density_dict_TTS, \

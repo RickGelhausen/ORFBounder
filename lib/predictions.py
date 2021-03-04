@@ -61,10 +61,63 @@ def search_codon_reverse(cur_position, genome_seq, match_codons):
 
     return cur_position
 
-def detect_potential_ORFs(codon_dict, genome_seq, match_codons, p_offset, method):
+def search_longest_reverse(cur_stop, genome_seq, search_codons, match_codons):
+    """
+    search for the match codon that is following the last inframe search codon.
+    Return: Position of matching codon or -1 if not found
+    """
+    loop_counter = 0
+
+    cur_position = cur_stop - 2
+    nt=genome_seq[cur_position:cur_position+3]
+    while nt not in search_codons or loop_counter == 0:
+        loop_counter+=1
+        cur_position -= 3
+        if cur_position < 0:
+            return -1
+
+        nt = genome_seq[cur_position:cur_position+3]
+
+    while nt not in match_codons:
+        cur_position += 3
+        if cur_position == cur_stop - 2:
+            return -1
+
+        nt = genome_seq[cur_position:cur_position+3]
+
+    return cur_position
+
+def search_longest_forward(cur_stop, genome_seq, search_codons, match_codons):
+    """
+    search for the match codon in reverse that is following the last inframe search codon.
+    Return: Position of matching codon or -1 if not found
+    """
+    loop_counter = 0
+
+    cur_position = cur_stop
+    nt=genome_seq[cur_position:cur_position+3]
+    while nt not in search_codons or loop_counter == 0:
+        cur_position += 3
+        loop_counter+=1
+        if cur_position > len(genome_seq):
+            return -1
+
+        nt = genome_seq[cur_position:cur_position+3]
+
+    while nt not in match_codons:
+        cur_position -= 3
+        if cur_position == cur_stop:
+            return -1
+
+        nt = genome_seq[cur_position:cur_position+3]
+
+    return cur_position
+
+def detect_potential_ORFs(codon_dict, genome_seq, match_codons, p_offset, method, longest_potential_ORF=True):
     """
     for each relavent codon site, find a matching orf region
     """
+    reverse_search_codons = [str(Seq(codon).reverse_complement()) for codon in search_codons]
     reverse_match_codons = [str(Seq(codon).reverse_complement()) for codon in match_codons]
 
     rows_all = []
@@ -103,9 +156,14 @@ def detect_potential_ORFs(codon_dict, genome_seq, match_codons, p_offset, method
                 cur_stop = int(interval_start) - p_offset + 4
                 cur_position = cur_stop - 2
 
-                cur_position = search_codon_reverse(cur_position, genome_seq, match_codons)
-                if cur_position == -1:
-                    continue
+                if not longest_potential_ORF:
+                    cur_position = search_codon_reverse(cur_position, genome_seq, match_codons)
+                    if cur_position == -1:
+                        continue
+                else:
+                    cur_position = search_longest_reverse(cur_position, genome_seq, search_codons, match_codons)
+                    if cur_position == -1:
+                        continue
 
                 cur_start = cur_position
 
@@ -113,9 +171,14 @@ def detect_potential_ORFs(codon_dict, genome_seq, match_codons, p_offset, method
                 cur_stop = int(interval_start) + p_offset
                 cur_position = cur_stop
 
-                cur_position = search_codon_forward(cur_position, genome_seq, reverse_match_codons)
-                if cur_position == -1:
-                    continue
+                if not longest_potential_ORF:
+                    cur_position = search_codon_forward(cur_position, genome_seq, reverse_match_codons)
+                    if cur_position == -1:
+                        continue
+                else:
+                    cur_position = search_longest_forward(cur_position, genome_seq, reverse_search_codons, reverse_match_codons)
+                    if cur_position == -1:
+                        continue
 
                 cur_start = cur_position + 2
 
