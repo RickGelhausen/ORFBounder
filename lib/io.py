@@ -40,7 +40,52 @@ def handle_input(args):
 
     sys.exit("Please ensure to either provide 2 TIS files, 2 TTS files OR both")
 
+def check_bamfile_input(args):
+    """
+    Check bam input path.
+    Ensure that there is:
+     - one bam file corresponding to each input method (TIS, TTS)
+     - (optional) one RNA bam file corresponding to each input method (TIS, TTS)
+    """
+
+    if args.bam_file_path == "":
+        return -1
+
+    valid_bam = set()
+
+    _, _, bam_file_list = next(os.walk(args.bam_file_path))
+    if args.fwd_wig_file_TIS != "":
+        TIS_prefix = os.path.basename(args.fwd_wig_file_TIS).split("_")[0]
+        RNATIS_prefix = "RNATIS-" + "-".join(TIS_prefix.split("-")[1:])
+        for file in bam_file_list:
+            if TIS_prefix in file or RNATIS_prefix in file:
+                valid_bam.add(file)
+
+    if args.fwd_wig_file_TTS != "":
+        TTS_prefix = os.path.basename(args.fwd_wig_file_TTS).split("_")[0]
+        RNATTS_prefix = "RNATTS-" + "-".join(TTS_prefix.split("-")[1:])
+        for file in bam_file_list:
+            if TTS_prefix in file or RNATTS_prefix in file:
+                valid_bam.add(file)
+
+    if len(valid_bam) == 0:
+        return -1
+
+    return valid_bam
+
+
+
+
+
+
+
+
+
+
 def load_wig(wig_path):
+    """
+    load wig file into a dictionary
+    """
     with open(wig_path, 'r') as wig_file:
         chromosome = ""
         wig_data_dict = {}
@@ -134,7 +179,8 @@ def write_results_to_output_files(detected_ORFs_dict, gene_dict_TIS, gene_dict_T
 
     result_rows = []
     for (chrom, strand) in detected_ORFs_dict.keys():
-        for (start, stop, rpm_start, rpm_stop) in detected_ORFs_dict[(chrom, strand)]:
+        for (start, stop) in detected_ORFs_dict[(chrom, strand)].keys():
+            rpm_start, rpm_stop = detected_ORFs_dict[(chrom, strand)][(start, stop)]
             gene_type, gene_name = misc.get_gene_information(chrom, start, stop, strand, gene_dict_TIS)
             nt_seq, aa_seq, nt_window, start_codon, stop_codon = misc.get_genome_information(start, stop, strand, genome[chrom], method)
 

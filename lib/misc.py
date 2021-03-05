@@ -8,7 +8,6 @@ from Bio.Alphabet import generic_dna
 
 from interlap import InterLap
 
-
 def calculate_density(wig_file_data, annotation_interlap, gene_dict):
     """
     calculate density for each annotated gene

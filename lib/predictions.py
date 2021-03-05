@@ -113,7 +113,7 @@ def search_longest_forward(cur_stop, genome_seq, search_codons, match_codons):
 
     return cur_position
 
-def detect_potential_ORFs(codon_dict, genome_seq, match_codons, p_offset, method, longest_potential_ORF=True):
+def detect_potential_ORFs(codon_dict, genome_seq, match_codons, p_offset, method, longest_potential_ORF=True, detected_ORFs_dict={}):
     """
     for each relavent codon site, find a matching orf region
     """
@@ -122,14 +122,12 @@ def detect_potential_ORFs(codon_dict, genome_seq, match_codons, p_offset, method
 
     rows_all = []
 
-    detected_ORFs_dict = {}
     for key, val in codon_dict.items():
         if val[1] <= 0:
             continue
 
         chrom, mid, strand = key.split(":")
         interval_start, interval_stop = mid.split("-")
-
         if method == "TIS":
             if strand == "+":
                 cur_start = int(interval_start) - p_offset + 2
@@ -188,15 +186,21 @@ def detect_potential_ORFs(codon_dict, genome_seq, match_codons, p_offset, method
             out_start, out_stop = cur_stop, cur_start
 
         if (chrom, strand) in detected_ORFs_dict:
-            if method == "TIS":
-                detected_ORFs_dict[(chrom, strand)].append((out_start, out_stop, val[1], -1))
+            if (out_start, out_stop) in detected_ORFs_dict[(chrom, strand)]:
+                if method == "TIS":
+                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][0] = val[1]
+                else:
+                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][1] = val[1]
             else:
-                detected_ORFs_dict[(chrom, strand)].append((out_start, out_stop, -1, val[1]))
+                if method == "TIS":
+                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = (val[1], -1)
+                else:
+                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = (-1, val[1])
         else:
             if method == "TIS":
-                detected_ORFs_dict[(chrom, strand)] = [(out_start, out_stop, val[1], -1)]
+                detected_ORFs_dict[(chrom, strand)] = {(out_start, out_stop) : (val[1], -1)}
             else:
-                detected_ORFs_dict[(chrom, strand)] = [(out_start, out_stop, -1, val[1])]
+                detected_ORFs_dict[(chrom, strand)] = {(out_start, out_stop) : (-1, val[1])}
 
     return detected_ORFs_dict
 
