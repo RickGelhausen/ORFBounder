@@ -73,15 +73,6 @@ def check_bamfile_input(args):
 
     return valid_bam
 
-
-
-
-
-
-
-
-
-
 def load_wig(wig_path):
     """
     load wig file into a dictionary
@@ -258,3 +249,23 @@ def write_results_to_output_files(detected_ORFs_dict, gene_dict_TIS, gene_dict_T
     else:
         df_results.to_csv(out_csv, sep="\t", index=False, quoting=csv.QUOTE_NONE, header=False, mode="a")
     print("Done.")
+
+def excel_writer(args, data_frames, wildcards):
+    """
+    create an excel sheet out of a dictionary of data_frames
+    correct the width of each column
+    """
+    header_only =  ["Aminoacid_seq", "Nucleotide_seq", "Start_codon", "Stop_codon", "Strand", "Codon_count"] + [card + "_rpkm" for card in wildcards]
+    writer = pd.ExcelWriter(args.output_path, engine='xlsxwriter')
+    for sheetname, df in data_frames.items():
+        df.to_excel(writer, sheet_name=sheetname, index=False)
+        worksheet = writer.sheets[sheetname]
+        for idx, col in enumerate(df):
+            series = df[col]
+            if col in header_only:
+                max_len = len(str(series.name)) + 2
+            else:
+                max_len = max(( series.astype(str).str.len().max(), len(str(series.name)) )) + 1
+            print("Sheet: %s | col: %s | max_len: %s" % (sheetname, col, max_len))
+            worksheet.set_column(idx, idx, max_len)
+    writer.save()

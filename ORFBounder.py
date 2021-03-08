@@ -128,8 +128,8 @@ def main():
                                           args.output_basename, args.p_offset_TTS, "TTS", args.read_count_threshold, \
                                           predictions)
 
-        read_count_dict = init_read_count_dict(read_count_dict, predictions_dict)
-        
+        read_count_dict = init_read_count_dict(read_count_dict, predictions)
+
         io.write_results_to_output_files(predictions, gene_density_dict_TIS, gene_density_dict_TTS, \
                                          genome_dict, args.output_path, args.output_basename, args.split_gff, \
                                          read_count_dict, method)

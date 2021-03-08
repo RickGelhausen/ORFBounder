@@ -1,3 +1,154 @@
+
+import pysam
+import collections
+import pandas as pd
+import itertools as iter
+
+from collections import Counter, OrderedDict
+
+class OrderedCounter(Counter, OrderedDict):
+    pass
+
+def get_TE_header(wildcards):
+    """
+    generate the correct TE_header based on the available data
+    """
+    TE_header = []
+    TE_header_dict = OrderedDict()
+    for card in wildcards:
+        method, condition, replicate = card.split("-")
+        if method == "RIBO":
+            if "%s-%s-%s" %("RNA", condition, replicate) in wildcards:
+                if ("RIBO", condition) in  TE_header_dict:
+                    TE_header_dict[("RIBO", condition)].append(replicate)
+                else:
+                    TE_header_dict[("RIBO", condition)] = [replicate]
+        elif method == "TIS":
+            if "%s-%s-%s" %("RNATIS", condition, replicate) in wildcards:
+                if ("TIS", condition) in  TE_header_dict:
+                    TE_header_dict[("TIS", condition)].append(replicate)
+                else:
+                    TE_header_dict[("TIS", condition)] = [replicate]
+        elif method == "TTS":
+            if "%s-%s-%s" %("RNATTS", condition, replicate) in wildcards:
+                if ("TTS", condition) in  TE_header_dict:
+                    TE_header_dict[("TTS", condition)].append(replicate)
+                else:
+                    TE_header_dict[("TTS", condition)] = [replicate]
+
+    for key, val in TE_header_dict.items():
+        method, condition = key
+        if len(val) > 1:
+            t_header = ["%s-%s-%s" % (method, condition, x) for x in val] + ["%s-%s-avg" % (method, condition)]
+        else:
+            t_header = ["%s-%s-%s" % (method, condition, x) for x in val]
+        TE_header.extend(t_header)
+
+    return TE_header
+
+def calculate_rpkm(total_mapped, read_count, read_length):
+    """
+    calculate the rpkm
+    """
+    if read_length == 0:
+        print("read_length: 0 detected! Setting RPKM to 0!")
+        return 0
+    elif total_mapped == 0:
+        print("total_mapped: 0 detected! Setting RPKM to 0!")
+        return 0
+
+    return float("%.2f" % ((read_count * 1000000000) / (total_mapped * read_length)))
+
+def TE(ribo_count, rna_count):
+    """
+    calculate the translational efficiency for one entry
+    """
+
+    if ribo_count == 0 and rna_count == 0:
+        return "NaN"
+    elif rna_count == 0:
+        return "NaN"
+    else:
+        return ribo_count / rna_count
+
+def get_avg(t_eff):
+    """
+    get the final TE list
+    """
+
+    valid_count = 0
+    sum = 0
+    for t in t_eff:
+        if t != "NaN":
+            valid_count += 1
+            sum += t
+
+    if valid_count == 0:
+        t_eff.extend(["NaN"])
+
+    else:
+        t_eff.extend([sum / valid_count])
+
+    return t_eff
+
+def calculate_TE(read_list, wildcards, conditions):
+    """
+    calculate the translational efficiency
+    """
+    read_dict = OrderedDict()
+    TE_dict = OrderedDict()
+    for idx in range(len(wildcards)):
+        method, condition, replicate = wildcards[idx].split("-")
+        key = (method, condition, replicate)
+        if key not in read_dict:
+            read_dict[key] = read_list[idx]
+        else:
+            print("warning: multiple equal keys")
+
+    TE_list = []
+    for key, val in read_dict.items():
+        method, condition, replicate = key
+        if method == "RIBO":
+            if ("RNA", condition, replicate) in read_dict:
+                rpkm_ribo = read_dict[key]
+                rpkm_rna = read_dict[("RNA", condition, replicate)]
+                cur_TE = TE(rpkm_ribo, rpkm_rna)
+                if ("RIBO", condition) in TE_dict:
+                    TE_dict[("RIBO", condition)].append(cur_TE)
+                else:
+                    TE_dict[("RIBO", condition)] = [cur_TE]
+
+        elif method == "TIS":
+            if ("RNATIS", condition, replicate) in read_dict:
+                rpkm_ribo = read_dict[key]
+                rpkm_rna = read_dict[("RNATIS", condition, replicate)]
+                cur_TE = TE(rpkm_ribo, rpkm_rna)
+                if ("TIS", condition) in TE_dict:
+                    TE_dict[("TIS", condition)].append(cur_TE)
+                else:
+                    TE_dict[("TIS",\def\arraystrech{0} condition)] = [cur_TE]
+
+        elif method == "TTS":
+            if ("RNATTS", condition, replicate) in read_dict:
+                rpkm_ribo = read_dict[key]
+                rpkm_rna = read_dict[("RNATTS", condition, replicate)]
+                cur_TE = TE(rpkm_ribo, rpkm_rna)
+                if ("TTS", condition) in TE_dict:
+                    TE_dict[("TTS", condition)].append(cur_TE)
+                else:
+                    TE_dict[("TTS", condition)] = [cur_TE]
+
+    TE_list = []
+    for key, val in TE_dict.items():
+        if len(val) > 1:
+            t_eff = get_avg(val)
+        else:
+            t_eff = val
+        TE_list.extend(t_eff)
+
+    return TE_list
+
+
 def init_read_count_dict(read_count_dict, result_dict):
     """
     Collect intervals needed for read_counting.
@@ -11,12 +162,48 @@ def init_read_count_dict(read_count_dict, result_dict):
 
     return read_count_dict
 
-def create_interlap_dict():
+def create_interlap_dict(bam_file):
     """
     create a dictionary with interlap objects for the current bam file.
     """
 
-def calculate_read_count():
+    print("Reading: %s" % bam_file)
+    interlap_dict = {}
+    total_mapped_reads = {}
+
+    samfile = pysam.AlignmentFile(bam_file)
+    for read in samfile.fetch():
+        chrom = read.reference_name
+        if read.get_tag("NH") > 1 or read.mapping_quality < 0 or read.is_unmapped:
+            continue
+
+        #start, stop = read.reference_start, read.reference_start + read.query_length
+        start, stop = read.reference_start, read.reference_end-1
+        #start, stop = read.query_alignment_start, read.query_alignment_end
+
+        if chrom in total_mapped_reads:
+            total_mapped_reads[chrom] += 1
+        else:
+            total_mapped_reads[chrom] = 1
+
+        if not read.is_reverse:
+            if (chrom, "+") in interlap_dict:
+                interlap_dict[(chrom, "+")].add((start, stop))
+            else:
+                inter = InterLap()
+                inter.add((start, stop))
+                interlap_dict[(chrom, "+")] = inter
+        else:
+            if (chrom, "-") in interlap_dict:
+                interlap_dict[(chrom, "-")].add((start, stop))
+            else:
+                inter = InterLap()
+                inter.add((start, stop))
+                interlap_dict[(chrom, "-")] = inter
+
+    return interlap_dict, total_mapped_reads
+
+def calculate_read_counts(bam_files):
     """
     run over all available bam files and add read_counts for each interval in the interval dict.
     """
