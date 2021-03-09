@@ -126,7 +126,7 @@ def calculate_TE(read_list, wildcards):
                 if ("TIS", condition) in TE_dict:
                     TE_dict[("TIS", condition)].append(cur_TE)
                 else:
-                    TE_dict[("TIS",\def\arraystrech{0} condition)] = [cur_TE]
+                    TE_dict[("TIS", condition)] = [cur_TE]
 
         elif method == "TTS":
             if ("RNATTS", condition, replicate) in read_dict:

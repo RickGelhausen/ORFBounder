@@ -113,7 +113,7 @@ def search_longest_forward(cur_stop, genome_seq, search_codons, match_codons):
 
     return cur_position
 
-def detect_potential_ORFs(codon_dict, genome_seq, match_codons, p_offset, method, longest_potential_ORF=True, detected_ORFs_dict={}):
+def detect_potential_ORFs(codon_dict, genome_seq, search_codons, match_codons, p_offset, method, longest_potential_ORF=True, detected_ORFs_dict={}):
     """
     for each relavent codon site, find a matching orf region
     """
