@@ -12,6 +12,7 @@ from Bio import SeqIO
 from Bio.Alphabet import generic_dna
 
 import lib.misc as misc
+import lib.expression as expr
 
 def generate_genome_dict(genome_file):
     """
@@ -144,7 +145,8 @@ def write_codon_interval_gff(output_path, output_basename, codon_dict, p_offset,
 
     write_gff_file(df, output_path, output_basename, method)
 
-def write_results_to_output_files(detected_ORFs_dict, gene_dict_TIS, gene_dict_TTS, genome, output_path, output_basename, split_gff, method):
+def write_results_to_output_files(detected_ORFs_dict, gene_dict_TIS, gene_dict_TTS, genome, output_path, output_basename, \
+                                    split_gff, read_count_dict, total_mapped_list, wildcards, method):
     """
     write a csv file containing all information,
     write a gff file comtaining the ORFs from the csv,
@@ -154,9 +156,11 @@ def write_results_to_output_files(detected_ORFs_dict, gene_dict_TIS, gene_dict_T
 
     nTuple_gff = collections.namedtuple('Pandas', ["chromosome","source","type","start","stop","score","strand","phase","attribute"])
 
+    TE_header = expr.get_TE_header(wildcards)
     header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count", \
               "Peak_height_TIS", "Peak_height_TTS", "Start_codon", "Stop_codon", "15nt_window", "Nucleotide_Seq", "Amino_Acid_Seq", \
-              "Relative_density_start", "Relative_density_stop", "5'-distance", "3'-distance"]
+              "Relative_density_start", "Relative_density_stop", "5'-distance", "3'-distance"] + [card + "_rpkm" for card in wildcards] +\
+              [cond + "_TE" for cond in TE_header]
     name_list = ["s%s" % str(x) for x in range(len(header))]
     nTuple = collections.namedtuple('Pandas', name_list)
 
@@ -177,6 +181,13 @@ def write_results_to_output_files(detected_ORFs_dict, gene_dict_TIS, gene_dict_T
 
             if aa_seq.count("*") > 1:
                 continue
+            rpkm_list = []
+            TE_list = []
+            if read_count_dict != {}:
+                for idx, val in enumerate(read_count_dict[(chrom, start, stop, strand)]):
+                    rpkm_list.append(expr.calculate_rpkm(total_mapped_list[idx][chrom], val, len(nt_seq)))
+
+                TE_list = expr.calculate_TE(rpkm_list, wildcards)
 
             identifier = "%s:%s-%s:%s" % (chrom, start+1, stop+1, strand)
             codon_count = int(len(nt_seq)/3)
@@ -194,7 +205,7 @@ def write_results_to_output_files(detected_ORFs_dict, gene_dict_TIS, gene_dict_T
 
             result = [gene_type, identifier, chrom, start+1, stop+1, strand, gene_name, codon_count, rpm_start, rpm_stop, \
                       start_codon, stop_codon, nt_window, nt_seq, aa_seq, relative_density_start, relative_density_stop, \
-                      fiveprime_dist, threeprime_dist]
+                      fiveprime_dist, threeprime_dist] + rpkm_list + TE_list
 
             gff_all.append(cur_tuple)
             if split_gff:

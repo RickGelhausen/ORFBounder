@@ -91,7 +91,7 @@ def get_avg(t_eff):
 
     return t_eff
 
-def calculate_TE(read_list, wildcards, conditions):
+def calculate_TE(read_list, wildcards):
     """
     calculate the translational efficiency
     """
@@ -203,7 +203,23 @@ def create_interlap_dict(bam_file):
 
     return interlap_dict, total_mapped_reads
 
-def calculate_read_counts(bam_files):
+
+def count_reads(chrom, start, stop, strand, read_interlap_dict):
+    """
+    count the reads falling into a certain region
+    """
+    return len(list(read_interlap_dict[(chrom, strand)].find((start, stop))))
+
+def retrieve_read_counts(read_count_dict, wildcards, bam_files):
     """
     run over all available bam files and add read_counts for each interval in the interval dict.
     """
+
+    total_mapped_list = []
+    for idx in range(len(bam_files)):
+        interlap_dict, total_mapped = create_interlap_dict(bam_files[idx])
+        total_mapped_list.append(total_mapped)
+        for (chrom, start, stop, strand) in read_count_dict.keys():
+            read_count_dict[(chrom,start,stop,strand)].append(count_reads(chrom, start, stop, strand, interlap_dict))
+
+    return read_count_dict, total_mapped_list

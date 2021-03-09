@@ -88,33 +88,46 @@ def main():
 
     method = io.handle_input(args)
     bam_files = io.check_bamfile_input(args)
+    wildcards = []
     if bam_files == -1:
         print("No valid bam files detected, skipping readcount calculation")
+    else:
+        for file in bam_files:
+            wildcards.append(os.basename(file).split("_")[0])
+
+        wildcards, bam_files = (list(t) for t in zip(*sorted(zip(wildcards, bam_files))))
 
     print("Fetching genome...")
     genome_dict = io.generate_genome_dict(args.genome_file)
     print("Done.")
 
-    read_count_dict = {}
+    read_count_dict, total_mapped_list = {}, []
     if method == "TIS":
         predictions, gene_density_dict_TIS \
                         = prediction_call(args.annotation_file, genome_dict, args.start_codons, args.stop_codons, \
                                           args.fwd_wig_file_TIS, args.rev_wig_file_TIS, args.output_path, \
                                           args.output_basename, args.p_offset_TIS, "TIS", args.read_count_threshold)
+        if bam_files != -1:
+            read_count_dict = init_read_count_dict(read_count_dict, predictions)
+            read_count_dict, total_mapped_list = retrieve_read_counts(read_count_dict, wildcards, bam_files)
 
-
-        io.write_results_to_output_files(tis_predictions, gene_density_dict_TIS, {}, genome_dict, args.output_path,
-                                         args.output_basename, args.split_gff, read_count_dict, method)
-
+        io.write_results_to_output_files(tis_predictions, gene_density_dict_TIS, {}, genome_dict, args.output_path, \
+                                         args.output_basename, args.split_gff, read_count_dict, total_mapped_list, \
+                                         wildcards, method)
 
     elif method == "TTS":
         predictions, gene_density_dict_TTS \
                         = prediction_call(args.annotation_file, genome_dict, args.start_codons, args.stop_codons, \
                                           args.fwd_wig_file_TTS, args.rev_wig_file_TTS, args.output_path, \
                                           args.output_basename, args.p_offset_TTS, "TTS", args.read_count_threshold)
+        if bam_files != -1:
+            read_count_dict = init_read_count_dict(read_count_dict, predictions)
+            read_count_dict, total_mapped_list = retrieve_read_counts(read_count_dict, wildcards, bam_files)
 
         io.write_results_to_output_files(predictions, {}, gene_density_dict_TTS, genome_dict, args.output_path, \
-                                         args.output_basename, args.split_gff, read_count_dict, method)
+                                         args.output_basename, args.split_gff, read_count_dict, total_mapped_list, \
+                                         wildcards, method)
+
 
     else:
         predictions, gene_density_dict_TIS \
@@ -128,11 +141,13 @@ def main():
                                           args.output_basename, args.p_offset_TTS, "TTS", args.read_count_threshold, \
                                           predictions)
 
-        read_count_dict = init_read_count_dict(read_count_dict, predictions)
+        if bam_files != -1:
+            read_count_dict = init_read_count_dict(read_count_dict, predictions)
+            read_count_dict, total_mapped_list = retrieve_read_counts(read_count_dict, wildcards, bam_files)
 
         io.write_results_to_output_files(predictions, gene_density_dict_TIS, gene_density_dict_TTS, \
                                          genome_dict, args.output_path, args.output_basename, args.split_gff, \
-                                         read_count_dict, method)
+                                         read_count_dict, total_mapped_list, wildcards, method)
 
         #combined_predictions_dict = predictions.combined_data_detection(tis_predictions, tts_predictions, args.max_ORF_length)
 
