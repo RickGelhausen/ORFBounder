@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os
+import os, sys
 import re
 import csv
 import collections
@@ -13,6 +13,7 @@ from Bio.Alphabet import generic_dna
 
 import lib.misc as misc
 import lib.expression as expr
+import lib.messaging as msg
 
 def generate_genome_dict(genome_file):
     """
@@ -55,19 +56,20 @@ def check_bamfile_input(args):
     valid_bam = set()
 
     _, _, bam_file_list = next(os.walk(args.bam_file_path))
+    bam_file_list = [ file for file in bam_file_list if file.endswith(".bam")]
     if args.fwd_wig_file_TIS != "":
-        TIS_prefix = os.path.basename(args.fwd_wig_file_TIS).split("_")[0]
+        TIS_prefix = os.path.basename(args.fwd_wig_file_TIS).split(".")[0]
         RNATIS_prefix = "RNATIS-" + "-".join(TIS_prefix.split("-")[1:])
         for file in bam_file_list:
             if TIS_prefix in file or RNATIS_prefix in file:
-                valid_bam.add(file)
+                valid_bam.add(os.path.join(args.bam_file_path,file))
 
     if args.fwd_wig_file_TTS != "":
-        TTS_prefix = os.path.basename(args.fwd_wig_file_TTS).split("_")[0]
+        TTS_prefix = os.path.basename(args.fwd_wig_file_TTS).split(".")[0]
         RNATTS_prefix = "RNATTS-" + "-".join(TTS_prefix.split("-")[1:])
         for file in bam_file_list:
             if TTS_prefix in file or RNATTS_prefix in file:
-                valid_bam.add(file)
+                valid_bam.add(os.path.join(args.bam_file_path,file))
 
     if len(valid_bam) == 0:
         return -1
@@ -144,6 +146,26 @@ def write_codon_interval_gff(output_path, output_basename, codon_dict, p_offset,
     df = pd.DataFrame.from_records(rows, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
 
     write_gff_file(df, output_path, output_basename, method)
+
+def excel_writer(out_file_name, data_frames, wildcards):
+    """
+    create an excel sheet out of a dictionary of data_frames
+    correct the width of each column
+    """
+    header_only =  ["Aminoacid_seq", "Nucleotide_seq", "Start_codon", "Stop_codon", "Strand", "Codon_count"] + [card + "_rpkm" for card in wildcards]
+    writer = pd.ExcelWriter(out_file_name, engine='xlsxwriter')
+    for sheetname, df in data_frames.items():
+        df.to_excel(writer, sheet_name=sheetname, index=False)
+        worksheet = writer.sheets[sheetname]
+        for idx, col in enumerate(df):
+            series = df[col]
+            if col in header_only:
+                max_len = len(str(series.name)) + 2
+            else:
+                max_len = max(( series.astype(str).str.len().max(), len(str(series.name)) )) + 1
+            print("Sheet: %s | col: %s | max_len: %s" % (sheetname, col, max_len))
+            worksheet.set_column(idx, idx, max_len)
+    writer.save()
 
 def write_results_to_output_files(detected_ORFs_dict, gene_dict_TIS, gene_dict_TTS, genome, output_path, output_basename, \
                                     split_gff, read_count_dict, total_mapped_list, wildcards, method):
@@ -224,30 +246,30 @@ def write_results_to_output_files(detected_ORFs_dict, gene_dict_TIS, gene_dict_T
 
             result_rows.append(nTuple(*result))
 
-        df_results = pd.DataFrame.from_records(result_rows, columns=[header[x] for x in range(len(header))])
+    df_results = pd.DataFrame.from_records(result_rows, columns=[header[x] for x in range(len(header))])
 
-        print("Generating gff files...")
-        df_all = pd.DataFrame.from_records(gff_all, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-        write_gff_file(df_all, output_path, os.path.join("results_gff","%s.gff" % output_basename), method)
+    print("Generating gff files...")
+    df_all = pd.DataFrame.from_records(gff_all, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+    write_gff_file(df_all, output_path, os.path.join("results_gff","%s.gff" % output_basename), method)
 
-        if split_gff:
-            df_annotated = pd.DataFrame.from_records(gff_annotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-            write_gff_file(df_annotated, output_path, os.path.join("results_gff","%s_annotated.gff" % output_basename), method)
+    if split_gff:
+        df_annotated = pd.DataFrame.from_records(gff_annotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+        write_gff_file(df_annotated, output_path, os.path.join("results_gff","%s_annotated.gff" % output_basename), method)
 
-            df_unannotated = pd.DataFrame.from_records(gff_unannotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-            write_gff_file(df_unannotated, output_path, os.path.join("results_gff","%s_unannotated.gff" % output_basename), method)
+        df_unannotated = pd.DataFrame.from_records(gff_unannotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+        write_gff_file(df_unannotated, output_path, os.path.join("results_gff","%s_unannotated.gff" % output_basename), method)
 
-            df_near_annotated = pd.DataFrame.from_records(gff_near_annotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-            write_gff_file(df_near_annotated, output_path, os.path.join("results_gff","%s_near_annotated.gff" % output_basename), method)
+        df_near_annotated = pd.DataFrame.from_records(gff_near_annotated, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+        write_gff_file(df_near_annotated, output_path, os.path.join("results_gff","%s_near_annotated.gff" % output_basename), method)
 
-            df_internal_inframe = pd.DataFrame.from_records(gff_internal_inframe, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-            write_gff_file(df_internal_inframe, output_path, os.path.join("results_gff","%s_internal_inframe.gff" % output_basename), method)
+        df_internal_inframe = pd.DataFrame.from_records(gff_internal_inframe, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+        write_gff_file(df_internal_inframe, output_path, os.path.join("results_gff","%s_internal_inframe.gff" % output_basename), method)
 
-            df_n_terminal = pd.DataFrame.from_records(gff_n_terminal, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-            write_gff_file(df_n_terminal, output_path, os.path.join("results_gff","%s_n_terminal.gff" % output_basename), method)
+        df_n_terminal = pd.DataFrame.from_records(gff_n_terminal, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+        write_gff_file(df_n_terminal, output_path, os.path.join("results_gff","%s_n_terminal.gff" % output_basename), method)
 
-            df_internal_out = pd.DataFrame.from_records(gff_internal_out, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-            write_gff_file(df_internal_out, output_path, os.path.join("results_gff","%s_internal_out.gff" % output_basename), method)
+        df_internal_out = pd.DataFrame.from_records(gff_internal_out, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+        write_gff_file(df_internal_out, output_path, os.path.join("results_gff","%s_internal_out.gff" % output_basename), method)
 
     print("Done.")
 
@@ -255,28 +277,11 @@ def write_results_to_output_files(detected_ORFs_dict, gene_dict_TIS, gene_dict_T
     out_csv = os.path.join(output_path, method, "result_tables", "%s.csv" % output_basename)
     Path(os.path.dirname(out_csv)).mkdir(parents=True, exist_ok=True)
 
-    if not os.path.isfile(out_csv):
-        df_results.to_csv(out_csv, sep="\t", index=False, quoting=csv.QUOTE_NONE)
-    else:
-        df_results.to_csv(out_csv, sep="\t", index=False, quoting=csv.QUOTE_NONE, header=False, mode="a")
-    print("Done.")
+    df_results.to_csv(out_csv, sep="\t", index=False, quoting=csv.QUOTE_NONE)
 
-def excel_writer(args, data_frames, wildcards):
-    """
-    create an excel sheet out of a dictionary of data_frames
-    correct the width of each column
-    """
-    header_only =  ["Aminoacid_seq", "Nucleotide_seq", "Start_codon", "Stop_codon", "Strand", "Codon_count"] + [card + "_rpkm" for card in wildcards]
-    writer = pd.ExcelWriter(args.output_path, engine='xlsxwriter')
-    for sheetname, df in data_frames.items():
-        df.to_excel(writer, sheet_name=sheetname, index=False)
-        worksheet = writer.sheets[sheetname]
-        for idx, col in enumerate(df):
-            series = df[col]
-            if col in header_only:
-                max_len = len(str(series.name)) + 2
-            else:
-                max_len = max(( series.astype(str).str.len().max(), len(str(series.name)) )) + 1
-            print("Sheet: %s | col: %s | max_len: %s" % (sheetname, col, max_len))
-            worksheet.set_column(idx, idx, max_len)
-    writer.save()
+    out_xlsx = os.path.join(output_path, method, "result_tables", "%s.xlsx" % output_basename)
+    df_dict = {"CDS" : df_results}
+    Path(os.path.dirname(out_xlsx)).mkdir(parents=True, exist_ok=True)
+
+    excel_writer(out_xlsx, df_dict, wildcards)
+    print("Done.")

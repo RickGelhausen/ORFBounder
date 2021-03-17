@@ -12,6 +12,8 @@ import operator
 import lib.io as io
 import lib.misc as misc
 import lib.predictions as predictions
+import lib.expression as expr
+import lib.messaging as msg
 
 
 def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd_wig_file, rev_wig_file, output_path, \
@@ -30,9 +32,10 @@ def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd
     fwd_wig_dict = io.load_wig(fwd_wig_file)
     rev_wig_dict = io.load_wig(rev_wig_file)
 
-    print("Checking output folder...")
+    msg.message("Checking output folder...")
     if os.path.isfile(os.path.join(output_path, method, "result_tables", output_basename + ".csv")):
-        sys.exit("Result table already found! Please ensure that prior output files with the same name are deleted.")
+        msg.warning("Result table already found! Please ensure that prior output files with the same name are deleted.")
+        sys.exit()
 
     print("Computing predictions...")
     for key, val in genome_dict.items():
@@ -94,7 +97,7 @@ def main():
         print("No valid bam files detected, skipping readcount calculation")
     else:
         for file in bam_files:
-            wildcards.append(os.basename(file).split("_")[0])
+            wildcards.append(os.path.basename(file).split("_")[0])
 
         wildcards, bam_files = (list(t) for t in zip(*sorted(zip(wildcards, bam_files))))
 
@@ -110,8 +113,8 @@ def main():
                                           args.output_basename, args.p_offset_TIS, "TIS", args.use_longest_TTS_ORF, \
                                           args.read_count_threshold)
         if bam_files != -1:
-            read_count_dict = init_read_count_dict(read_count_dict, predictions)
-            read_count_dict, total_mapped_list = retrieve_read_counts(read_count_dict, wildcards, bam_files)
+            read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
+            read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
 
         io.write_results_to_output_files(predictions, gene_density_dict_TIS, {}, genome_dict, args.output_path, \
                                          args.output_basename, args.split_gff, read_count_dict, total_mapped_list, \
@@ -124,8 +127,8 @@ def main():
                                           args.output_basename, args.p_offset_TTS, "TTS", args.use_longest_TTS_ORF, \
                                           args.read_count_threshold)
         if bam_files != -1:
-            read_count_dict = init_read_count_dict(read_count_dict, predictions)
-            read_count_dict, total_mapped_list = retrieve_read_counts(read_count_dict, wildcards, bam_files)
+            read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
+            read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
 
         io.write_results_to_output_files(predictions, {}, gene_density_dict_TTS, genome_dict, args.output_path, \
                                          args.output_basename, args.split_gff, read_count_dict, total_mapped_list, \
@@ -146,8 +149,8 @@ def main():
                                           args.read_count_threshold, predictions)
 
         if bam_files != -1:
-            read_count_dict = init_read_count_dict(read_count_dict, predictions)
-            read_count_dict, total_mapped_list = retrieve_read_counts(read_count_dict, wildcards, bam_files)
+            read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
+            read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
 
         io.write_results_to_output_files(predictions, gene_density_dict_TIS, gene_density_dict_TTS, \
                                          genome_dict, args.output_path, args.output_basename, args.split_gff, \

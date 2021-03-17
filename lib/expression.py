@@ -1,10 +1,12 @@
-
+import sys
 import pysam
 import collections
 import pandas as pd
 import itertools as iter
 
+from interlap import InterLap
 from collections import Counter, OrderedDict
+import lib.messaging as msg
 
 class OrderedCounter(Counter, OrderedDict):
     pass
@@ -172,34 +174,38 @@ def create_interlap_dict(bam_file):
     total_mapped_reads = {}
 
     samfile = pysam.AlignmentFile(bam_file)
-    for read in samfile.fetch():
-        chrom = read.reference_name
-        if read.get_tag("NH") > 1 or read.mapping_quality < 0 or read.is_unmapped:
-            continue
+    try:
+        for read in samfile.fetch():
+            chrom = read.reference_name
+            if read.get_tag("NH") > 1 or read.mapping_quality < 0 or read.is_unmapped:
+                continue
 
-        #start, stop = read.reference_start, read.reference_start + read.query_length
-        start, stop = read.reference_start, read.reference_end-1
-        #start, stop = read.query_alignment_start, read.query_alignment_end
+            #start, stop = read.reference_start, read.reference_start + read.query_length
+            start, stop = read.reference_start, read.reference_end-1
+            #start, stop = read.query_alignment_start, read.query_alignment_end
 
-        if chrom in total_mapped_reads:
-            total_mapped_reads[chrom] += 1
-        else:
-            total_mapped_reads[chrom] = 1
-
-        if not read.is_reverse:
-            if (chrom, "+") in interlap_dict:
-                interlap_dict[(chrom, "+")].add((start, stop))
+            if chrom in total_mapped_reads:
+                total_mapped_reads[chrom] += 1
             else:
-                inter = InterLap()
-                inter.add((start, stop))
-                interlap_dict[(chrom, "+")] = inter
-        else:
-            if (chrom, "-") in interlap_dict:
-                interlap_dict[(chrom, "-")].add((start, stop))
+                total_mapped_reads[chrom] = 1
+
+            if not read.is_reverse:
+                if (chrom, "+") in interlap_dict:
+                    interlap_dict[(chrom, "+")].add((start, stop))
+                else:
+                    inter = InterLap()
+                    inter.add((start, stop))
+                    interlap_dict[(chrom, "+")] = inter
             else:
-                inter = InterLap()
-                inter.add((start, stop))
-                interlap_dict[(chrom, "-")] = inter
+                if (chrom, "-") in interlap_dict:
+                    interlap_dict[(chrom, "-")].add((start, stop))
+                else:
+                    inter = InterLap()
+                    inter.add((start, stop))
+                    interlap_dict[(chrom, "-")] = inter
+    except ValueError:
+        msg.warning("Error! Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.")
+        sys.exit(1)
 
     return interlap_dict, total_mapped_reads
 

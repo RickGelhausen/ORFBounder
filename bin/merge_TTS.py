@@ -41,7 +41,7 @@ def df_to_dictionary(args, filepath, meta_dict):
 
     return tmp_dict, meta_dict
 
-#
+
 def parse_input(args):
     """
     Check if each RIBO file has a TIS counterpart and create two lists of dictionaries as well as a meta dictionary

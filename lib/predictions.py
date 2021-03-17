@@ -188,9 +188,9 @@ def detect_potential_ORFs(codon_dict, genome_seq, search_codons, match_codons, p
         if (chrom, strand) in detected_ORFs_dict:
             if (out_start, out_stop) in detected_ORFs_dict[(chrom, strand)]:
                 if method == "TIS":
-                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][0] = val[1]
+                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = (val[1], detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][1])
                 else:
-                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][1] = val[1]
+                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = (detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][0], val[1])
             else:
                 if method == "TIS":
                     detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = (val[1], -1)
