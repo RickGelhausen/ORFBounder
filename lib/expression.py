@@ -172,6 +172,7 @@ def create_interlap_dict(bam_file):
     print("Reading: %s" % bam_file)
     interlap_dict = {}
     total_mapped_reads = {}
+    tmp_dict = {}
 
     samfile = pysam.AlignmentFile(bam_file)
     try:
@@ -190,22 +191,24 @@ def create_interlap_dict(bam_file):
                 total_mapped_reads[chrom] = 1
 
             if not read.is_reverse:
-                if (chrom, "+") in interlap_dict:
-                    interlap_dict[(chrom, "+")].add((start, stop))
+                if (chrom, "+") in tmp_dict:
+                    tmp_dict[(chrom, "+")].append((start, stop))
                 else:
-                    inter = InterLap()
-                    inter.add((start, stop))
-                    interlap_dict[(chrom, "+")] = inter
+                    tmp_dict[(chrom, "+")] = [(start, stop)]
             else:
-                if (chrom, "-") in interlap_dict:
-                    interlap_dict[(chrom, "-")].add((start, stop))
+                if (chrom, "-") in tmp_dict:
+                    tmp_dict[(chrom, "-")].append((start, stop))
                 else:
-                    inter = InterLap()
-                    inter.add((start, stop))
-                    interlap_dict[(chrom, "-")] = inter
+                    tmp_dict[(chrom, "-")] = [(start, stop)]
+
     except ValueError:
         msg.warning("Error! Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.")
         sys.exit(1)
+
+    for key, val in tmp_dict.items():
+        inter = InterLap()
+        inter.update(val)
+        interlap_dict[key] = inter
 
     return interlap_dict, total_mapped_reads
 

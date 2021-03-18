@@ -97,7 +97,7 @@ def main():
         print("No valid bam files detected, skipping readcount calculation")
     else:
         for file in bam_files:
-            wildcards.append(os.path.basename(file).split("_")[0])
+            wildcards.append(re.split('_|\.', os.path.basename(file))[0])
 
         wildcards, bam_files = (list(t) for t in zip(*sorted(zip(wildcards, bam_files))))
 

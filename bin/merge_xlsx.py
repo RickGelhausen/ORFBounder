@@ -11,26 +11,33 @@ def extend_combined_dictionary(xlsx_df, combined_dict):
     """
     collect data from current file and add it to the existing dictionary
     { chrom:start-stop:strand : { wildcard : peak_height, relative_density, RPKM, TE} }
+    { chrom:start-stop:strand : metadata }
     """
+
+    rpkm_map = {}
+    TE_map = {}
+    relative_density_map = {}
+    for i, val in enumerate(xlsx_df.columns)
+        if val
 
     for row in xlsx_df.itertuples(index=False, name='Pandas'):
         gene_type = getattr(row, "Type")
-        unique_id = getattr(row, "Identifier")
-        genome = getattr(row, "Genome")
-        start = int(getattr(row, "Start"))
-        stop = int(getattr(row, "Stop"))
-        strand = getattr(row, "Strand")
-        gene_name = getattr(row, "locus_tag")
-        aa_count = int(getattr(row, "codon_count"))
-        peak_height = float(getattr(row, "peak_height"))
-        start_codon = getattr(row, "start_codon")
-        stop_codon = getattr(row, "stop_codon")
-        nt_upstream = getattr(row, "_11")
-        nt_seq = getattr(row, "nt_seq")
-        aa_seq = getattr(row, "aa_seq")
-        relative_density = float(getattr(row, "relative_density"))
-        fiveprime = getattr(row, "_15")
-        threeprime = getattr(row, "_16")
+        # unique_id = getattr(row, "Identifier")
+        # genome = getattr(row, "Genome")
+        # start = int(getattr(row, "Start"))
+        # stop = int(getattr(row, "Stop"))
+        # strand = getattr(row, "Strand")
+        # gene_name = getattr(row, "locus_tag")
+        # aa_count = int(getattr(row, "codon_count"))
+        # peak_height = float(getattr(row, "peak_height"))
+        # start_codon = getattr(row, "start_codon")
+        # stop_codon = getattr(row, "stop_codon")
+        # nt_upstream = getattr(row, "_11")
+        # nt_seq = getattr(row, "nt_seq")
+        # aa_seq = getattr(row, "aa_seq")
+        # relative_density = float(getattr(row, "relative_density"))
+        # fiveprime = getattr(row, "_15")
+        # threeprime = getattr(row, "_16")
 
 def screen_input_tables(table_list):
     """
@@ -65,3 +72,8 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+# xlsx_df1 = pd.read_excel("/mnt/datavault/SPP2002/analysis/test_ORFBounder/combined_methods/result_tables/A-1.xlsx", sheet_name=None)["CDS"]
+# xlsx_df2 = pd.read_excel("/mnt/datavault/SPP2002/analysis/test_ORFBounder/TTS/result_tables/A-2.xlsx", sheet_name=None)["CDS"]
+#
+# pd.merge(xlsx_df1, xlsx_df2, on=["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count", "Start_codon", "Stop_codon", "15nt_window", "Nucleotide_Seq", "Amino_Acid_Seq", "5'-distance", "3'-distance"]).to_csv("test_merge.csv", index=False)

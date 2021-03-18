@@ -178,9 +178,18 @@ def write_results_to_output_files(detected_ORFs_dict, gene_dict_TIS, gene_dict_T
 
     nTuple_gff = collections.namedtuple('Pandas', ["chromosome","source","type","start","stop","score","strand","phase","attribute"])
 
+    TIS_header = "TIS_peak_height"
+    TTS_header = "TTS_peak_height"
+    for card in wildcards:
+        if "TIS" in card and not "RNA" in card:
+            TIS_header = card + "_peak_height"
+
+        if "TTS" in card and not "RNA" in card:
+            TTS_header = card + "_peak_height"
+            
     TE_header = expr.get_TE_header(wildcards)
     header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count", \
-              "Peak_height_TIS", "Peak_height_TTS", "Start_codon", "Stop_codon", "15nt_window", "Nucleotide_Seq", "Amino_Acid_Seq", \
+              TIS_header, TTS_header, "Start_codon", "Stop_codon", "15nt_window", "Nucleotide_Seq", "Amino_Acid_Seq", \
               "Relative_density_start", "Relative_density_stop", "5'-distance", "3'-distance"] + [card + "_rpkm" for card in wildcards] +\
               [cond + "_TE" for cond in TE_header]
     name_list = ["s%s" % str(x) for x in range(len(header))]
@@ -198,7 +207,10 @@ def write_results_to_output_files(detected_ORFs_dict, gene_dict_TIS, gene_dict_T
     for (chrom, strand) in detected_ORFs_dict.keys():
         for (start, stop) in detected_ORFs_dict[(chrom, strand)].keys():
             rpm_start, rpm_stop = detected_ORFs_dict[(chrom, strand)][(start, stop)]
-            gene_type, gene_name = misc.get_gene_information(chrom, start, stop, strand, gene_dict_TIS)
+            if gene_dict_TIS != {}:
+                gene_type, gene_name = misc.get_gene_information(chrom, start, stop, strand, gene_dict_TIS)
+            else:
+                gene_type, gene_name = misc.get_gene_information(chrom, start, stop, strand, gene_dict_TTS)
             nt_seq, aa_seq, nt_window, start_codon, stop_codon = misc.get_genome_information(start, stop, strand, genome[chrom], method)
 
             if aa_seq.count("*") > 1:
@@ -214,9 +226,14 @@ def write_results_to_output_files(detected_ORFs_dict, gene_dict_TIS, gene_dict_T
             identifier = "%s:%s-%s:%s" % (chrom, start+1, stop+1, strand)
             codon_count = int(len(nt_seq)/3)
 
-            fiveprime_dist, threeprime_dist = misc.calculate_utr_distance(start, stop, gene_name, gene_dict_TIS, method)
-            relative_density_start = misc.calculate_relative_density(rpm_start, gene_name, gene_type, gene_dict_TIS)
-            relative_density_stop = misc.calculate_relative_density(rpm_stop, gene_name, gene_type, gene_dict_TTS)
+            if gene_dict_TIS != {}:
+                fiveprime_dist, threeprime_dist = misc.calculate_utr_distance(start, stop, gene_name, gene_dict_TIS, method)
+                relative_density_start = misc.calculate_relative_density(rpm_start, gene_name, gene_type, gene_dict_TIS)
+                relative_density_stop = misc.calculate_relative_density(rpm_stop, gene_name, gene_type, gene_dict_TTS)
+            else:
+                fiveprime_dist, threeprime_dist = misc.calculate_utr_distance(start, stop, gene_name, gene_dict_TTS, method)
+                relative_density_start = misc.calculate_relative_density(rpm_start, gene_name, gene_type, gene_dict_TIS)
+                relative_density_stop = misc.calculate_relative_density(rpm_stop, gene_name, gene_type, gene_dict_TTS)
 
             rpm_start = rpm_start if rpm_start != -1 else "NaN"
             rpm_stop = rpm_stop if rpm_stop != -1 else "NaN"
