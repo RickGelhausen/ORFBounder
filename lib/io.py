@@ -178,19 +178,20 @@ def write_results_to_output_files(detected_ORFs_dict, gene_dict_TIS, gene_dict_T
 
     nTuple_gff = collections.namedtuple('Pandas', ["chromosome","source","type","start","stop","score","strand","phase","attribute"])
 
-    TIS_header = "TIS_peak_height"
-    TTS_header = "TTS_peak_height"
+    TIS_header = "TIS"
+    TTS_header = "TTS"
     for card in wildcards:
         if "TIS" in card and not "RNA" in card:
-            TIS_header = card + "_peak_height"
+            TIS_header = card
 
         if "TTS" in card and not "RNA" in card:
-            TTS_header = card + "_peak_height"
-            
+            TTS_header = card
+
     TE_header = expr.get_TE_header(wildcards)
     header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count", \
-              TIS_header, TTS_header, "Start_codon", "Stop_codon", "15nt_window", "Nucleotide_Seq", "Amino_Acid_Seq", \
-              "Relative_density_start", "Relative_density_stop", "5'-distance", "3'-distance"] + [card + "_rpkm" for card in wildcards] +\
+              TIS_header + "_peak_height", TTS_header + "_peak_height", "Start_codon", "Stop_codon", "15nt_window",\
+              "Nucleotide_Seq", "Amino_Acid_Seq", TIS_header + "_relative_density", TTS_header + "_relative_density", \
+              "5'-distance", "3'-distance"] + [card + "_rpkm" for card in wildcards] +\
               [cond + "_TE" for cond in TE_header]
     name_list = ["s%s" % str(x) for x in range(len(header))]
     nTuple = collections.namedtuple('Pandas', name_list)
