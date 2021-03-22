@@ -122,7 +122,7 @@ def build_merged_dataframe(meta_dict, dynamic_dict):
         start, stop = mid.split("-")
 
         wild_dict = dynamic_dict[unique_id]
-        result.extend([val[0], unique_id, chrom, start, stop, strand, val[1], val[2]])
+        result.extend([val[0], unique_id, chrom, int(start), int(stop), strand, val[1], val[2]])
         for card in wildcards:
             if ("TIS" or "TTS") and not "RNA" in card:
                 if card in wild_dict:
@@ -198,7 +198,7 @@ def merge_tables(table_list, output_path):
     #-empty_cols = [col for col in df_results.columns if list(df_results[col].unique()) == (["", nan])]
     #df_results.drop(empty_cols, axis=1, inplace=True)
     df_results.dropna(how="all", axis=1, inplace=True)
-
+    df_results = df_results.sort_values(by=["Genome", "Start", "Stop", "Strand"])
     Path(os.path.dirname(output_path)).mkdir(parents=True, exist_ok=True)
     df_results.to_csv(output_path[:-4]+"csv", sep="\t", index=False, quoting=csv.QUOTE_NONE)
 
