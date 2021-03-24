@@ -26,23 +26,23 @@ def generate_genome_dict(genome_file):
 
     return genome_dict
 
-def handle_input(args):
+def handle_input(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig_file_TTS):
     """
     Check if input is valid.
     """
 
-    if args.fwd_wig_file_TIS != "" and args.rev_wig_file_TIS != "" and args.fwd_wig_file_TTS != "" and args.rev_wig_file_TTS != "":
+    if fwd_wig_file_TIS != "" and rev_wig_file_TIS != "" and fwd_wig_file_TTS != "" and rev_wig_file_TTS != "":
         return "combined_methods"
 
-    if args.fwd_wig_file_TIS != "" and args.rev_wig_file_TIS != "":
+    if fwd_wig_file_TIS != "" and rev_wig_file_TIS != "":
         return "TIS"
 
-    if args.fwd_wig_file_TTS != "" and args.rev_wig_file_TTS != "":
+    if fwd_wig_file_TTS != "" and rev_wig_file_TTS != "":
         return "TTS"
 
     sys.exit("Please ensure to either provide 2 TIS files, 2 TTS files OR both")
 
-def check_bamfile_input(args):
+def check_bamfile_input(bam_file_path, fwd_wig_file_TIS, fwd_wig_file_TTS):
     """
     Check bam input path.
     Ensure that there is:
@@ -50,26 +50,26 @@ def check_bamfile_input(args):
      - (optional) one RNA bam file corresponding to each input method (TIS, TTS)
     """
 
-    if args.bam_file_path == "":
+    if bam_file_path == "":
         return -1
 
     valid_bam = set()
 
-    _, _, bam_file_list = next(os.walk(args.bam_file_path))
+    _, _, bam_file_list = next(os.walk(bam_file_path))
     bam_file_list = [ file for file in bam_file_list if file.endswith(".bam")]
-    if args.fwd_wig_file_TIS != "":
-        TIS_prefix = os.path.basename(args.fwd_wig_file_TIS).split(".")[0]
+    if fwd_wig_file_TIS != "":
+        TIS_prefix = os.path.basename(fwd_wig_file_TIS).split(".")[0]
         RNATIS_prefix = "RNATIS-" + "-".join(TIS_prefix.split("-")[1:])
         for file in bam_file_list:
             if TIS_prefix in file or RNATIS_prefix in file:
-                valid_bam.add(os.path.join(args.bam_file_path,file))
+                valid_bam.add(os.path.join(bam_file_path,file))
 
-    if args.fwd_wig_file_TTS != "":
-        TTS_prefix = os.path.basename(args.fwd_wig_file_TTS).split(".")[0]
+    if fwd_wig_file_TTS != "":
+        TTS_prefix = os.path.basename(fwd_wig_file_TTS).split(".")[0]
         RNATTS_prefix = "RNATTS-" + "-".join(TTS_prefix.split("-")[1:])
         for file in bam_file_list:
             if TTS_prefix in file or RNATTS_prefix in file:
-                valid_bam.add(os.path.join(args.bam_file_path,file))
+                valid_bam.add(os.path.join(bam_file_path,file))
 
     if len(valid_bam) == 0:
         return -1
@@ -302,4 +302,5 @@ def write_results_to_output_files(detected_ORFs_dict, gene_dict_TIS, gene_dict_T
     Path(os.path.dirname(out_xlsx)).mkdir(parents=True, exist_ok=True)
 
     excel_writer(out_xlsx, df_dict, wildcards)
+    return df_results
     print("Done.")

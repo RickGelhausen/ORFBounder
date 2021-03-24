@@ -63,9 +63,86 @@ def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd
 
     return detected_ORFs_dict, gene_density_dict
 
+def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig_file_TTS, bam_file_path, \
+                annotation_file, genome_file, start_codons, stop_codons, output_path, output_basename, \
+                p_offset_TIS, p_offset_TTS, use_longest_TTS_ORF, read_count_threshold, split_gff):
+    """
+    run functions necessary to generate the final output of ORFBounder
+    """
+
+    method = io.handle_input(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig_file_TTS)
+    bam_files = io.check_bamfile_input(bam_file_path, fwd_wig_file_TIS, fwd_wig_file_TTS)
+    wildcards = []
+    if bam_files == -1:
+        print("No valid bam files detected, skipping readcount calculation")
+    else:
+        for file in bam_files:
+            wildcards.append(re.split('_|\.', os.path.basename(file))[0])
+
+        wildcards, bam_files = (list(t) for t in zip(*sorted(zip(wildcards, bam_files))))
+
+    print("Fetching genome...")
+    genome_dict = io.generate_genome_dict(genome_file)
+    print("Done.")
+
+    read_count_dict, total_mapped_list = {}, []
+    if method == "TIS":
+        predictions, gene_density_dict_TIS \
+                        = prediction_call(annotation_file, genome_dict, start_codons, stop_codons, \
+                                          fwd_wig_file_TIS, rev_wig_file_TIS, output_path, \
+                                          output_basename, p_offset_TIS, "TIS", use_longest_TTS_ORF, \
+                                          read_count_threshold)
+        if bam_files != -1:
+            read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
+            read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
+
+        result_df = io.write_results_to_output_files(predictions, gene_density_dict_TIS, {}, genome_dict, output_path, \
+                                                     output_basename, split_gff, read_count_dict, total_mapped_list, \
+                                                     wildcards, method)
+
+    elif method == "TTS":
+        predictions, gene_density_dict_TTS \
+                        = prediction_call(annotation_file, genome_dict, start_codons, stop_codons, \
+                                          fwd_wig_file_TTS, rev_wig_file_TTS, output_path, \
+                                          output_basename, p_offset_TTS, "TTS", use_longest_TTS_ORF, \
+                                          read_count_threshold)
+        if bam_files != -1:
+            read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
+            read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
+
+        result_df = io.write_results_to_output_files(predictions, {}, gene_density_dict_TTS, genome_dict, output_path, \
+                                                     output_basename, split_gff, read_count_dict, total_mapped_list, \
+                                                     wildcards, method)
+
+
+    else:
+        predictions, gene_density_dict_TIS \
+                        = prediction_call(annotation_file, genome_dict, start_codons, stop_codons, \
+                                          fwd_wig_file_TIS, rev_wig_file_TIS, output_path, \
+                                          output_basename, p_offset_TIS, "TIS", use_longest_TTS_ORF, \
+                                          read_count_threshold)
+
+        predictions, gene_density_dict_TTS \
+                        = prediction_call(annotation_file, genome_dict, start_codons, stop_codons, \
+                                          fwd_wig_file_TTS, rev_wig_file_TTS, output_path, \
+                                          output_basename, p_offset_TTS, "TTS", use_longest_TTS_ORF, \
+                                          read_count_threshold, predictions)
+
+        if bam_files != -1:
+            read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
+            read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
+
+        result_df = io.write_results_to_output_files(predictions, gene_density_dict_TIS, gene_density_dict_TTS, \
+                                                     genome_dict, output_path, output_basename, split_gff, \
+                                                     read_count_dict, total_mapped_list, wildcards, method)
+
+        #combined_predictions_dict = predictions.combined_data_detection(tis_predictions, tts_predictions, args.max_ORF_length)
+
+    return result_df
+
 def main():
     # store commandline args
-    parser = argparse.ArgumentParser(description=".")
+    parser = argparse.ArgumentParser(description="ORFBounder is a peak detection and annotation script for TIS and TTS data. It can be run with either TIS, TTS or both.")
     parser.add_argument("--fwd_file_TIS", action="store", dest="fwd_wig_file_TIS", default="", help="input forward wig file for TIS.")
     parser.add_argument("--rev_file_TIS", action="store", dest="rev_wig_file_TIS", default="", help="input reverse wig file for TIS.")
     parser.add_argument("--fwd_file_TTS", action="store", dest="fwd_wig_file_TTS", default="", help="input forward wig file for TTS.")
@@ -90,74 +167,10 @@ def main():
     parser.add_argument("-o","--output_path", action="store", dest="output_path", required=True, help="Output path to the result folder.")
     args = parser.parse_args()
 
-    method = io.handle_input(args)
-    bam_files = io.check_bamfile_input(args)
-    wildcards = []
-    if bam_files == -1:
-        print("No valid bam files detected, skipping readcount calculation")
-    else:
-        for file in bam_files:
-            wildcards.append(re.split('_|\.', os.path.basename(file))[0])
-
-        wildcards, bam_files = (list(t) for t in zip(*sorted(zip(wildcards, bam_files))))
-
-    print("Fetching genome...")
-    genome_dict = io.generate_genome_dict(args.genome_file)
-    print("Done.")
-
-    read_count_dict, total_mapped_list = {}, []
-    if method == "TIS":
-        predictions, gene_density_dict_TIS \
-                        = prediction_call(args.annotation_file, genome_dict, args.start_codons, args.stop_codons, \
-                                          args.fwd_wig_file_TIS, args.rev_wig_file_TIS, args.output_path, \
-                                          args.output_basename, args.p_offset_TIS, "TIS", args.use_longest_TTS_ORF, \
-                                          args.read_count_threshold)
-        if bam_files != -1:
-            read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
-            read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
-
-        io.write_results_to_output_files(predictions, gene_density_dict_TIS, {}, genome_dict, args.output_path, \
-                                         args.output_basename, args.split_gff, read_count_dict, total_mapped_list, \
-                                         wildcards, method)
-
-    elif method == "TTS":
-        predictions, gene_density_dict_TTS \
-                        = prediction_call(args.annotation_file, genome_dict, args.start_codons, args.stop_codons, \
-                                          args.fwd_wig_file_TTS, args.rev_wig_file_TTS, args.output_path, \
-                                          args.output_basename, args.p_offset_TTS, "TTS", args.use_longest_TTS_ORF, \
-                                          args.read_count_threshold)
-        if bam_files != -1:
-            read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
-            read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
-
-        io.write_results_to_output_files(predictions, {}, gene_density_dict_TTS, genome_dict, args.output_path, \
-                                         args.output_basename, args.split_gff, read_count_dict, total_mapped_list, \
-                                         wildcards, method)
-
-
-    else:
-        predictions, gene_density_dict_TIS \
-                        = prediction_call(args.annotation_file, genome_dict, args.start_codons, args.stop_codons, \
-                                          args.fwd_wig_file_TIS, args.rev_wig_file_TIS, args.output_path, \
-                                          args.output_basename, args.p_offset_TIS, "TIS", args.use_longest_TTS_ORF, \
-                                          args.read_count_threshold)
-
-        predictions, gene_density_dict_TTS \
-                        = prediction_call(args.annotation_file, genome_dict, args.start_codons, args.stop_codons, \
-                                          args.fwd_wig_file_TTS, args.rev_wig_file_TTS, args.output_path, \
-                                          args.output_basename, args.p_offset_TTS, "TTS", args.use_longest_TTS_ORF, \
-                                          args.read_count_threshold, predictions)
-
-        if bam_files != -1:
-            read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
-            read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
-
-        io.write_results_to_output_files(predictions, gene_density_dict_TIS, gene_density_dict_TTS, \
-                                         genome_dict, args.output_path, args.output_basename, args.split_gff, \
-                                         read_count_dict, total_mapped_list, wildcards, method)
-
-        #combined_predictions_dict = predictions.combined_data_detection(tis_predictions, tts_predictions, args.max_ORF_length)
-
+    result_df = run_ORFBounder(args.fwd_wig_file_TIS, args.rev_wig_file_TIS, args.fwd_wig_file_TTS, args.rev_wig_file_TTS, \
+                            args.annotation_file, args.genome_file, args.start_codons, args.stop_codons, args.output_path, \
+                            args.output_basename, args.p_offset_TIS, args.p_offset_TTS, args.use_longest_TTS_ORF, \
+                            args.read_count_threshold, args.split_gff)
 
     print("Terminating...")
 
