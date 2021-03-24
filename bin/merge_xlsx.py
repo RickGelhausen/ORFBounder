@@ -186,13 +186,10 @@ def excel_writer(out_file_name, data_frames, wildcards):
             worksheet.set_column(idx, idx, max_len)
     writer.save()
 
-def merge_tables(table_list, output_path):
+def write_merged_table(meta_dict, dynamic_dict):
     """
-    collect information from all input tables and merge them into one final output table
+    create final merged table and write it to xlsx/csv file
     """
-
-    meta_dict, dynamic_dict = screen_input_tables(table_list)
-
     df_results, wildcards = build_merged_dataframe(meta_dict, dynamic_dict)
 
     #-empty_cols = [col for col in df_results.columns if list(df_results[col].unique()) == (["", nan])]
@@ -203,6 +200,14 @@ def merge_tables(table_list, output_path):
     df_results.to_csv(output_path[:-4]+"csv", sep="\t", index=False, quoting=csv.QUOTE_NONE)
 
     excel_writer(output_path, {"CDS" : df_results}, wildcards)
+
+def merge_tables(table_list, output_path):
+    """
+    collect information from all input tables and merge them into one final output table
+    """
+
+    meta_dict, dynamic_dict = screen_input_tables(table_list)
+    write_merged_table(meta_dict, dynamic_dict)
 
 def main():
     # store commandline args
