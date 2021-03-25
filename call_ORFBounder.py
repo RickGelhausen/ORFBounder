@@ -8,6 +8,7 @@ import pandas as pd
 from pathlib import Path
 
 import ORFBounder as ob
+import lib.merging as mg
 
 def check_config_sheet(config_sheet):
     """
@@ -60,10 +61,13 @@ def check_config_sheet(config_sheet):
                 sys.exit("Normalization path does not exist: %s" % norm_path)
     return config_df
 
-def build_wig_tuples(tt_files, wig_path):
+def retrieve_wig_tuples(wig_path, offset_dict):
     """
     Create a list of matching TIS/TTS condition+replicate files to run together.
     """
+    _, _, wig_files = next(os.walk(wig_path))
+
+    tt_files = [wig for wig in wig_files if ("TIS" or "TTS") and not "RNA" in wig]
 
     sample_dict = {}
     for file in tt_files:
@@ -92,13 +96,30 @@ def build_wig_tuples(tt_files, wig_path):
 
     wig_list = []
     for key, val in sample_dict.items():
-        if (val[0] != "" and val[1] != "") or (val[2] != "" and val[3] != "")
-            wig_list.append(val)
+        if (val[0] != "" and val[1] != "") or (val[2] != "" and val[3] != ""):
+            tis_offset, tts_offset = "", ""
+            if "TIS" in offset_dict:
+                if "TIS-%s-%s" % key in offset_dict["TIS"]:
+                    tis_offset = offset_dict["TIS-%s-%s" % key]
+                elif "default" in offset_dict["TIS"]:
+                    tis_offset = offset_dict["default"]
+                else:
+                    sys.exit("Wrongly formatted JSON file, missing default value!")
+
+            if "TTS" in offset_dict:
+                if "TTS-%s-%s" % key in offset_dict["TTS"]:
+                    tts_offset = offset_dict["TTS-%s-%s" % key]
+                elif "default" in offset_dict["TTS"]:
+                    tts_offset = offset_dict["default"]
+                else:
+                    sys.exit("Wrongly formatted JSON file, missing default value!")
+
+            wig_list.append((val, "%s-%s" % key), tis_offset, tts_offset)
 
     return wig_list
 
 
-def call_ORFBounder(config_df, result_path):
+def call_ORFBounder(config_df, use_longest_TTS_ORF, max_ORF_length, split_gff, result_path):
     """
     Run the ORFBounder experiments specified in the config sheet.
     """
@@ -115,10 +136,17 @@ def call_ORFBounder(config_df, result_path):
         read_threshold = getattr(row, "Readthreshold")
 
         read_threshold = 5 if read_threshold == "" else read_threshold = int(read_threshold)
+        max_ORF_length = 100 if max_ORF_length == "" else max_ORF_length = int(max_ORF_length)
+        if start_codons == "":
+            start_codons = ["ATG", "GTG", "TTG"]
+        else:
+            start_codons = [codon.strip(" ") for codon in start_codons.split(",")]
 
+        if stop_codons == "":
+            stop_codons = ["TAG", "TAA", "TGA"]
+        else:
+            stop_codons = [codon.strip(" ") for codon in stop_codons.split(",")]
 
-
-        if start_codon =
         with open(offsets, "r") as f:
             offset_data = json.load(f)
 
@@ -126,28 +154,33 @@ def call_ORFBounder(config_df, result_path):
             meta_dict, dynamic_dict = {}, {}
 
             wig_path = os.path.join(mapping, norm)
-            _, _, wig_files = next(os.walk(wig_path))
 
-            tt_files = [wig for wig in wig_files if ("TIS" or "TTS") and not "RNA" in wig]
+            wig_list = retrieve_wig_information(wig_path, offset_data)
 
-            wig_list = build_wig_tuples(tt_files, wig_path)
-
-            for TIS_fwd_wig, TIS_rev_wig, TTS_fwd_wig, TTS_rev_wig in wig_list:
+            res_path = os.path.join(result_path, experiment, norm)
+            for (TIS_fwd_wig, TIS_rev_wig, TTS_fwd_wig, TTS_rev_wig), conrep, tis_offset, tts_offset in wig_list:
                 result_df = ob.run_ORFBounder(TIS_fwd_wig, TIS_rev_wig, TTS_fwd_wig, TTS_rev_wig, annotation, genome, \
-                )
+                                            start_codons, stop_codons, res_path, conrep, tis_offset, tts_offset, \
+                                            use_longest_TTS_ORF, read_threshold, split_gff, max_ORF_length)
 
+                meta_dict, dynamic_dict = mg.extend_combined_dictionary(result_df, meta_dict, dynamic_dict)
+            mg.write_merged_table(meta_dict, dynamic_dict, os.path.join(res_path, "%s_final.xlsx" % experiment))
 
 def main():
     # store commandline args
     parser = argparse.ArgumentParser(description="Wrapper for the ORFBounder.py, when running ORFBounder for multiple experiments.")
 
     parser.add_argument("-c","--config_sheet", action="store", dest="config_sheet", required=True, help="Config sheet containing information on experiments to be run.")
+    parser.add_argument("--split_gff", action="store_true", dest="split_gff", help="Split gff into one for each gene_type.")
+    parser.add_argument("--use_longest_TTS_ORF", action="store_true", dest="use_longest_TTS_ORF", help="Use the furthest possible inframe start codon for each detected stop codon to form the longest possible ORF that contains only one inframe stop codon. \
+                                                                                                        Default uses the first detected start codon and may result in very short ORFs.")
+    parser.add_argument("--max_ORF_length", action="store", dest="max_ORF_length", type=int, default=100, help="The max length to take into account when using the combination method for TIS+TTS.")
+
     parser.add_argument("-r","--result_path", action="store", dest="result_path", required=True, help="Path of the result folder.")
     args = parser.parse_args()
 
     config_df = check_config_sheet(args.config_sheet)
-    call_ORFBounder(config_df, args.result_path)
-
+    call_ORFBounder(config_df, args.use_longest_TTS_ORF, args.max_ORF_length, args.split_gff, args.result_path)
 
 
 if __name__ == '__main__':

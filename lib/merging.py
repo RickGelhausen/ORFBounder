@@ -10,6 +10,9 @@ import csv
 from collections import Counter, OrderedDict
 from pathlib import Path
 
+import lib.io as io
+import lib.expression as expr
+
 class OrderedCounter(Counter, OrderedDict):
     pass
 
@@ -69,34 +72,6 @@ def extend_combined_dictionary(xlsx_df, meta_dict, dynamic_dict):
 
     return meta_dict, dynamic_dict
 
-def get_TE_header(wildcards):
-    """
-    generate the correct TE_header based on the available data
-    """
-    TE_header = []
-    TE_header_dict = OrderedDict()
-    for card in wildcards:
-        if "-" not in card:
-            continue
-        method, condition, replicate = card.split("-")
-        if method == "TIS":
-            if "%s-%s-%s" %("RNATIS", condition, replicate) in wildcards:
-                if ("TIS", condition) in  TE_header_dict:
-                    TE_header_dict[("TIS", condition)].append(replicate)
-                else:
-                    TE_header_dict[("TIS", condition)] = [replicate]
-        elif method == "TTS":
-            if "%s-%s-%s" %("RNATTS", condition, replicate) in wildcards:
-                if ("TTS", condition) in  TE_header_dict:
-                    TE_header_dict[("TTS", condition)].append(replicate)
-                else:
-                    TE_header_dict[("TTS", condition)] = [replicate]
-
-    for key, val in TE_header_dict.items():
-        TE_header.extend(["%s-%s-%s" % (key[0], key[1], x) for x in val])
-
-    return TE_header
-
 def build_merged_dataframe(meta_dict, dynamic_dict):
     """
     Given the input data of all tables build a new dataframe with sorted wildcards
@@ -111,7 +86,7 @@ def build_merged_dataframe(meta_dict, dynamic_dict):
            + ["Start_codon", "Stop_codon", "15nt_window", "Nucleotide_Seq", "Amino_Acid_Seq", "5'-distance", "3'-distance"] \
            + [card + "_relative_density" for card in wildcards if ("TIS" or "TTS") and not "RNA" in card] \
            + [card + "_rpkm" for card in wildcards] \
-           + [card + "_TE" for card in get_TE_header(wildcards)]
+           + [card + "_TE" for card in expr.get_TE_header(wildcards)]
     name_list = ["s%s" % str(x) for x in range(len(header))]
     nTuple = collections.namedtuple('Pandas', name_list)
 
@@ -144,7 +119,7 @@ def build_merged_dataframe(meta_dict, dynamic_dict):
             else:
                 result.append(np.nan)
 
-        for card in get_TE_header(wildcards):
+        for card in expr.get_TE_header(wildcards):
             if card in wild_dict:
                 result.append(wild_dict[card][3])
             else:
@@ -166,27 +141,7 @@ def screen_input_tables(table_list):
 
     return meta_dict, dynamic_dict
 
-def excel_writer(out_file_name, data_frames, wildcards):
-    """
-    create an excel sheet out of a dictionary of data_frames
-    correct the width of each column
-    """
-    header_only =  ["Nucleotide_Seq", "Amino_Acid_Seq", "Start_codon", "Stop_codon", "Strand", "Codon_count"]
-    writer = pd.ExcelWriter(out_file_name, engine='xlsxwriter')
-    for sheetname, df in data_frames.items():
-        df.to_excel(writer, sheet_name=sheetname, index=False)
-        worksheet = writer.sheets[sheetname]
-        for idx, col in enumerate(df):
-            series = df[col]
-            if col in header_only:
-                max_len = len(str(series.name)) + 2
-            else:
-                max_len = max(( series.astype(str).str.len().max(), len(str(series.name)) )) + 1
-            print("Sheet: %s | col: %s | max_len: %s" % (sheetname, col, max_len))
-            worksheet.set_column(idx, idx, max_len)
-    writer.save()
-
-def write_merged_table(meta_dict, dynamic_dict):
+def write_merged_table(meta_dict, dynamic_dict, output_path):
     """
     create final merged table and write it to xlsx/csv file
     """
@@ -199,7 +154,7 @@ def write_merged_table(meta_dict, dynamic_dict):
     Path(os.path.dirname(output_path)).mkdir(parents=True, exist_ok=True)
     df_results.to_csv(output_path[:-4]+"csv", sep="\t", index=False, quoting=csv.QUOTE_NONE)
 
-    excel_writer(output_path, {"CDS" : df_results}, wildcards)
+    io.excel_writer(output_path, {"CDS" : df_results}, wildcards)
 
 def merge_tables(table_list, output_path):
     """
@@ -207,7 +162,7 @@ def merge_tables(table_list, output_path):
     """
 
     meta_dict, dynamic_dict = screen_input_tables(table_list)
-    write_merged_table(meta_dict, dynamic_dict)
+    write_merged_table(meta_dict, dynamic_dict, output_path)
 
 def main():
     # store commandline args

@@ -18,14 +18,10 @@ def get_TE_header(wildcards):
     TE_header = []
     TE_header_dict = OrderedDict()
     for card in wildcards:
+        if "-" not in card:
+            continue
         method, condition, replicate = card.split("-")
-        if method == "RIBO":
-            if "%s-%s-%s" %("RNA", condition, replicate) in wildcards:
-                if ("RIBO", condition) in  TE_header_dict:
-                    TE_header_dict[("RIBO", condition)].append(replicate)
-                else:
-                    TE_header_dict[("RIBO", condition)] = [replicate]
-        elif method == "TIS":
+        if method == "TIS":
             if "%s-%s-%s" %("RNATIS", condition, replicate) in wildcards:
                 if ("TIS", condition) in  TE_header_dict:
                     TE_header_dict[("TIS", condition)].append(replicate)
@@ -39,14 +35,10 @@ def get_TE_header(wildcards):
                     TE_header_dict[("TTS", condition)] = [replicate]
 
     for key, val in TE_header_dict.items():
-        method, condition = key
-        if len(val) > 1:
-            t_header = ["%s-%s-%s" % (method, condition, x) for x in val] + ["%s-%s-avg" % (method, condition)]
-        else:
-            t_header = ["%s-%s-%s" % (method, condition, x) for x in val]
-        TE_header.extend(t_header)
+        TE_header.extend(["%s-%s-%s" % (key[0], key[1], x) for x in val])
 
     return TE_header
+
 
 def calculate_rpkm(total_mapped, read_count, read_length):
     """
@@ -110,17 +102,8 @@ def calculate_TE(read_list, wildcards):
     TE_list = []
     for key, val in read_dict.items():
         method, condition, replicate = key
-        if method == "RIBO":
-            if ("RNA", condition, replicate) in read_dict:
-                rpkm_ribo = read_dict[key]
-                rpkm_rna = read_dict[("RNA", condition, replicate)]
-                cur_TE = TE(rpkm_ribo, rpkm_rna)
-                if ("RIBO", condition) in TE_dict:
-                    TE_dict[("RIBO", condition)].append(cur_TE)
-                else:
-                    TE_dict[("RIBO", condition)] = [cur_TE]
 
-        elif method == "TIS":
+        if method == "TIS":
             if ("RNATIS", condition, replicate) in read_dict:
                 rpkm_ribo = read_dict[key]
                 rpkm_rna = read_dict[("RNATIS", condition, replicate)]
@@ -211,7 +194,6 @@ def create_interlap_dict(bam_file):
         interlap_dict[key] = inter
 
     return interlap_dict, total_mapped_reads
-
 
 def count_reads(chrom, start, stop, strand, read_interlap_dict):
     """

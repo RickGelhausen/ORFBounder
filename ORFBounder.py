@@ -33,7 +33,7 @@ def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd
     rev_wig_dict = io.load_wig(rev_wig_file)
 
     msg.message("Checking output folder...")
-    if os.path.isfile(os.path.join(output_path, method, "result_tables", output_basename + ".csv")):
+    if os.path.isfile(os.path.join(output_path, "result_tables", output_basename + ".csv")):
         msg.warning("Result table already found! Please ensure that prior output files with the same name are deleted.")
         sys.exit()
 
@@ -65,7 +65,7 @@ def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd
 
 def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig_file_TTS, bam_file_path, \
                 annotation_file, genome_file, start_codons, stop_codons, output_path, output_basename, \
-                p_offset_TIS, p_offset_TTS, use_longest_TTS_ORF, read_count_threshold, split_gff):
+                p_offset_TIS, p_offset_TTS, use_longest_TTS_ORF, read_count_threshold, split_gff, max_ORF_length):
     """
     run functions necessary to generate the final output of ORFBounder
     """
@@ -154,14 +154,14 @@ def main():
     parser.add_argument("--start_codons", nargs="+", dest="start_codons", default=["ATG","GTG","TTG"])
     parser.add_argument("--stop_codons", nargs="+", dest="stop_codons", default=["TAG","TAA","TGA"])
 
-    parser.add_argument("--offset_TIS", action="store", dest="p_offset_TIS", type=int, default=15)
-    parser.add_argument("--offset_TTS", action="store", dest="p_offset_TTS", type=int, default=15)
+    parser.add_argument("--offset_TIS", action="store", dest="offset_TIS", type=int, default=15)
+    parser.add_argument("--offset_TTS", action="store", dest="offset_TTS", type=int, default=15)
 
     parser.add_argument("--split_gff", action="store_true", dest="split_gff", help="Split gff into one for each gene_type.")
     parser.add_argument("--use_longest_TTS_ORF", action="store_true", dest="use_longest_TTS_ORF", help="Use the furthest possible inframe start codon for each detected stop codon to form the longest possible ORF that contains only one inframe stop codon. \
                                                                                                         Default uses the first detected start codon and may result in very short ORFs.")
     parser.add_argument("--bam_file_path", action="store", dest="bam_file_path", default="", help="(optional) bam file to calculate RPKM and TE values for the final results.")
-    parser.add_argument("--max_ORF_length", action="store", dest="max_ORF_length", type=int, default=100, help="The max length to search for when using TIS and TTS combined.")
+    parser.add_argument("--max_ORF_length", action="store", dest="max_ORF_length", type=int, default=100, help="The max length to take into account when using the combination method for TIS+TTS.")
     parser.add_argument("--output_basename", action="store", dest="output_basename", required=True, help="the basename for all output files." )
     parser.add_argument("-c", "--read_count_threshold", action="store", dest="read_count_threshold", default=5, type=int, help="skip reads lower than this threshold.")
     parser.add_argument("-o","--output_path", action="store", dest="output_path", required=True, help="Output path to the result folder.")
@@ -169,8 +169,8 @@ def main():
 
     result_df = run_ORFBounder(args.fwd_wig_file_TIS, args.rev_wig_file_TIS, args.fwd_wig_file_TTS, args.rev_wig_file_TTS, \
                             args.annotation_file, args.genome_file, args.start_codons, args.stop_codons, args.output_path, \
-                            args.output_basename, args.p_offset_TIS, args.p_offset_TTS, args.use_longest_TTS_ORF, \
-                            args.read_count_threshold, args.split_gff)
+                            args.output_basename, args.offset_TIS, args.offset_TTS, args.use_longest_TTS_ORF, \
+                            args.read_count_threshold, args.split_gff, args.max_ORF_length)
 
     print("Terminating...")
 
