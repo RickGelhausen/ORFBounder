@@ -3,6 +3,7 @@ import os,sys
 import re
 import json
 import argparse
+import math
 
 import pandas as pd
 from pathlib import Path
@@ -45,29 +46,29 @@ def check_config_sheet(config_sheet):
             sys.exit("Empty entry found: Missing Offsets!")
 
         if not Path(annotation).is_file():
-            sys.exit("Annotation file is not valid! Ensure to enter a correct file path!")
+            sys.exit("Annotation file is not valid! Ensure to enter a correct file path!\n%s" % annotation)
         if not Path(genome).is_file():
-            sys.exit("Genome file is not valid! Ensure to enter a correct file path!")
+            sys.exit("Genome file is not valid! Ensure to enter a correct file path!\n%s" % genome)
         if not Path(mapping).is_dir():
-            sys.exit("Mapping directory is not valid! Ensure to enter a correct path!")
+            sys.exit("Mapping directory is not valid! Ensure to enter a correct path!\n%s" % mapping)
         if not Path(offsets).is_file():
-            sys.exit("Offsets file is not valid! Ensure to enter a correct file path!")
+            sys.exit("Offsets file is not valid! Ensure to enter a correct file path!\n%s" % offsets)
         if bamfolder != "" and not Path(bamfolder).is_dir():
-            sys.exit("Given bamfolder is not existing, either provide no bamfolder or an existing one!")
+            sys.exit("Given bamfolder is non-existant, either provide no bamfolder or an existing one!\n%s" % bamfolder)
 
-        for norm in normalization.split(",")
+        for norm in normalization.split(","):
             norm_path = os.path.join(mapping, norm)
             if not Path(norm_path).is_dir():
                 sys.exit("Normalization path does not exist: %s" % norm_path)
     return config_df
 
-def retrieve_wig_tuples(wig_path, offset_dict):
+def retrieve_wig_information(wig_path, offset_dict):
     """
     Create a list of matching TIS/TTS condition+replicate files to run together.
     """
     _, _, wig_files = next(os.walk(wig_path))
 
-    tt_files = [wig for wig in wig_files if ("TIS" or "TTS") and not "RNA" in wig]
+    tt_files = [wig for wig in wig_files if (("TIS" in wig or "TTS" in wig) and not "RNA" in wig) and (wig.endswith(".wig")) ]
 
     sample_dict = {}
     for file in tt_files:
@@ -75,24 +76,24 @@ def retrieve_wig_tuples(wig_path, offset_dict):
         method, condition, replicate = wildcard.split("-")
 
         if (condition, replicate) not in sample_dict:
-            if (method == "TIS") and ("fwd" or "forward" in file):
-                sample_dict[(condition, replicate)] = [os.path(wig_path, file),"","",""]
-            elif (method == "TIS") and ("rev" or "reverse" in file):
-                sample_dict[(condition, replicate)] = ["",os.path(wig_path, file),"",""]
-            elif (method == "TTS") and ("fwd" or "forward" in file):
-                sample_dict[(condition, replicate)] = ["","",os.path(wig_path, file),""]
-            elif (method == "TTS") and ("rev" or "reverse" in file):
-                sample_dict[(condition, replicate)] = ["","","",os.path(wig_path, file)]
+            if (method == "TIS") and ("fwd" in file or "forward" in file):
+                sample_dict[(condition, replicate)] = [os.path.join(wig_path, file),"","",""]
+            elif (method == "TIS") and ("rev" in file or "reverse" in file):
+                sample_dict[(condition, replicate)] = ["",os.path.join(wig_path, file),"",""]
+            elif (method == "TTS") and ("fwd" in file or "forward" in file):
+                sample_dict[(condition, replicate)] = ["","",os.path.join(wig_path, file),""]
+            elif (method == "TTS") and ("rev" in file or "reverse" in file):
+                sample_dict[(condition, replicate)] = ["","","",os.path.join(wig_path, file)]
 
         else:
-            if (method == "TIS") and ("fwd" or "forward" in file):
-                sample_dict[(condition, replicate)][0] = os.path(wig_path, file)
-            elif (method == "TIS") and ("rev" or "reverse" in file):
-                sample_dict[(condition, replicate)][1] = os.path(wig_path, file)
-            elif (method == "TTS") and ("fwd" or "forward" in file):
-                sample_dict[(condition, replicate)][2] = os.path(wig_path, file)
-            elif (method == "TTS") and ("rev" or "reverse" in file):
-                sample_dict[(condition, replicate)][3] = os.path(wig_path, file)
+            if (method == "TIS") and ("fwd" in file or "forward" in file):
+                sample_dict[(condition, replicate)][0] = os.path.join(wig_path, file)
+            elif (method == "TIS") and ("rev" in file or "reverse" in file):
+                sample_dict[(condition, replicate)][1] = os.path.join(wig_path, file)
+            elif (method == "TTS") and ("fwd" in file or "forward" in file):
+                sample_dict[(condition, replicate)][2] = os.path.join(wig_path, file)
+            elif (method == "TTS") and ("rev" in file or "reverse" in file):
+                sample_dict[(condition, replicate)][3] = os.path.join(wig_path, file)
 
     wig_list = []
     for key, val in sample_dict.items():
@@ -100,21 +101,21 @@ def retrieve_wig_tuples(wig_path, offset_dict):
             tis_offset, tts_offset = "", ""
             if "TIS" in offset_dict:
                 if "TIS-%s-%s" % key in offset_dict["TIS"]:
-                    tis_offset = offset_dict["TIS-%s-%s" % key]
+                    tis_offset = offset_dict["TIS"]["TIS-%s-%s" % key]
                 elif "default" in offset_dict["TIS"]:
-                    tis_offset = offset_dict["default"]
+                    tis_offset = offset_dict["TIS"]["default"]
                 else:
                     sys.exit("Wrongly formatted JSON file, missing default value!")
 
             if "TTS" in offset_dict:
                 if "TTS-%s-%s" % key in offset_dict["TTS"]:
-                    tts_offset = offset_dict["TTS-%s-%s" % key]
+                    tts_offset = offset_dict["TTS"]["TTS-%s-%s" % key]
                 elif "default" in offset_dict["TTS"]:
-                    tts_offset = offset_dict["default"]
+                    tts_offset = offset_dict["TTS"]["default"]
                 else:
                     sys.exit("Wrongly formatted JSON file, missing default value!")
 
-            wig_list.append((val, "%s-%s" % key), tis_offset, tts_offset)
+            wig_list.append((val, "%s-%s" % key, tis_offset, tts_offset))
 
     return wig_list
 
@@ -134,15 +135,24 @@ def call_ORFBounder(config_df, use_longest_TTS_ORF, max_ORF_length, split_gff, r
         start_codons = getattr(row, "Startcodons")
         stop_codons = getattr(row, "Stopcodons")
         read_threshold = getattr(row, "Readthreshold")
+        bamfolder = getattr(row, "Bamfolder")
 
-        read_threshold = 5 if read_threshold == "" else read_threshold = int(read_threshold)
-        max_ORF_length = 100 if max_ORF_length == "" else max_ORF_length = int(max_ORF_length)
-        if start_codons == "":
+        if read_threshold == "" or math.isnan(read_threshold):
+            read_threshold = 5
+        else:
+            read_threshold = int(read_threshold)
+
+        if max_ORF_length == "" or math.isnan(max_ORF_length):
+            max_ORF_length = 100
+        else:
+            max_ORF_length = int(max_ORF_length)
+
+        if start_codons == "" or math.isnan(start_codons):
             start_codons = ["ATG", "GTG", "TTG"]
         else:
             start_codons = [codon.strip(" ") for codon in start_codons.split(",")]
 
-        if stop_codons == "":
+        if stop_codons == "" or math.isnan(stop_codons):
             stop_codons = ["TAG", "TAA", "TGA"]
         else:
             stop_codons = [codon.strip(" ") for codon in stop_codons.split(",")]
@@ -159,8 +169,8 @@ def call_ORFBounder(config_df, use_longest_TTS_ORF, max_ORF_length, split_gff, r
 
             res_path = os.path.join(result_path, experiment, norm)
             for (TIS_fwd_wig, TIS_rev_wig, TTS_fwd_wig, TTS_rev_wig), conrep, tis_offset, tts_offset in wig_list:
-                result_df = ob.run_ORFBounder(TIS_fwd_wig, TIS_rev_wig, TTS_fwd_wig, TTS_rev_wig, annotation, genome, \
-                                            start_codons, stop_codons, res_path, conrep, tis_offset, tts_offset, \
+                result_df = ob.run_ORFBounder(TIS_fwd_wig, TIS_rev_wig, TTS_fwd_wig, TTS_rev_wig, bamfolder, annotation, \
+                                            genome, start_codons, stop_codons, res_path, conrep, tis_offset, tts_offset, \
                                             use_longest_TTS_ORF, read_threshold, split_gff, max_ORF_length)
 
                 meta_dict, dynamic_dict = mg.extend_combined_dictionary(result_df, meta_dict, dynamic_dict)

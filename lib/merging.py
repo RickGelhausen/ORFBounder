@@ -75,16 +75,16 @@ def extend_combined_dictionary(xlsx_df, meta_dict, dynamic_dict):
 def build_merged_dataframe(meta_dict, dynamic_dict):
     """
     Given the input data of all tables build a new dataframe with sorted wildcards
-    """
+    """.join
     wildcards = set()
     for unique_id, val in dynamic_dict.items():
          wildcards.update(val.keys())
 
     wildcards = sorted(list(wildcards))
     header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count"] \
-           + [card + "_peak_height" for card in wildcards if ("TIS" or "TTS") and not "RNA" in card] \
+           + [card + "_peak_height" for card in wildcards if ("TIS" or "TTS") in card and not "RNA" in card] \
            + ["Start_codon", "Stop_codon", "15nt_window", "Nucleotide_Seq", "Amino_Acid_Seq", "5'-distance", "3'-distance"] \
-           + [card + "_relative_density" for card in wildcards if ("TIS" or "TTS") and not "RNA" in card] \
+           + [card + "_relative_density" for card in wildcards if ("TIS" or "TTS") in card and not "RNA" in card] \
            + [card + "_rpkm" for card in wildcards] \
            + [card + "_TE" for card in expr.get_TE_header(wildcards)]
     name_list = ["s%s" % str(x) for x in range(len(header))]
@@ -99,7 +99,7 @@ def build_merged_dataframe(meta_dict, dynamic_dict):
         wild_dict = dynamic_dict[unique_id]
         result.extend([val[0], unique_id, chrom, int(start), int(stop), strand, val[1], val[2]])
         for card in wildcards:
-            if ("TIS" or "TTS") and not "RNA" in card:
+            if ("TIS" or "TTS") in card and not "RNA" in card:
                 if card in wild_dict:
                     result.append(wild_dict[card][0])
                 else:
@@ -107,7 +107,7 @@ def build_merged_dataframe(meta_dict, dynamic_dict):
 
         result.extend(val[3:])
         for card in wildcards:
-            if ("TIS" or "TTS") and not "RNA" in card:
+            if ("TIS" or "TTS") in card and not "RNA" in card:
                 if card in wild_dict:
                     result.append(wild_dict[card][1])
                 else:
