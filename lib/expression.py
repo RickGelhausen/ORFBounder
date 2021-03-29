@@ -2,6 +2,7 @@ import sys
 import pysam
 import collections
 import pandas as pd
+import numpy as np
 import itertools as iter
 
 from interlap import InterLap
@@ -59,9 +60,9 @@ def TE(ribo_count, rna_count):
     """
 
     if ribo_count == 0 and rna_count == 0:
-        return "NaN"
+        return np.nan
     elif rna_count == 0:
-        return "NaN"
+        return np.nan
     else:
         return ribo_count / rna_count
 
@@ -73,12 +74,12 @@ def get_avg(t_eff):
     valid_count = 0
     sum = 0
     for t in t_eff:
-        if t != "NaN":
+        if t != np.nan:
             valid_count += 1
             sum += t
 
     if valid_count == 0:
-        t_eff.extend(["NaN"])
+        t_eff.extend([np.nan])
 
     else:
         t_eff.extend([sum / valid_count])

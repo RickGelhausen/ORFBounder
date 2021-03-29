@@ -10,6 +10,7 @@ from pathlib import Path
 
 import ORFBounder as ob
 import lib.merging as mg
+import lib.io as io
 
 def check_config_sheet(config_sheet):
     """
@@ -98,14 +99,15 @@ def retrieve_wig_information(wig_path, offset_dict):
     wig_list = []
     for key, val in sample_dict.items():
         if (val[0] != "" and val[1] != "") or (val[2] != "" and val[3] != ""):
-            tis_offset, tts_offset = "", ""
+            tis_offset, tts_offset = 15, 15
             if "TIS" in offset_dict:
                 if "TIS-%s-%s" % key in offset_dict["TIS"]:
                     tis_offset = offset_dict["TIS"]["TIS-%s-%s" % key]
                 elif "default" in offset_dict["TIS"]:
                     tis_offset = offset_dict["TIS"]["default"]
                 else:
-                    sys.exit("Wrongly formatted JSON file, missing default value!")
+                    tis_offset = 15
+                    print("Wrongly formatted JSON file, missing default value! (using 15 instead)")
 
             if "TTS" in offset_dict:
                 if "TTS-%s-%s" % key in offset_dict["TTS"]:
@@ -113,7 +115,8 @@ def retrieve_wig_information(wig_path, offset_dict):
                 elif "default" in offset_dict["TTS"]:
                     tts_offset = offset_dict["TTS"]["default"]
                 else:
-                    sys.exit("Wrongly formatted JSON file, missing default value!")
+                    tts_offset = 15
+                    print("Wrongly formatted JSON file, missing default value! (using 15 instead)")
 
             wig_list.append((val, "%s-%s" % key, tis_offset, tts_offset))
 
@@ -169,12 +172,16 @@ def call_ORFBounder(config_df, use_longest_TTS_ORF, max_ORF_length, split_gff, r
 
             res_path = os.path.join(result_path, experiment, norm)
             for (TIS_fwd_wig, TIS_rev_wig, TTS_fwd_wig, TTS_rev_wig), conrep, tis_offset, tts_offset in wig_list:
-                result_df = ob.run_ORFBounder(TIS_fwd_wig, TIS_rev_wig, TTS_fwd_wig, TTS_rev_wig, bamfolder, annotation, \
+                res_df = ob.run_ORFBounder(TIS_fwd_wig, TIS_rev_wig, TTS_fwd_wig, TTS_rev_wig, bamfolder, annotation, \
                                             genome, start_codons, stop_codons, res_path, conrep, tis_offset, tts_offset, \
                                             use_longest_TTS_ORF, read_threshold, split_gff, max_ORF_length)
 
-                meta_dict, dynamic_dict = mg.extend_combined_dictionary(result_df, meta_dict, dynamic_dict)
-            mg.write_merged_table(meta_dict, dynamic_dict, os.path.join(res_path, "%s_final.xlsx" % experiment))
+                io.write_results_to_gff(res_df, res_path, conrep, split_gff)
+                io.write_results_to_table(res_df, res_path, conrep)
+
+            #     meta_dict, dynamic_dict = mg.extend_combined_dictionary(res_df, meta_dict, dynamic_dict)
+            #
+            # mg.write_merged_table(meta_dict, dynamic_dict, os.path.join(res_path, "%s_final.xlsx" % experiment))
 
 def main():
     # store commandline args

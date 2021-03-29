@@ -49,6 +49,7 @@ def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd
             print("Skipping...")
             continue
 
+        codon_dict, gene_density_dict = {}, {}
         annotation_fwd_interlap, annotation_rev_interlap, gene_density_dict = misc.annotation_interlap(annotation_file, method)
         gene_density_dict = misc.calculate_density(fwd_wig_dict[key], annotation_fwd_interlap, gene_density_dict)
         gene_density_dict = misc.calculate_density(rev_wig_dict[key], annotation_rev_interlap, gene_density_dict)
@@ -72,6 +73,7 @@ def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig
 
     method = io.handle_input(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig_file_TTS)
     bam_files = io.check_bamfile_input(bam_file_path, fwd_wig_file_TIS, fwd_wig_file_TTS)
+
     wildcards = []
     if bam_files == -1:
         print("No valid bam files detected, skipping readcount calculation")
@@ -86,6 +88,7 @@ def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig
     print("Done.")
 
     read_count_dict, total_mapped_list = {}, []
+    predictions, gene_density_dict_TIS, gene_density_dict_TTS = {}, {}, {}
     if method == "TIS":
         predictions, gene_density_dict_TIS \
                         = prediction_call(annotation_file, genome_dict, start_codons, stop_codons, \
@@ -96,9 +99,9 @@ def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig
             read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
             read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
 
-        result_df = io.write_results_to_output_files(predictions, gene_density_dict_TIS, {}, genome_dict, output_path, \
-                                                     output_basename, split_gff, read_count_dict, total_mapped_list, \
-                                                     wildcards, method)
+        result_df = misc.generate_result_dataframe(predictions, gene_density_dict_TIS, {}, genome_dict, read_count_dict, \
+                                            total_mapped_list, wildcards, method)
+        predictions = {}
 
     elif method == "TTS":
         predictions, gene_density_dict_TTS \
@@ -110,10 +113,9 @@ def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig
             read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
             read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
 
-        result_df = io.write_results_to_output_files(predictions, {}, gene_density_dict_TTS, genome_dict, output_path, \
-                                                     output_basename, split_gff, read_count_dict, total_mapped_list, \
-                                                     wildcards, method)
-
+        result_df = misc.generate_result_dataframe(predictions, {}, gene_density_dict_TTS, genome_dict, read_count_dict, \
+                                            total_mapped_list, wildcards, method)
+        predictions = {}
 
     else:
         predictions, gene_density_dict_TIS \
@@ -132,12 +134,10 @@ def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig
             read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
             read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
 
-        result_df = io.write_results_to_output_files(predictions, gene_density_dict_TIS, gene_density_dict_TTS, \
-                                                     genome_dict, output_path, output_basename, split_gff, \
-                                                     read_count_dict, total_mapped_list, wildcards, method)
-
+        result_df = misc.generate_result_dataframe(predictions, gene_density_dict_TIS, gene_density_dict_TTS, genome_dict, \
+                                            read_count_dict, total_mapped_list, wildcards, method)
+        predictions = {}
         #combined_predictions_dict = predictions.combined_data_detection(tis_predictions, tts_predictions, args.max_ORF_length)
-
     return result_df
 
 def main():
@@ -168,9 +168,12 @@ def main():
     args = parser.parse_args()
 
     result_df = run_ORFBounder(args.fwd_wig_file_TIS, args.rev_wig_file_TIS, args.fwd_wig_file_TTS, args.rev_wig_file_TTS, \
-                            args.annotation_file, args.genome_file, args.start_codons, args.stop_codons, args.output_path, \
-                            args.output_basename, args.offset_TIS, args.offset_TTS, args.use_longest_TTS_ORF, \
+                            args.bam_file_path, args.annotation_file, args.genome_file, args.start_codons, args.stop_codons, \
+                            args.output_path, args.output_basename, args.offset_TIS, args.offset_TTS, args.use_longest_TTS_ORF, \
                             args.read_count_threshold, args.split_gff, args.max_ORF_length)
+
+    io.write_results_to_gff(result_df, args.output_path, args.output_basename, args.split_gff)
+    io.write_results_to_table(result_df, args.output_path, args.output_basename)
 
     print("Terminating...")
 
