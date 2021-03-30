@@ -113,13 +113,12 @@ def search_longest_forward(cur_stop, genome_seq, search_codons, match_codons):
 
     return cur_position
 
-def detect_potential_ORFs(codon_dict, genome_seq, search_codons, match_codons, p_offset, method, longest_potential_ORF=True, detected_ORFs_dict={}):
+def detect_potential_ORFs(codon_dict, genome_seq, search_codons, match_codons, p_offset, method, detected_ORFs_dict, longest_potential_ORF=True):
     """
     for each relavent codon site, find a matching orf region
     """
     reverse_search_codons = [str(Seq(codon).reverse_complement()) for codon in search_codons]
     reverse_match_codons = [str(Seq(codon).reverse_complement()) for codon in match_codons]
-
     rows_all = []
 
     for key, val in codon_dict.items():

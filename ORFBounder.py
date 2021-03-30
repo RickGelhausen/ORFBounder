@@ -11,13 +11,13 @@ import operator
 
 import lib.io as io
 import lib.misc as misc
-import lib.predictions as predictions
+import lib.predictions as pred
 import lib.expression as expr
 import lib.messaging as msg
 
 
 def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd_wig_file, rev_wig_file, output_path, \
-                    output_basename, p_offset, method, longest_potential_ORF, read_count_threshold, detected_ORFs_dict={}):
+                    output_basename, p_offset, method, longest_potential_ORF, detected_ORFs_dict, read_count_threshold):
     """
     execute the script for either TIS or TTS
     """
@@ -55,12 +55,12 @@ def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd
         gene_density_dict = misc.calculate_density(rev_wig_dict[key], annotation_rev_interlap, gene_density_dict)
 
         fwd_codon_interlap, rev_codon_interlap, codon_dict = misc.create_codon_interlaps(key, val, search_codons, p_offset)
-        codon_dict = predictions.screen_wig_for_tss(fwd_wig_dict[key], fwd_codon_interlap, codon_dict, read_count_threshold)
-        codon_dict = predictions.screen_wig_for_tss(rev_wig_dict[key], rev_codon_interlap, codon_dict, read_count_threshold)
+        codon_dict = pred.screen_wig_for_tss(fwd_wig_dict[key], fwd_codon_interlap, codon_dict, read_count_threshold)
+        codon_dict = pred.screen_wig_for_tss(rev_wig_dict[key], rev_codon_interlap, codon_dict, read_count_threshold)
 
         io.write_codon_interval_gff(output_path, os.path.join("codon_intervals","%s_%s_intervals.gff" % (output_basename, key)), codon_dict, p_offset, method)
 
-        detected_ORFs_dict = predictions.detect_potential_ORFs(codon_dict, val, search_codons, match_codons, p_offset, method, longest_potential_ORF, detected_ORFs_dict)
+        detected_ORFs_dict = pred.detect_potential_ORFs(codon_dict, val, search_codons, match_codons, p_offset, method, detected_ORFs_dict, longest_potential_ORF)
 
     return detected_ORFs_dict, gene_density_dict
 
@@ -73,6 +73,12 @@ def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig
 
     method = io.handle_input(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig_file_TTS)
     bam_files = io.check_bamfile_input(bam_file_path, fwd_wig_file_TIS, fwd_wig_file_TTS)
+
+    headers = ["TIS","TTS"]
+    if fwd_wig_file_TIS != "":
+        headers[0] = re.split('_|\.', os.path.basename(fwd_wig_file_TIS))[0]
+    if fwd_wig_file_TTS != "":
+        headers[1] = re.split('_|\.', os.path.basename(fwd_wig_file_TTS))[0]
 
     wildcards = []
     if bam_files == -1:
@@ -94,49 +100,48 @@ def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig
                         = prediction_call(annotation_file, genome_dict, start_codons, stop_codons, \
                                           fwd_wig_file_TIS, rev_wig_file_TIS, output_path, \
                                           output_basename, p_offset_TIS, "TIS", use_longest_TTS_ORF, \
-                                          read_count_threshold)
+                                          predictions, read_count_threshold)
         if bam_files != -1:
             read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
             read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
 
         result_df = misc.generate_result_dataframe(predictions, gene_density_dict_TIS, {}, genome_dict, read_count_dict, \
-                                            total_mapped_list, wildcards, method)
-        predictions = {}
+                                            total_mapped_list, wildcards, method, headers)
 
     elif method == "TTS":
         predictions, gene_density_dict_TTS \
                         = prediction_call(annotation_file, genome_dict, start_codons, stop_codons, \
                                           fwd_wig_file_TTS, rev_wig_file_TTS, output_path, \
                                           output_basename, p_offset_TTS, "TTS", use_longest_TTS_ORF, \
-                                          read_count_threshold)
+                                          predictions, read_count_threshold)
         if bam_files != -1:
             read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
             read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
 
         result_df = misc.generate_result_dataframe(predictions, {}, gene_density_dict_TTS, genome_dict, read_count_dict, \
-                                            total_mapped_list, wildcards, method)
-        predictions = {}
+                                            total_mapped_list, wildcards, method, headers)
+
 
     else:
         predictions, gene_density_dict_TIS \
                         = prediction_call(annotation_file, genome_dict, start_codons, stop_codons, \
                                           fwd_wig_file_TIS, rev_wig_file_TIS, output_path, \
                                           output_basename, p_offset_TIS, "TIS", use_longest_TTS_ORF, \
-                                          read_count_threshold)
+                                          predictions, read_count_threshold)
 
         predictions, gene_density_dict_TTS \
                         = prediction_call(annotation_file, genome_dict, start_codons, stop_codons, \
                                           fwd_wig_file_TTS, rev_wig_file_TTS, output_path, \
                                           output_basename, p_offset_TTS, "TTS", use_longest_TTS_ORF, \
-                                          read_count_threshold, predictions)
+                                          predictions, read_count_threshold)
 
         if bam_files != -1:
             read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
             read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
 
         result_df = misc.generate_result_dataframe(predictions, gene_density_dict_TIS, gene_density_dict_TTS, genome_dict, \
-                                            read_count_dict, total_mapped_list, wildcards, method)
-        predictions = {}
+                                            read_count_dict, total_mapped_list, wildcards, method, headers)
+
         #combined_predictions_dict = predictions.combined_data_detection(tis_predictions, tts_predictions, args.max_ORF_length)
     return result_df
 

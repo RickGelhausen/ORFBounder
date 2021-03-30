@@ -295,20 +295,13 @@ def calculate_relative_density(rpm, gene_name, gene_type, gene_dict):
     return np.nan
 
 def generate_result_dataframe(detected_ORFs_dict, gene_dict_TIS, gene_dict_TTS, genome, read_count_dict, \
-                            total_mapped_list, wildcards, method):
+                            total_mapped_list, wildcards, method, headers):
     """
     Generate the final dataframe to be written to file.
     This contains RPKM, TE, nucleotide and aminoacid sequences and more.
     """
 
-    TIS_header = "TIS"
-    TTS_header = "TTS"
-    for card in wildcards:
-        if "TIS" in card and not "RNA" in card:
-            TIS_header = card
-
-        if "TTS" in card and not "RNA" in card:
-            TTS_header = card
+    TIS_header, TTS_header = headers
 
     TE_header = expr.get_TE_header(wildcards)
     header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count", \

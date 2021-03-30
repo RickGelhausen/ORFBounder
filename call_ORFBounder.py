@@ -54,8 +54,9 @@ def check_config_sheet(config_sheet):
             sys.exit("Mapping directory is not valid! Ensure to enter a correct path!\n%s" % mapping)
         if not Path(offsets).is_file():
             sys.exit("Offsets file is not valid! Ensure to enter a correct file path!\n%s" % offsets)
-        if bamfolder != "" and not Path(bamfolder).is_dir():
-            sys.exit("Given bamfolder is non-existant, either provide no bamfolder or an existing one!\n%s" % bamfolder)
+        if bamfolder != "" and isinstance(bamfolder, str):
+            if not Path(bamfolder).is_dir():
+                sys.exit("Given bamfolder is non-existant, either provide no bamfolder or an existing one!\n%s" % bamfolder)
 
         for norm in normalization.split(","):
             norm_path = os.path.join(mapping, norm)
@@ -179,9 +180,9 @@ def call_ORFBounder(config_df, use_longest_TTS_ORF, max_ORF_length, split_gff, r
                 io.write_results_to_gff(res_df, res_path, conrep, split_gff)
                 io.write_results_to_table(res_df, res_path, conrep)
 
-            #     meta_dict, dynamic_dict = mg.extend_combined_dictionary(res_df, meta_dict, dynamic_dict)
-            #
-            # mg.write_merged_table(meta_dict, dynamic_dict, os.path.join(res_path, "%s_final.xlsx" % experiment))
+                meta_dict, dynamic_dict = mg.extend_combined_dictionary(res_df, meta_dict, dynamic_dict)
+
+            mg.write_merged_table(meta_dict, dynamic_dict, os.path.join(res_path, "%s_final.xlsx" % experiment))
 
 def main():
     # store commandline args

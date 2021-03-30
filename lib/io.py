@@ -6,6 +6,7 @@ import csv
 import collections
 import pandas as pd
 import numpy as np
+
 from pathlib import Path
 
 from Bio.Seq import Seq
@@ -50,7 +51,7 @@ def check_bamfile_input(bam_file_path, fwd_wig_file_TIS, fwd_wig_file_TTS):
      - (optional) one RNA bam file corresponding to each input method (TIS, TTS)
     """
 
-    if bam_file_path == "":
+    if bam_file_path == "" or not isinstance(bam_file_path, str):
         return -1
 
     valid_bam = set()
