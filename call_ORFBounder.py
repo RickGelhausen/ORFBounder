@@ -19,18 +19,19 @@ def check_config_sheet(config_sheet):
 
     config_df = pd.read_csv(config_sheet, sep="\t")
 
-    if sorted(config_df.columns) != ["Annotation", "Bamfolder", "Experiment", "Genome", "Mapping", "Normalization", "Offsets", "Readthreshold", "Startcodons", "Stopcodons"]:
+    if sorted(config_df.columns) != ["Annotation", "Bam_folder", "Experiment", "Genome", "Mapping_TIS", "Mapping_TTS", "Normalization", "Offsets", "Read_threshold", "Start_codons", "Stop_codons"]:
         sys.exit("Config Sheet columns are incomplete:\n\
-                Required columns: Experiment,Annotation,Genome,Mapping,Normalization,Offsets,Bamfolder,Startcodons,Stopcodons,Readthreshold\n\
+                Required columns: Experiment,Annotation,Genome,Mapping_TIS,Mapping_TTS,Normalization,Offsets,Bam_folder,Start_codons,Stop_codons,Read_threshold\n\
                 Ensure that the file is TAB seperated.")
 
     for row in config_df.itertuples(index=False, name="Pandas"):
         experiment = getattr(row, "Experiment")
         annotation = getattr(row, "Annotation")
         genome = getattr(row, "Genome")
-        mapping = getattr(row, "Mapping")
+        mapping_tis = getattr(row, "Mapping_TIS")
+        mapping_tts = getattr(row, "Mapping_TTS")
         normalization = getattr(row, "Normalization")
-        bamfolder = getattr(row, "Bamfolder")
+        bamfolder = getattr(row, "Bam_folder")
         offsets = getattr(row, "Offsets")
 
         if experiment == "":
@@ -39,8 +40,10 @@ def check_config_sheet(config_sheet):
             sys.exit("Empty entry found: Missing Annotation!")
         if genome == "":
             sys.exit("Empty entry found: Missing Genome!")
-        if mapping == "":
-            sys.exit("Empty entry found: Missing Mapping!")
+        if mapping_tis == "":
+            sys.exit("Empty entry found: Missing Mapping_TIS!")
+        if mapping_tts == "":
+            sys.exit("Empty entry found: Missing Mapping_TTS!")
         if normalization == "":
             sys.exit("Empty entry found: Missing Normalization!")
         if offsets == "":
@@ -50,8 +53,10 @@ def check_config_sheet(config_sheet):
             sys.exit("Annotation file is not valid! Ensure to enter a correct file path!\n%s" % annotation)
         if not Path(genome).is_file():
             sys.exit("Genome file is not valid! Ensure to enter a correct file path!\n%s" % genome)
-        if not Path(mapping).is_dir():
-            sys.exit("Mapping directory is not valid! Ensure to enter a correct path!\n%s" % mapping)
+        if not Path(mapping_tis).is_dir():
+            sys.exit("Mapping TIS directory is not valid! Ensure to enter a correct path!\n%s" % mapping_tis)
+        if not Path(mapping_tts).is_dir():
+            sys.exit("Mapping TTS directory is not valid! Ensure to enter a correct path!\n%s" % mapping_tts)
         if not Path(offsets).is_file():
             sys.exit("Offsets file is not valid! Ensure to enter a correct file path!\n%s" % offsets)
         if bamfolder != "" and isinstance(bamfolder, str):
@@ -59,18 +64,26 @@ def check_config_sheet(config_sheet):
                 sys.exit("Given bamfolder is non-existant, either provide no bamfolder or an existing one!\n%s" % bamfolder)
 
         for norm in normalization.split(","):
-            norm_path = os.path.join(mapping, norm)
+            norm_path = os.path.join(mapping_tis, norm)
             if not Path(norm_path).is_dir():
                 sys.exit("Normalization path does not exist: %s" % norm_path)
+
+            norm_path = os.path.join(mapping_tts, norm)
+            if not Path(norm_path).is_dir():
+                sys.exit("Normalization path does not exist: %s" % norm_path)
+
     return config_df
 
-def retrieve_wig_information(wig_path, offset_dict):
+def retrieve_wig_information(wig_path_tis, wig_path_tts, offset_dict):
     """
     Create a list of matching TIS/TTS condition+replicate files to run together.
     """
-    _, _, wig_files = next(os.walk(wig_path))
+    _, _, wig_files_tis = next(os.walk(wig_path_tis))
+    _, _, wig_files_tts = next(os.walk(wig_path_tts))
 
-    tt_files = [wig for wig in wig_files if (("TIS" in wig or "TTS" in wig) and not "RNA" in wig) and (wig.endswith(".wig")) ]
+    tt_files = []
+    tt_files.extend([wig for wig in wig_files_tis if ("TIS" in wig and not "RNA" in wig) and (wig.endswith(".wig"))])
+    tt_files.extend([wig for wig in wig_files_tts if ("TTS" in wig and not "RNA" in wig) and (wig.endswith(".wig"))])
 
     sample_dict = {}
     for file in tt_files:
@@ -79,23 +92,23 @@ def retrieve_wig_information(wig_path, offset_dict):
 
         if (condition, replicate) not in sample_dict:
             if (method == "TIS") and ("fwd" in file or "forward" in file):
-                sample_dict[(condition, replicate)] = [os.path.join(wig_path, file),"","",""]
+                sample_dict[(condition, replicate)] = [os.path.join(wig_path_tis, file),"","",""]
             elif (method == "TIS") and ("rev" in file or "reverse" in file):
-                sample_dict[(condition, replicate)] = ["",os.path.join(wig_path, file),"",""]
+                sample_dict[(condition, replicate)] = ["",os.path.join(wig_path_tis, file),"",""]
             elif (method == "TTS") and ("fwd" in file or "forward" in file):
-                sample_dict[(condition, replicate)] = ["","",os.path.join(wig_path, file),""]
+                sample_dict[(condition, replicate)] = ["","",os.path.join(wig_path_tts, file),""]
             elif (method == "TTS") and ("rev" in file or "reverse" in file):
-                sample_dict[(condition, replicate)] = ["","","",os.path.join(wig_path, file)]
+                sample_dict[(condition, replicate)] = ["","","",os.path.join(wig_path_tts, file)]
 
         else:
             if (method == "TIS") and ("fwd" in file or "forward" in file):
-                sample_dict[(condition, replicate)][0] = os.path.join(wig_path, file)
+                sample_dict[(condition, replicate)][0] = os.path.join(wig_path_tis, file)
             elif (method == "TIS") and ("rev" in file or "reverse" in file):
-                sample_dict[(condition, replicate)][1] = os.path.join(wig_path, file)
+                sample_dict[(condition, replicate)][1] = os.path.join(wig_path_tis, file)
             elif (method == "TTS") and ("fwd" in file or "forward" in file):
-                sample_dict[(condition, replicate)][2] = os.path.join(wig_path, file)
+                sample_dict[(condition, replicate)][2] = os.path.join(wig_path_tts, file)
             elif (method == "TTS") and ("rev" in file or "reverse" in file):
-                sample_dict[(condition, replicate)][3] = os.path.join(wig_path, file)
+                sample_dict[(condition, replicate)][3] = os.path.join(wig_path_tts, file)
 
     wig_list = []
     for key, val in sample_dict.items():
@@ -133,13 +146,14 @@ def call_ORFBounder(config_df, use_longest_TTS_ORF, max_ORF_length, split_gff, r
         experiment = getattr(row, "Experiment")
         annotation = getattr(row, "Annotation")
         genome = getattr(row, "Genome")
-        mapping = getattr(row, "Mapping")
+        mapping_tis = getattr(row, "Mapping_TIS")
+        mapping_tts = getattr(row, "Mapping_TTS")
         normalization = getattr(row, "Normalization").split(",")
         offsets = getattr(row, "Offsets")
-        start_codons = getattr(row, "Startcodons")
-        stop_codons = getattr(row, "Stopcodons")
-        read_threshold = getattr(row, "Readthreshold")
-        bamfolder = getattr(row, "Bamfolder")
+        start_codons = getattr(row, "Start_codons")
+        stop_codons = getattr(row, "Stop_codons")
+        read_threshold = getattr(row, "Read_threshold")
+        bamfolder = getattr(row, "Bam_folder")
 
         if read_threshold == "" or math.isnan(read_threshold):
             read_threshold = 5
@@ -167,9 +181,10 @@ def call_ORFBounder(config_df, use_longest_TTS_ORF, max_ORF_length, split_gff, r
         for norm in normalization:
             meta_dict, dynamic_dict = {}, {}
 
-            wig_path = os.path.join(mapping, norm)
+            wig_path_tis = os.path.join(mapping_tis, norm)
+            wig_path_tts = os.path.join(mapping_tts, norm)
 
-            wig_list = retrieve_wig_information(wig_path, offset_data)
+            wig_list = retrieve_wig_information(wig_path_tis, wig_path_tts, offset_data)
 
             res_path = os.path.join(result_path, experiment, norm)
             for (TIS_fwd_wig, TIS_rev_wig, TTS_fwd_wig, TTS_rev_wig), conrep, tis_offset, tts_offset in wig_list:
