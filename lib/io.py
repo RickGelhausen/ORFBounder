@@ -41,7 +41,8 @@ def handle_input(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig_f
     if fwd_wig_file_TTS != "" and rev_wig_file_TTS != "":
         return "TTS"
 
-    sys.exit("Please ensure to either provide 2 TIS files, 2 TTS files OR both")
+    msg.error("Error: Please ensure to either provide 2 TIS files, 2 TTS files OR both!")
+    sys.exit()
 
 def check_bamfile_input(bam_file_path, fwd_wig_file_TIS, fwd_wig_file_TTS):
     """
@@ -89,7 +90,8 @@ def load_wig(wig_path):
 
             if line[0].isdigit() and line[0] != "0":
                 if chromosome not in wig_data_dict.keys():
-                    sys.exit("Incomplete header in wig file! Missing chrom= field!")
+                    msg.error("Error: Incomplete header in wig file! Missing chrom= field!")
+                    sys.exit()
 
                 wig_data_dict[chromosome].append(line)
 
@@ -164,7 +166,7 @@ def excel_writer(out_file_name, data_frames):
                 max_len = len(str(series.name)) + 2
             else:
                 max_len = max(( series.astype(str).str.len().max(), len(str(series.name)) )) + 1
-            print("Sheet: %s | col: %s | max_len: %s" % (sheetname, col, max_len))
+            #print("Sheet: %s | col: %s | max_len: %s" % (sheetname, col, max_len))
             worksheet.set_column(idx, idx, max_len)
     writer.save()
 
@@ -207,7 +209,7 @@ def write_results_to_gff(result_df, output_path, output_basename, split_gff):
             elif gene_type == "Internal_OutofFrame":
                 gff_internal_out.append(cur_tuple)
 
-    print("Generating gff files...")
+    msg.message("Generating gff files...")
     df_all = pd.DataFrame.from_records(gff_all, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
     write_gff_file(df_all, output_path, os.path.join("result_gffs","%s.gff" % output_basename))
 
@@ -229,20 +231,22 @@ def write_results_to_gff(result_df, output_path, output_basename, split_gff):
 
         df_internal_out = pd.DataFrame.from_records(gff_internal_out, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
         write_gff_file(df_internal_out, output_path, os.path.join("result_gffs","%s_internal_out.gff" % output_basename))
+    msg.success("Done")
 
 def write_results_to_table(df_results, output_path, output_basename):
     """
     write a csv and xlsx file containing all information,
     """
 
-    print("Generating output_table...")
-    out_csv = os.path.join(output_path, "result_tables", "%s.csv" % output_basename)
+    msg.message("Generating output_tables...")
+    out_csv = os.path.join(output_path, "%s.csv" % output_basename)
     Path(os.path.dirname(out_csv)).mkdir(parents=True, exist_ok=True)
 
     df_results.to_csv(out_csv, sep="\t", index=False, quoting=csv.QUOTE_NONE)
 
-    out_xlsx = os.path.join(output_path, "result_tables", "%s.xlsx" % output_basename)
+    out_xlsx = os.path.join(output_path, "%s.xlsx" % output_basename)
     df_dict = {"CDS" : df_results}
     Path(os.path.dirname(out_xlsx)).mkdir(parents=True, exist_ok=True)
 
     excel_writer(out_xlsx, df_dict)
+    msg.success("Done")

@@ -203,26 +203,111 @@ def detect_potential_ORFs(codon_dict, genome_seq, search_codons, match_codons, p
 
     return detected_ORFs_dict
 
-
-def combined_data_detection(tis_predictions, tts_predictions, max_ORF_length):
+def convert_codon_dict(codon_dict_TIS, codon_dict_TTS, offset_TIS, offset_TTS):
     """
-    Use the detected TIS start position and TTS stop positions to find potentially quality ORFs.
+    Reformat the codon_dicts.
+    Convert the positions in the codon_dicts to the real positions using the offsets.
     """
 
-    combined_ORFs_dict = {}
-    for chrom, strand in tis_predictions.keys():
-        try:
-            for start, _, start_rpm, _ in sorted(tis_predictions[(chrom,strand)], key=lambda x: x[0]):
-                for _, stop, _, stop_rpm in sorted(tts_predictions[(chrom,strand)], key=lambda x: x[1]):
-                    if misc.get_frame(start) == misc.get_frame(stop):
-                        if start < stop and stop - start + 1 <= max_ORF_length:
-                            if (chrom, strand) in combined_ORFs_dict:
-                                combined_ORFs_dict[(chrom, strand)].append((start, stop, start_rpm, stop_rpm))
-                            else:
-                                combined_ORFs_dict[(chrom, strand)] = []
-                        else:
-                            continue
-        except KeyError:
+    start_codon_dict = {}
+    for key, val in codon_dict_TIS.items():
+        chrom, mid, strand = key.split(":")
+        interval_start, interval_stop = mid.split("-")
+        if val[1] < 1:
             continue
 
-    return combined_ORFs_dict
+        if strand == "+":
+            cur_start = int(interval_start) - offset_TIS + 2
+        else:
+            cur_start = int(interval_start) + offset_TIS + 2
+
+        if (chrom, strand) in start_codon_dict:
+            start_codon_dict[(chrom, strand)].append((cur_start, val[1]))
+        else:
+            start_codon_dict[(chrom, strand)] = [(cur_start, val[1])]
+
+    stop_codon_dict = {}
+    for key, val in codon_dict_TTS.items():
+        chrom, mid, strand = key.split(":")
+        interval_start, interval_stop = mid.split("-")
+        if val[1] < 1:
+            continue
+
+        if strand == "+":
+            cur_stop = int(interval_start) - offset_TTS + 4
+        else:
+            cur_stop = int(interval_start) + offset_TTS
+
+        if (chrom, strand) in stop_codon_dict:
+            stop_codon_dict[(chrom, strand)].append((cur_stop, val[1]))
+        else:
+            stop_codon_dict[(chrom, strand)] = [(cur_stop, val[1])]
+
+    return start_codon_dict, stop_codon_dict
+
+def combined_data_detection(codon_dict_TIS, codon_dict_TTS, offset_TIS, offset_TTS, max_ORF_length):
+    """
+    Use the detected codons from TIS and TTS to find combined results.
+    """
+
+    start_codon_dict, stop_codon_dict \
+                = convert_codon_dict(codon_dict_TIS, codon_dict_TTS, offset_TTS, offset_TIS)
+
+    keys = set()
+    keys.update(start_codon_dict.keys())
+    keys.update(stop_codon_dict.keys())
+
+    predictions = {}
+    for (chrom, strand) in sorted(list(keys)):
+        if (chrom, strand) not in start_codon_dict or (chrom, strand) not in stop_codon_dict:
+            continue
+
+        if strand == "+":
+            for stop, stop_rpm in sorted(stop_codon_dict[(chrom, strand)], key=lambda x : x[0]):
+                for start, start_rpm in sorted(start_codon_dict[(chrom, strand)], key=lambda x : x[0]):
+                    if start >= stop or stop-start+1 > max_ORF_length:
+                        break
+                    if misc.get_frame(start) != misc.get_frame(stop-2):
+                        continue
+                    out_start, out_stop = start, stop
+                    if (chrom, strand) in predictions:
+                        predictions[(chrom, strand)][(out_start, out_stop)] = (start_rpm, stop_rpm)
+                    else:
+                        predictions[(chrom, strand)] = {(out_start, out_stop) : (start_rpm, stop_rpm)}
+        else:
+            for start, start_rpm in sorted(start_codon_dict[(chrom, strand)], key=lambda x : x[0]):
+                for stop, stop_rpm in sorted(stop_codon_dict[(chrom, strand)], key=lambda x : x[0]):
+                    if stop >= start or start-stop+1 > max_ORF_length:
+                        break
+                    if misc.get_frame(start-2) != misc.get_frame(stop):
+                        continue
+                    out_start, out_stop = stop, start
+                    if (chrom, strand) in predictions:
+                        predictions[(chrom, strand)][(out_start, out_stop)] = (start_rpm, stop_rpm)
+                    else:
+                        predictions[(chrom, strand)] = {(out_start, out_stop) : (start_rpm, stop_rpm)}
+
+    return predictions
+
+# def combined_data_detection(tis_predictions, tts_predictions, max_ORF_length):
+#     """
+#     Use the detected TIS start position and TTS stop positions to find potentially quality ORFs.
+#     """
+#
+#     combined_ORFs_dict = {}
+#     for chrom, strand in tis_predictions.keys():
+#         try:
+#             for start, _, start_rpm, _ in sorted(tis_predictions[(chrom,strand)], key=lambda x: x[0]):
+#                 for _, stop, _, stop_rpm in sorted(tts_predictions[(chrom,strand)], key=lambda x: x[1]):
+#                     if misc.get_frame(start) == misc.get_frame(stop):
+#                         if start < stop and stop - start + 1 <= max_ORF_length:
+#                             if (chrom, strand) in combined_ORFs_dict:
+#                                 combined_ORFs_dict[(chrom, strand)].append((start, stop, start_rpm, stop_rpm))
+#                             else:
+#                                 combined_ORFs_dict[(chrom, strand)] = []
+#                         else:
+#                             continue
+#         except KeyError:
+#             continue
+#
+#     return combined_ORFs_dict

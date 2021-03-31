@@ -11,6 +11,7 @@ from pathlib import Path
 import ORFBounder as ob
 import lib.merging as mg
 import lib.io as io
+import lib.messaging as msg
 
 def check_config_sheet(config_sheet):
     """
@@ -20,9 +21,10 @@ def check_config_sheet(config_sheet):
     config_df = pd.read_csv(config_sheet, sep="\t")
 
     if sorted(config_df.columns) != ["Annotation", "Bam_folder", "Experiment", "Genome", "Mapping_TIS", "Mapping_TTS", "Normalization", "Offsets", "Read_threshold", "Start_codons", "Stop_codons"]:
-        sys.exit("Config Sheet columns are incomplete:\n\
+        msg.error("Config Sheet columns are incomplete:\n\
                 Required columns: Experiment,Annotation,Genome,Mapping_TIS,Mapping_TTS,Normalization,Offsets,Bam_folder,Start_codons,Stop_codons,Read_threshold\n\
                 Ensure that the file is TAB seperated.")
+        sys.exit()
 
     for row in config_df.itertuples(index=False, name="Pandas"):
         experiment = getattr(row, "Experiment")
@@ -35,42 +37,57 @@ def check_config_sheet(config_sheet):
         offsets = getattr(row, "Offsets")
 
         if experiment == "":
-            sys.exit("Empty entry found: Missing Experiment!")
+            msg.error("Empty entry found: Missing Experiment!")
+            sys.exit()
         if annotation == "":
-            sys.exit("Empty entry found: Missing Annotation!")
+            msg.error("Empty entry found: Missing Annotation!")
+            sys.exit()
         if genome == "":
-            sys.exit("Empty entry found: Missing Genome!")
+            msg.error("Empty entry found: Missing Genome!")
+            sys.exit()
         if mapping_tis == "":
-            sys.exit("Empty entry found: Missing Mapping_TIS!")
+            msg.error("Empty entry found: Missing Mapping_TIS!")
+            sys.exit()
         if mapping_tts == "":
-            sys.exit("Empty entry found: Missing Mapping_TTS!")
+            msg.error("Empty entry found: Missing Mapping_TTS!")
+            sys.exit()
         if normalization == "":
-            sys.exit("Empty entry found: Missing Normalization!")
+            msg.error("Empty entry found: Missing Normalization!")
+            sys.exit()
         if offsets == "":
-            sys.exit("Empty entry found: Missing Offsets!")
+            msg.error("Empty entry found: Missing Offsets!")
+            sys.exit()
 
         if not Path(annotation).is_file():
-            sys.exit("Annotation file is not valid! Ensure to enter a correct file path!\n%s" % annotation)
+            msg.error("Annotation file is not valid! Ensure to enter a correct file path!\n%s" % annotation)
+            sys.exit()
         if not Path(genome).is_file():
-            sys.exit("Genome file is not valid! Ensure to enter a correct file path!\n%s" % genome)
+            msg.error("Genome file is not valid! Ensure to enter a correct file path!\n%s" % genome)
+            sys.exit()
         if not Path(mapping_tis).is_dir():
-            sys.exit("Mapping TIS directory is not valid! Ensure to enter a correct path!\n%s" % mapping_tis)
+            msg.error("Mapping TIS directory is not valid! Ensure to enter a correct path!\n%s" % mapping_tis)
+            sys.exit()
         if not Path(mapping_tts).is_dir():
-            sys.exit("Mapping TTS directory is not valid! Ensure to enter a correct path!\n%s" % mapping_tts)
+            msg.error("Mapping TTS directory is not valid! Ensure to enter a correct path!\n%s" % mapping_tts)
+            sys.exit()
         if not Path(offsets).is_file():
-            sys.exit("Offsets file is not valid! Ensure to enter a correct file path!\n%s" % offsets)
+            msg.error("Offsets file is not valid! Ensure to enter a correct file path!\n%s" % offsets)
+            sys.exit()
         if bamfolder != "" and isinstance(bamfolder, str):
             if not Path(bamfolder).is_dir():
-                sys.exit("Given bamfolder is non-existant, either provide no bamfolder or an existing one!\n%s" % bamfolder)
+                msg.error("Given bamfolder is non-existant, either provide no bamfolder or an existing one!\n%s" % bamfolder)
+                sys.exit()
 
         for norm in normalization.split(","):
             norm_path = os.path.join(mapping_tis, norm)
             if not Path(norm_path).is_dir():
-                sys.exit("Normalization path does not exist: %s" % norm_path)
+                msg.error("Normalization path does not exist: %s" % norm_path)
+                sys.exit()
 
             norm_path = os.path.join(mapping_tts, norm)
             if not Path(norm_path).is_dir():
-                sys.exit("Normalization path does not exist: %s" % norm_path)
+                msg.error("Normalization path does not exist: %s" % norm_path)
+                sys.exit()
 
     return config_df
 
@@ -121,7 +138,7 @@ def retrieve_wig_information(wig_path_tis, wig_path_tts, offset_dict):
                     tis_offset = offset_dict["TIS"]["default"]
                 else:
                     tis_offset = 15
-                    print("Wrongly formatted JSON file, missing default value! (using 15 instead)")
+                    msg.warning("Wrongly formatted JSON file, missing default value! (using 15 instead)")
 
             if "TTS" in offset_dict:
                 if "TTS-%s-%s" % key in offset_dict["TTS"]:
@@ -130,7 +147,7 @@ def retrieve_wig_information(wig_path_tis, wig_path_tts, offset_dict):
                     tts_offset = offset_dict["TTS"]["default"]
                 else:
                     tts_offset = 15
-                    print("Wrongly formatted JSON file, missing default value! (using 15 instead)")
+                    msg.warning("Wrongly formatted JSON file, missing default value! (using 15 instead)")
 
             wig_list.append((val, "%s-%s" % key, tis_offset, tts_offset))
 
@@ -180,6 +197,7 @@ def call_ORFBounder(config_df, use_longest_TTS_ORF, max_ORF_length, split_gff, r
 
         for norm in normalization:
             meta_dict, dynamic_dict = {}, {}
+            combined_meta_dict, combined_dynamic_dict = {}, {}
 
             wig_path_tis = os.path.join(mapping_tis, norm)
             wig_path_tts = os.path.join(mapping_tts, norm)
@@ -188,17 +206,28 @@ def call_ORFBounder(config_df, use_longest_TTS_ORF, max_ORF_length, split_gff, r
 
             res_path = os.path.join(result_path, experiment, norm)
             for (TIS_fwd_wig, TIS_rev_wig, TTS_fwd_wig, TTS_rev_wig), conrep, tis_offset, tts_offset in wig_list:
-                res_df = ob.run_ORFBounder(TIS_fwd_wig, TIS_rev_wig, TTS_fwd_wig, TTS_rev_wig, bamfolder, annotation, \
-                                            genome, start_codons, stop_codons, res_path, conrep, tis_offset, tts_offset, \
-                                            use_longest_TTS_ORF, read_threshold, split_gff, max_ORF_length)
+                try:
+                    res_df, combined_res_df = ob.run_ORFBounder(TIS_fwd_wig, TIS_rev_wig, TTS_fwd_wig, TTS_rev_wig, bamfolder, \
+                                                            annotation, genome, start_codons, stop_codons, res_path, conrep, \
+                                                            tis_offset, tts_offset, use_longest_TTS_ORF, read_threshold, \
+                                                            split_gff, max_ORF_length)
+                except SystemExit:
+                    msg.warning("Error encountered while calling ORFBounder! Moving to next run!")
+                    continue
 
-                io.write_results_to_gff(res_df, res_path, conrep, split_gff)
-                io.write_results_to_table(res_df, res_path, conrep)
+                io.write_results_to_gff(res_df, os.path.join(res_path, "result_tables"), conrep, split_gff)
+                io.write_results_to_table(res_df, os.path.join(res_path, "result_tables"), conrep)
 
                 meta_dict, dynamic_dict = mg.extend_combined_dictionary(res_df, meta_dict, dynamic_dict)
+                if not combined_res_df.empty:
+                    io.write_results_to_gff(combined_res_df, os.path.join(res_path, "combined_results"), conrep, split_gff)
+                    io.write_results_to_table(combined_res_df, os.path.join(res_path, "combined_results"), conrep)
+                    combined_meta_dict, combined_dynamic_dict = mg.extend_combined_dictionary(res_df, combined_meta_dict, combined_dynamic_dict)
 
-            mg.write_merged_table(meta_dict, dynamic_dict, os.path.join(res_path, "%s_final.xlsx" % experiment))
-
+            if meta_dict:
+                mg.write_merged_table(meta_dict, dynamic_dict, os.path.join(res_path, "%s_final.xlsx" % experiment))
+            if combined_meta_dict:
+                mg.write_merged_table(combined_meta_dict, combined_dynamic_dict, os.path.join(res_path, "%s_combined_final.xlsx" % experiment))
 def main():
     # store commandline args
     parser = argparse.ArgumentParser(description="Wrapper for the ORFBounder.py, when running ORFBounder for multiple experiments.")

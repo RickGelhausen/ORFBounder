@@ -10,6 +10,7 @@ from Bio.Alphabet import generic_dna
 
 from interlap import InterLap
 import lib.expression as expr
+import lib.messaging as msg
 
 def calculate_density(wig_file_data, annotation_interlap, gene_dict):
     """
@@ -54,8 +55,9 @@ def generate_annotation_dict(annotation_path):
                 if i % 2 == 0:
                     attribute_list[i] = attribute_list[i].lower()
         else:
-            print(attribute_list)
-            sys.exit("error, invalid gff, wrongly formatted attribute fields.")
+            msg.error("Error: invalid gff, wrongly formatted attribute fields.")
+            msg.error(attribute_list)
+            sys.exit()
 
         if feature.lower() == "cds":
             locus_tag = ""

@@ -46,10 +46,10 @@ def calculate_rpkm(total_mapped, read_count, read_length):
     calculate the rpkm
     """
     if read_length == 0:
-        print("read_length: 0 detected! Setting RPKM to 0!")
+        msg.warning("Warning: read_length: 0 detected! Setting RPKM to 0!")
         return 0
     elif total_mapped == 0:
-        print("total_mapped: 0 detected! Setting RPKM to 0!")
+        msg.warning("Warning: total_mapped: 0 detected! Setting RPKM to 0!")
         return 0
 
     return float("%.2f" % ((read_count * 1000000000) / (total_mapped * read_length)))
@@ -98,7 +98,7 @@ def calculate_TE(read_list, wildcards):
         if key not in read_dict:
             read_dict[key] = read_list[idx]
         else:
-            print("warning: multiple equal keys")
+            msg.warning("Warning: multiple equal keys in calculate_TE")
 
     TE_list = []
     for key, val in read_dict.items():
@@ -186,7 +186,7 @@ def create_interlap_dict(bam_file):
                     tmp_dict[(chrom, "-")] = [(start, stop)]
 
     except ValueError:
-        msg.warning("Error! Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.")
+        msg.error("Error: Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.")
         sys.exit(1)
 
     for key, val in tmp_dict.items():
@@ -194,6 +194,7 @@ def create_interlap_dict(bam_file):
         inter.update(val)
         interlap_dict[key] = inter
 
+    msg.success("Done")
     return interlap_dict, total_mapped_reads
 
 def count_reads(chrom, start, stop, strand, read_interlap_dict):

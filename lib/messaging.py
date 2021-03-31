@@ -2,31 +2,32 @@ class mcolors:
     BLUE = '\033[94m'
     CYAN = '\033[96m'
     GREEN = '\033[92m'
+    YELLOW = '\033[93m'
     RED = '\033[91m'
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
 
-def warning(text):
+def error(text):
     """
-    Write a warning message in bold red
+    Write an error message in bold red, leading to a crash.
     """
     print(f"{mcolors.RED}{mcolors.BOLD}%s{mcolors.ENDC}" % text)
 
-def message(text):
-    """
-    Write a normal message
-    """
-    print(text)
-
-def message_OK(text):
+def success(text):
     """
     Write a message in green
     """
     print(f"{mcolors.GREEN}%s{mcolors.ENDC}" % text)
 
-def emphasis(text):
+def message(text):
     """
-    Write an important message
+    Write a normal message
     """
-    print(f"{mcolors.BLUE}{mcolors.BOLD}%s{mcolors.ENDC}" % text)
+    print(f"{mcolors.BLUE}%s{mcolors.ENDC}" % text)
+
+def warning(text):
+    """
+    Write a warning message in yellow.
+    """
+    print(f"{mcolors.YELLOW}%s{mcolors.ENDC}" % text)
