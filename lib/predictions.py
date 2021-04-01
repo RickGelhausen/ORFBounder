@@ -61,52 +61,50 @@ def search_codon_reverse(cur_position, genome_seq, match_codons):
 
     return cur_position
 
-def search_longest_reverse(cur_stop, genome_seq, search_codons, match_codons):
+def search_longest_reverse(cur_position, genome_seq, search_codons, match_codons):
     """
     search for the match codon that is following the last inframe search codon.
     Return: Position of matching codon or -1 if not found
     """
     loop_counter = 0
-
-    cur_position = cur_stop - 2
+    original_position = cur_position
     nt=genome_seq[cur_position:cur_position+3]
     while nt not in search_codons or loop_counter == 0:
-        loop_counter+=1
+        loop_counter += 1
         cur_position -= 3
         if cur_position < 0:
-            return -1
+            return search_codon_reverse(original_position, genome_seq, match_codons)
 
         nt = genome_seq[cur_position:cur_position+3]
 
     while nt not in match_codons:
         cur_position += 3
-        if cur_position == cur_stop - 2:
+        if cur_position == original_position:
             return -1
 
         nt = genome_seq[cur_position:cur_position+3]
 
     return cur_position
 
-def search_longest_forward(cur_stop, genome_seq, search_codons, match_codons):
+def search_longest_forward(cur_position, genome_seq, search_codons, match_codons):
     """
     search for the match codon in reverse that is following the last inframe search codon.
     Return: Position of matching codon or -1 if not found
     """
     loop_counter = 0
-
-    cur_position = cur_stop
+    original_position = cur_position
     nt=genome_seq[cur_position:cur_position+3]
     while nt not in search_codons or loop_counter == 0:
         cur_position += 3
         loop_counter+=1
         if cur_position > len(genome_seq):
-            return -1
+            return search_codon_forward(original_position, genome_seq, match_codons)
 
         nt = genome_seq[cur_position:cur_position+3]
 
     while nt not in match_codons:
         cur_position -= 3
-        if cur_position == cur_stop:
+        if cur_position == original_position:
             return -1
 
         nt = genome_seq[cur_position:cur_position+3]
