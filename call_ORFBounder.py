@@ -222,7 +222,7 @@ def call_ORFBounder(config_df, use_longest_TTS_ORF, max_ORF_length, split_gff, r
                 if not combined_res_df.empty:
                     io.write_results_to_gff(combined_res_df, os.path.join(res_path, "combined_results"), conrep, split_gff)
                     io.write_results_to_table(combined_res_df, os.path.join(res_path, "combined_results"), conrep)
-                    combined_meta_dict, combined_dynamic_dict = mg.extend_combined_dictionary(res_df, combined_meta_dict, combined_dynamic_dict)
+                    combined_meta_dict, combined_dynamic_dict = mg.extend_combined_dictionary(combined_res_df, combined_meta_dict, combined_dynamic_dict)
 
             if meta_dict:
                 mg.write_merged_table(meta_dict, dynamic_dict, os.path.join(res_path, "%s_final.xlsx" % experiment))

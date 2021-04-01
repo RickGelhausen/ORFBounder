@@ -249,7 +249,7 @@ def combined_data_detection(codon_dict_TIS, codon_dict_TTS, offset_TIS, offset_T
     """
 
     start_codon_dict, stop_codon_dict \
-                = convert_codon_dict(codon_dict_TIS, codon_dict_TTS, offset_TTS, offset_TIS)
+                = convert_codon_dict(codon_dict_TIS, codon_dict_TTS, offset_TIS, offset_TTS)
 
     keys = set()
     keys.update(start_codon_dict.keys())
@@ -263,9 +263,9 @@ def combined_data_detection(codon_dict_TIS, codon_dict_TTS, offset_TIS, offset_T
         if strand == "+":
             for stop, stop_rpm in sorted(stop_codon_dict[(chrom, strand)], key=lambda x : x[0]):
                 for start, start_rpm in sorted(start_codon_dict[(chrom, strand)], key=lambda x : x[0]):
-                    if start >= stop or stop-start+1 > max_ORF_length:
+                    if start >= stop:
                         break
-                    if misc.get_frame(start) != misc.get_frame(stop-2):
+                    if misc.get_frame(start) != misc.get_frame(stop-2) or abs(start-stop+1) > max_ORF_length:
                         continue
                     out_start, out_stop = start, stop
                     if (chrom, strand) in predictions:
@@ -275,9 +275,9 @@ def combined_data_detection(codon_dict_TIS, codon_dict_TTS, offset_TIS, offset_T
         else:
             for start, start_rpm in sorted(start_codon_dict[(chrom, strand)], key=lambda x : x[0]):
                 for stop, stop_rpm in sorted(stop_codon_dict[(chrom, strand)], key=lambda x : x[0]):
-                    if stop >= start or start-stop+1 > max_ORF_length:
+                    if stop >= start:
                         break
-                    if misc.get_frame(start-2) != misc.get_frame(stop):
+                    if misc.get_frame(start-2) != misc.get_frame(stop) or abs(start-stop+1) > max_ORF_length:
                         continue
                     out_start, out_stop = stop, start
                     if (chrom, strand) in predictions:
