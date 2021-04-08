@@ -8,7 +8,7 @@ import pandas as pd
 
 import lib.misc as misc
 
-def screen_wig_for_tss(wig_file_data, codon_interlap, codon_dict, read_count_threshold):
+def screen_wig_for_tss(wig_file_data, codon_interlap, codon_dict, min_peak_height, peak_height_calculation):
     """
     screen over wig file and update the according codon entries
     """
@@ -17,12 +17,19 @@ def screen_wig_for_tss(wig_file_data, codon_interlap, codon_dict, read_count_thr
         position, read_count = line.rstrip().split(" ")
         position = int(position)-1
         read_count = abs(float(read_count))
-        # if read_count > x here could be a readcount restriction
-        if read_count <= read_count_threshold:# change here if interval changes
+        if read_count <= min_peak_height:
             continue
+
         matching_codons = list(codon_interlap.find((position, position)))
         for match in matching_codons:
-            codon_dict[match[2]][1] += read_count
+            if peak_height_calculation == "sum":
+                codon_dict[match[2]][1] += read_count
+            elif peak_height_calculation == "max":
+                if read_count > codon_dict[match[2]][1]:
+                    codon_dict[match[2]][1] = read_count
+            else:
+                msg.error("Invalid method! Use either 'sum' or 'max'!")
+
     return codon_dict
 
 
@@ -111,7 +118,7 @@ def search_longest_forward(cur_position, genome_seq, search_codons, match_codons
 
     return cur_position
 
-def detect_potential_ORFs(codon_dict, genome_seq, search_codons, match_codons, p_offset, method, detected_ORFs_dict, longest_potential_ORF=True):
+def detect_potential_ORFs(codon_dict, genome_seq, search_codons, match_codons, p_offset, method, detected_ORFs_dict, TTS_start_selection):
     """
     for each relavent codon site, find a matching orf region
     """
@@ -151,14 +158,16 @@ def detect_potential_ORFs(codon_dict, genome_seq, search_codons, match_codons, p
                 cur_stop = int(interval_start) - p_offset + 4
                 cur_position = cur_stop - 2
 
-                if not longest_potential_ORF:
+                if TTS_start_selection == "next_inframe":
                     cur_position = search_codon_reverse(cur_position, genome_seq, match_codons)
                     if cur_position == -1:
                         continue
-                else:
+                elif TTS_start_selection == "furthest_inframe":
                     cur_position = search_longest_reverse(cur_position, genome_seq, search_codons, match_codons)
                     if cur_position == -1:
                         continue
+                else:
+                    msg.error("Error! Unknown TTS start selection method: %s expected:{furthest_inframe, next_inframe}" % TTS_start_selection)
 
                 cur_start = cur_position
 
@@ -166,14 +175,16 @@ def detect_potential_ORFs(codon_dict, genome_seq, search_codons, match_codons, p
                 cur_stop = int(interval_start) + p_offset
                 cur_position = cur_stop
 
-                if not longest_potential_ORF:
+                if TTS_start_selection == "next_inframe":
                     cur_position = search_codon_forward(cur_position, genome_seq, reverse_match_codons)
                     if cur_position == -1:
                         continue
-                else:
+                elif TTS_start_selection == "furthest_inframe":
                     cur_position = search_longest_forward(cur_position, genome_seq, reverse_search_codons, reverse_match_codons)
                     if cur_position == -1:
                         continue
+                else:
+                    msg.error("Error! Unknown TTS start selection method: %s expected:{furthest_inframe, next_inframe}" % TTS_start_selection)
 
                 cur_start = cur_position + 2
 

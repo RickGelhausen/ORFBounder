@@ -1,4 +1,3 @@
-import sys
 import pysam
 import collections
 import pandas as pd
@@ -187,7 +186,6 @@ def create_interlap_dict(bam_file):
 
     except ValueError:
         msg.error("Error: Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.")
-        sys.exit(1)
 
     for key, val in tmp_dict.items():
         inter = InterLap()

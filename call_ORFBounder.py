@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import os,sys
+import os
 import re
 import json
 import argparse
@@ -21,11 +21,10 @@ def check_config_sheet(config_sheet):
 
     config_df = pd.read_csv(config_sheet, sep="\t")
 
-    if sorted(config_df.columns) != ["Annotation", "Bam_folder", "Experiment", "Genome", "Mapping_TIS", "Mapping_TTS", "Normalization", "Offsets", "Read_threshold", "Start_codons", "Stop_codons"]:
+    if sorted(config_df.columns) != ["Annotation", "Bam_folder", "Experiment", "Genome", "Mapping_TIS", "Mapping_TTS", "Normalization", "Offsets", "Min_peak_height", "Start_codons", "Stop_codons"]:
         msg.error("Config Sheet columns are incomplete:\n\
-                Required columns: Experiment,Annotation,Genome,Mapping_TIS,Mapping_TTS,Normalization,Offsets,Bam_folder,Start_codons,Stop_codons,Read_threshold\n\
+                Required columns: Experiment,Annotation,Genome,Mapping_TIS,Mapping_TTS,Normalization,Offsets,Bam_folder,Start_codons,Stop_codons,Min_peak_height\n\
                 Ensure that the file is TAB seperated.")
-        sys.exit()
 
     for row in config_df.itertuples(index=False, name="Pandas"):
         experimefrom collections import dequent = getattr(row, "Experiment")
@@ -39,56 +38,41 @@ def check_config_sheet(config_sheet):
 
         if experiment == "":
             msg.error("Empty entry found: Missing Experiment!")
-            sys.exit()
         if annotation == "":
             msg.error("Empty entry found: Missing Annotation!")
-            sys.exit()
         if genome == "":
             msg.error("Empty entry found: Missing Genome!")
-            sys.exit()
         if mapping_tis == "":
             msg.error("Empty entry found: Missing Mapping_TIS!")
-            sys.exit()
         if mapping_tts == "":
             msg.error("Empty entry found: Missing Mapping_TTS!")
-            sys.exit()
         if normalization == "":
             msg.error("Empty entry found: Missing Normalization!")
-            sys.exit()
         if offsets == "":
             msg.error("Empty entry found: Missing Offsets!")
-            sys.exit()
 
         if not Path(annotation).is_file():
             msg.error("Annotation file is not valid! Ensure to enter a correct file path!\n%s" % annotation)
-            sys.exit()
         if not Path(genome).is_file():
             msg.error("Genome file is not valid! Ensure to enter a correct file path!\n%s" % genome)
-            sys.exit()
         if not Path(mapping_tis).is_dir():
             msg.error("Mapping TIS directory is not valid! Ensure to enter a correct path!\n%s" % mapping_tis)
-            sys.exit()
         if not Path(mapping_tts).is_dir():
             msg.error("Mapping TTS directory is not valid! Ensure to enter a correct path!\n%s" % mapping_tts)
-            sys.exit()
         if not Path(offsets).is_file():
             msg.error("Offsets file is not valid! Ensure to enter a correct file path!\n%s" % offsets)
-            sys.exit()
         if bamfolder != "" and isinstance(bamfolder, str):
             if not Path(bamfolder).is_dir():
                 msg.error("Given bamfolder is non-existant, either provide no bamfolder or an existing one!\n%s" % bamfolder)
-                sys.exit()
 
         for norm in normalization.split(","):
             norm_path = os.path.join(mapping_tis, norm)
             if not Path(norm_path).is_dir():
                 msg.error("Normalization path does not exist: %s" % norm_path)
-                sys.exit()
 
             norm_path = os.path.join(mapping_tts, norm)
             if not Path(norm_path).is_dir():
                 msg.error("Normalization path does not exist: %s" % norm_path)
-                sys.exit()
 
     return config_df
 
@@ -235,7 +219,6 @@ def build_offset_dictionary(offset_file, genome, mapping_tis, mapping_tts):
                             offset = int(offset / counter)
                         else:
                             msg.error("Error: empty readlength data in JSON file")
-                            sys.exit()
 
                     else:
                         continue
@@ -266,13 +249,13 @@ def call_ORFBounder(config_df, use_longest_TTS_ORF, max_ORF_length, split_gff, r
         offset_file = getattr(row, "Offsets")
         start_codons = getattr(row, "Start_codons")
         stop_codons = getattr(row, "Stop_codons")
-        read_threshold = getattr(row, "Read_threshold")
+        min_peak_height = getattr(row, "Min_peak_height")
         bamfolder = getattr(row, "Bam_folder")
 
-        if read_threshold == "" or math.isnan(read_threshold):
-            read_threshold = 5
+        if min_peak_height == "" or math.isnan(min_peak_height):
+            min_peak_height = 5
         else:
-            read_threshold = int(read_threshold)
+            min_peak_height = int(min_peak_height)
 
         if max_ORF_length == "" or math.isnan(max_ORF_length):
             max_ORF_length = 100
@@ -305,7 +288,7 @@ def call_ORFBounder(config_df, use_longest_TTS_ORF, max_ORF_length, split_gff, r
                 try:
                     res_df, combined_res_df = ob.run_ORFBounder(TIS_fwd_wig, TIS_rev_wig, TTS_fwd_wig, TTS_rev_wig, bamfolder, \
                                                             annotation, genome, start_codons, stop_codons, res_path, conrep, \
-                                                            tis_offset, tts_offset, use_longest_TTS_ORF, read_threshold, \
+                                                            tis_offset, tts_offset, use_longest_TTS_ORF, min_peak_height, \
                                                             split_gff, max_ORF_length)
                 except SystemExit:
                     msg.warning("Error encountered while calling ORFBounder! Moving to next run!")

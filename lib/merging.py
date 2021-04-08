@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import argparse
 import re
-import os, sys
+import os
 import pandas as pd
 import numpy as np
 

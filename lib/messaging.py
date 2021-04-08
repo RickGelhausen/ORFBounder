@@ -1,3 +1,5 @@
+import sys
+
 class mcolors:
     BLUE = '\033[94m'
     CYAN = '\033[96m'
@@ -10,9 +12,10 @@ class mcolors:
 
 def error(text):
     """
-    Write an error message in bold red, leading to a crash.
+    Write an error message in bold red, leading to a crash and terminate the program.
     """
     print(f"{mcolors.RED}{mcolors.BOLD}%s{mcolors.ENDC}" % text)
+    sys.exit()
 
 def success(text):
     """

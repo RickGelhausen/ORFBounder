@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import argparse
 import re
-import os, sys
+import os
 import pandas as pd
 
 import collections
@@ -17,7 +17,8 @@ import lib.messaging as msg
 
 
 def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd_wig_file, rev_wig_file, output_path, \
-                    output_basename, offset, method, longest_potential_ORF, detected_ORFs_dict, read_count_threshold):
+                    output_basename, offset, method, longest_potential_ORF, detected_ORFs_dict, min_peak_height,
+                    peak_height_calculation):
     """
     execute the script for either TIS or TTS
     """
@@ -35,7 +36,7 @@ def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd
     msg.message("Checking output folder...")
     if os.path.isfile(os.path.join(output_path, "result_tables", output_basename + ".csv")):
         msg.error("Error: Result table already found! Please ensure that prior output files with the same name are deleted.")
-        sys.exit()
+
     msg.success("Done.")
 
     for key, val in genome_dict.items():
@@ -55,8 +56,8 @@ def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd
         gene_density_dict = misc.calculate_density(rev_wig_dict[key], annotation_rev_interlap, gene_density_dict)
 
         fwd_codon_interlap, rev_codon_interlap, codon_dict = misc.create_codon_interlaps(key, val, search_codons, offset)
-        codon_dict = pred.screen_wig_for_tss(fwd_wig_dict[key], fwd_codon_interlap, codon_dict, read_count_threshold)
-        codon_dict = pred.screen_wig_for_tss(rev_wig_dict[key], rev_codon_interlap, codon_dict, read_count_threshold)
+        codon_dict = pred.screen_wig_for_tss(fwd_wig_dict[key], fwd_codon_interlap, codon_dict, min_peak_height, peak_height_calculation)
+        codon_dict = pred.screen_wig_for_tss(rev_wig_dict[key], rev_codon_interlap, codon_dict, min_peak_height, peak_height_calculation)
 
         io.write_codon_interval_gff(output_path, os.path.join("codon_intervals","%s_%s_intervals.gff" % (output_basename, key)), codon_dict, offset, method)
 
@@ -66,7 +67,8 @@ def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd
 
 def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig_file_TTS, bam_file_path, \
                 annotation_file, genome_file, start_codons, stop_codons, output_path, output_basename, \
-                offset_TIS, offset_TTS, use_longest_TTS_ORF, read_count_threshold, split_gff, max_ORF_length):
+                offset_TIS, offset_TTS, TTS_start_selection, min_peak_height, split_gff, max_ORF_length, \
+                peak_height_calculation):
     """
     run functions necessary to generate the final output of ORFBounder
     """
@@ -100,8 +102,8 @@ def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig
         predictions, gene_density_dict_TIS, _ \
                         = prediction_call(annotation_file, genome_dict, start_codons, stop_codons, \
                                           fwd_wig_file_TIS, rev_wig_file_TIS, output_path, \
-                                          output_basename, offset_TIS, "TIS", use_longest_TTS_ORF, \
-                                          predictions, read_count_threshold)
+                                          output_basename, offset_TIS, "TIS", TTS_start_selection, \
+                                          predictions, min_peak_height, peak_height_calculation)
         if bam_files != -1:
             read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
             read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
@@ -113,8 +115,8 @@ def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig
         predictions, gene_density_dict_TTS, _ \
                         = prediction_call(annotation_file, genome_dict, start_codons, stop_codons, \
                                           fwd_wig_file_TTS, rev_wig_file_TTS, output_path, \
-                                          output_basename, offset_TTS, "TTS", use_longest_TTS_ORF, \
-                                          predictions, read_count_threshold)
+                                          output_basename, offset_TTS, "TTS", TTS_start_selection, \
+                                          predictions, min_peak_height, peak_height_calculation)
         if bam_files != -1:
             read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
             read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
@@ -127,14 +129,14 @@ def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig
         predictions, gene_density_dict_TIS, codon_dict_TIS \
                         = prediction_call(annotation_file, genome_dict, start_codons, stop_codons, \
                                           fwd_wig_file_TIS, rev_wig_file_TIS, output_path, \
-                                          output_basename, offset_TIS, "TIS", use_longest_TTS_ORF, \
-                                          predictions, read_count_threshold)
+                                          output_basename, offset_TIS, "TIS", TTS_start_selection, \
+                                          predictions, min_peak_height, peak_height_calculation)
 
         predictions, gene_density_dict_TTS, codon_dict_TTS \
                         = prediction_call(annotation_file, genome_dict, start_codons, stop_codons, \
                                           fwd_wig_file_TTS, rev_wig_file_TTS, output_path, \
-                                          output_basename, offset_TTS, "TTS", use_longest_TTS_ORF, \
-                                          predictions, read_count_threshold)
+                                          output_basename, offset_TTS, "TTS", TTS_start_selection, \
+                                          predictions, min_peak_height, peak_height_calculation)
 
         combined_predictions = pred.combined_data_detection(codon_dict_TIS, codon_dict_TTS, offset_TIS, offset_TTS, max_ORF_length)
         if bam_files != -1:
@@ -170,20 +172,32 @@ def main():
     parser.add_argument("--offset_TTS", action="store", dest="offset_TTS", type=int, default=15)
 
     parser.add_argument("--split_gff", action="store_true", dest="split_gff", help="Split gff into one for each gene_type.")
-    parser.add_argument("--use_longest_TTS_ORF", action="store_true", dest="use_longest_TTS_ORF", help="Use the furthest possible inframe start codon for each detected stop codon to form the longest possible ORF that contains only one inframe stop codon. \
-                                                                                                        Default uses the first detected start codon and may result in very short ORFs.")
-    parser.add_argument("--bam_file_path", action="store", dest="bam_file_path", default="", help="(optional) bam file to calculate RPKM and TE values for the final results.")
-    parser.add_argument("--max_ORF_length", action="store", dest="max_ORF_length", type=int, default=100, help="The max length to take into account when using the combination method for TIS+TTS.")
-    parser.add_argument("--output_basename", action="store", dest="output_basename", required=True, help="the basename for all output files." )
-    parser.add_argument("-c", "--read_count_threshold", action="store", dest="read_count_threshold", default=5, type=int, help="skip reads lower than this threshold.")
-    parser.add_argument("-o","--output_path", action="store", dest="output_path", required=True, help="Output path to the result folder.")
+    parser.add_argument("--peak_height_calculation", action="store", dest="peak_height_calculation", default="max"
+                                                   , help="{max,sum}:\n"\
+                                                         +"'max': within the codon interval select the highest value (> min_peak_height)"\
+                                                         +"'sum': within the codon interval sum all values (> min_peak_height)")
+    parser.add_argument("--TTS_start_selection", action="store", dest="TTS_start_selection", default="furthest_inframe"\
+                                               , help="{furthest_inframe, next_inframe}\n"\
+                                                      "'furthest_inframe': select the furthest inframe start codon that, without overstepping the next inframe stop codon.\n"\
+                                                      "'next_inframe': select the closest inframe start codon.")
+    parser.add_argument("--bam_file_path", action="store", dest="bam_file_path", default=""\
+                                         , help="(optional) bam file to calculate RPKM and TE values for the final results.")
+    parser.add_argument("--max_ORF_length", action="store", dest="max_ORF_length", type=int, default=100\
+                                          , help="The maximum ORF length to take into account when using the combination method for TIS+TTS.")
+    parser.add_argument("--output_basename", action="store", dest="output_basename", required=True\
+                                           , help="the basename for all output files." )
+    parser.add_argument("--min_peak_height", action="store", dest="min_peak_height", default=5, type=int\
+                                           , help="Minimum height value to be considered a peak. (max option)\n"\
+                                                 +"Minimum height value to be added to the total peak value (sum option)")
+    parser.add_argument("-o","--output_path", action="store", dest="output_path", required=True\
+                                            , help="Output path to the result folder.")
     args = parser.parse_args()
 
     result_df, combined_result_df = \
              run_ORFBounder(args.fwd_wig_file_TIS, args.rev_wig_file_TIS, args.fwd_wig_file_TTS, args.rev_wig_file_TTS, \
                             args.bam_file_path, args.annotation_file, args.genome_file, args.start_codons, args.stop_codons, \
-                            args.output_path, args.output_basename, args.offset_TIS, args.offset_TTS, args.use_longest_TTS_ORF, \
-                            args.read_count_threshold, args.split_gff, args.max_ORF_length)
+                            args.output_path, args.output_basename, args.offset_TIS, args.offset_TTS, args.TTS_start_selection, \
+                            args.min_peak_height, args.split_gff, args.max_ORF_length, args.peak_height_calculation)
 
     io.write_results_to_gff(result_df, os.path.join(args.output_path, "result_tables"), args.output_basename, args.split_gff)
     io.write_results_to_table(result_df, os.path.join(args.output_path, "result_tables"), args.output_basename)

@@ -55,9 +55,7 @@ def generate_annotation_dict(annotation_path):
                 if i % 2 == 0:
                     attribute_list[i] = attribute_list[i].lower()
         else:
-            msg.error("Error: invalid gff, wrongly formatted attribute fields.")
-            msg.error(attribute_list)
-            sys.exit()
+            msg.error("Error: invalid gff, wrongly formatted attribute fields.\n%s" % attribute_list)
 
         if feature.lower() == "cds":
             locus_tag = ""

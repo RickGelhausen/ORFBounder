@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 
-import os, sys
+import os
 import re
 import csv
 import collections
@@ -42,7 +42,7 @@ def handle_input(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig_f
         return "TTS"
 
     msg.error("Error: Please ensure to either provide 2 TIS files, 2 TTS files OR both!")
-    sys.exit()
+
 
 def check_bamfile_input(bam_file_path, fwd_wig_file_TIS, fwd_wig_file_TTS):
     """
@@ -91,7 +91,6 @@ def load_wig(wig_path):
             if line[0].isdigit() and line[0] != "0":
                 if chromosome not in wig_data_dict.keys():
                     msg.error("Error: Incomplete header in wig file! Missing chrom= field!")
-                    sys.exit()
 
                 wig_data_dict[chromosome].append(line)
 
