@@ -21,13 +21,13 @@ def check_config_sheet(config_sheet):
 
     config_df = pd.read_csv(config_sheet, sep="\t")
 
-    if sorted(config_df.columns) != ["Annotation", "Bam_folder", "Experiment", "Genome", "Mapping_TIS", "Mapping_TTS", "Normalization", "Offsets", "Min_peak_height", "Start_codons", "Stop_codons"]:
+    if sorted(config_df.columns) != ["Annotation", "Bam_folder", "Experiment", "Genome", "Mapping_TIS", "Mapping_TTS", "Normalization", "Offsets", "Start_codons", "Stop_codons"]:
         msg.error("Config Sheet columns are incomplete:\n\
-                Required columns: Experiment,Annotation,Genome,Mapping_TIS,Mapping_TTS,Normalization,Offsets,Bam_folder,Start_codons,Stop_codons,Min_peak_height\n\
+                Required columns: Experiment,Annotation,Genome,Mapping_TIS,Mapping_TTS,Normalization,Offsets,Bam_folder,Start_codons,Stop_codons\n\
                 Ensure that the file is TAB seperated.")
 
     for row in config_df.itertuples(index=False, name="Pandas"):
-        experimefrom collections import dequent = getattr(row, "Experiment")
+        experiment = getattr(row, "Experiment")
         annotation = getattr(row, "Annotation")
         genome = getattr(row, "Genome")
         mapping_tis = getattr(row, "Mapping_TIS")
@@ -117,7 +117,7 @@ def retrieve_wig_information(wig_path_tis, wig_path_tts, offset_dict):
         if (val[0] != "" and val[1] != "") or (val[2] != "" and val[3] != ""):
             tis_offset, tts_offset = 15, 15
 
-            if "TIS" in offset_dict[norm]:
+            if "TIS" in offset_dict:
                 if "TIS-%s-%s" % key in offset_dict["TIS"]:
                     tis_offset = offset_dict["TIS"]["TIS-%s-%s" % key]
                 elif "default" in offset_dict["TIS"]:
@@ -141,7 +141,7 @@ def dictionary_depth(dic):
     """
     get the depth of a dictionary
     """
-    queue = deque([(id(dic), dic, 1)])
+    queue = deque([(id(dic), dic, 0)])
     already_visited = set()
     while queue:
         id_, o, level = queue.popleft()
@@ -172,7 +172,8 @@ def build_offset_dictionary(offset_file, genome, mapping_tis, mapping_tts):
     """
     with open(offset_file, "r") as f:
         offset_data = json.load(f)
-
+    print(offset_data)
+    print(dictionary_depth(offset_data))
     if dictionary_depth(offset_data) == 2:
         return offset_data
 
@@ -189,13 +190,13 @@ def build_offset_dictionary(offset_file, genome, mapping_tis, mapping_tts):
         mapping_tts = base_mapping(os.path.basename(mapping_tts))
 
         for method, norm_dict in offset_data.items():
-            if lower(method) not in ["tis", "tts"]:
+            if method.lower() not in ["tis", "tts"]:
                 continue
 
             total_offset = 0
             total_count = 0
             for norm, sample_dict in norm_dict.items():
-                if lower(norm) != "raw":
+                if norm.lower() != "raw":
                     continue
 
                 for mapping, readlength_dict in sample_dict.items():
@@ -212,7 +213,7 @@ def build_offset_dictionary(offset_file, genome, mapping_tis, mapping_tts):
                             offset = 0
                             for readlength, value in readlength_dict.items():
 
-                                if lower(readlength) in ["raw", "mean"]:
+                                if readlength.lower() in ["raw", "mean"]:
                                     continue
                                 counter += 1
                                 offset += int(value.split(","))
@@ -234,7 +235,7 @@ def build_offset_dictionary(offset_file, genome, mapping_tis, mapping_tts):
 
     return new_dict
 
-def call_ORFBounder(config_df, use_longest_TTS_ORF, max_ORF_length, split_gff, result_path):
+def call_ORFBounder(config_df, TTS_start_selection, min_peak_height, peak_height_calculation, max_ORF_length, split_gff, result_path):
     """
     Run the ORFBounder experiments specified in the config sheet.
     """
@@ -249,13 +250,7 @@ def call_ORFBounder(config_df, use_longest_TTS_ORF, max_ORF_length, split_gff, r
         offset_file = getattr(row, "Offsets")
         start_codons = getattr(row, "Start_codons")
         stop_codons = getattr(row, "Stop_codons")
-        min_peak_height = getattr(row, "Min_peak_height")
         bamfolder = getattr(row, "Bam_folder")
-
-        if min_peak_height == "" or math.isnan(min_peak_height):
-            min_peak_height = 5
-        else:
-            min_peak_height = int(min_peak_height)
 
         if max_ORF_length == "" or math.isnan(max_ORF_length):
             max_ORF_length = 100
@@ -272,7 +267,7 @@ def call_ORFBounder(config_df, use_longest_TTS_ORF, max_ORF_length, split_gff, r
         else:
             stop_codons = [codon.strip(" ") for codon in stop_codons.split(",")]
 
-        offset_data = build_offset_dictionary(offset_file, mapping_tis, mapping_tts)
+        offset_data = build_offset_dictionary(offset_file, genome, mapping_tis, mapping_tts)
 
         for norm in normalization:
             meta_dict, dynamic_dict = {}, {}
@@ -288,8 +283,8 @@ def call_ORFBounder(config_df, use_longest_TTS_ORF, max_ORF_length, split_gff, r
                 try:
                     res_df, combined_res_df = ob.run_ORFBounder(TIS_fwd_wig, TIS_rev_wig, TTS_fwd_wig, TTS_rev_wig, bamfolder, \
                                                             annotation, genome, start_codons, stop_codons, res_path, conrep, \
-                                                            tis_offset, tts_offset, use_longest_TTS_ORF, min_peak_height, \
-                                                            split_gff, max_ORF_length)
+                                                            tis_offset, tts_offset, TTS_start_selection, min_peak_height, \
+                                                            split_gff, max_ORF_length, peak_height_calculation)
                 except SystemExit:
                     msg.warning("Error encountered while calling ORFBounder! Moving to next run!")
                     continue
@@ -313,15 +308,23 @@ def main():
 
     parser.add_argument("-c","--config_sheet", action="store", dest="config_sheet", required=True, help="Config sheet containing information on experiments to be run.")
     parser.add_argument("--split_gff", action="store_true", dest="split_gff", help="Split gff into one for each gene_type.")
-    parser.add_argument("--use_longest_TTS_ORF", action="store_true", dest="use_longest_TTS_ORF", help="Use the furthest possible inframe start codon for each detected stop codon to form the longest possible ORF that contains only one inframe stop codon. \
-                                                                                                        Default uses the first detected start codon and may result in very short ORFs.")
+    parser.add_argument("--peak_height_calculation", action="store", dest="peak_height_calculation", default="max"
+                                                   , help="{max,sum}:\n"\
+                                                         +"'max': within the codon interval select the highest value (> min_peak_height)"\
+                                                         +"'sum': within the codon interval sum all values (> min_peak_height)")
+    parser.add_argument("--TTS_start_selection", action="store", dest="TTS_start_selection", default="furthest_inframe"\
+                                               , help="{furthest_inframe, next_inframe}\n"\
+                                                      "'furthest_inframe': select the furthest inframe start codon that, without overstepping the next inframe stop codon.\n"\
+                                                      "'next_inframe': select the closest inframe start codon.")
+    parser.add_argument("--min_peak_height", action="store", dest="min_peak_height", default=5, type=int\
+                                           , help="Minimum height value to be considered a peak. (max option)\n"\
+                                                 +"Minimum height value to be added to the total peak value (sum option)")
     parser.add_argument("--max_ORF_length", action="store", dest="max_ORF_length", type=int, default=100, help="The max length to take into account when using the combination method for TIS+TTS.")
-
     parser.add_argument("-r","--result_path", action="store", dest="result_path", required=True, help="Path of the result folder.")
     args = parser.parse_args()
 
     config_df = check_config_sheet(args.config_sheet)
-    call_ORFBounder(config_df, args.use_longest_TTS_ORF, args.max_ORF_length, args.split_gff, args.result_path)
+    call_ORFBounder(config_df, args.TTS_start_selection, args.min_peak_height, args.peak_height_calculation, args.max_ORF_length, args.split_gff, args.result_path)
 
 
 if __name__ == '__main__':
