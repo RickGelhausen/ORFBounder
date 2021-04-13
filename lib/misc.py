@@ -3,6 +3,8 @@ import re
 import collections
 import numpy as np
 import pandas as pd
+import json
+from collections import deque
 
 from Bio.Seq import Seq
 from Bio import SeqIO
@@ -358,3 +360,102 @@ def generate_result_dataframe(detected_ORFs_dict, gene_dict_TIS, gene_dict_TTS, 
     df_results = df_results.sort_values(by=["Genome", "Start", "Stop", "Strand"])
 
     return df_results
+
+
+def dictionary_depth(dic):
+    """
+    get the depth of a dictionary
+    """
+    queue = deque([(id(dic), dic, 0)])
+    already_visited = set()
+    while queue:
+        id_, o, level = queue.popleft()
+        if id_ in already_visited:
+            continue
+        already_visited.add(id_)
+        if isinstance(o, dict):
+            queue += ((id(v), v, level + 1) for v in o.values())
+    return level
+
+def base_mapping(mapping):
+    """
+    retrieve basename of mapping (only useful for HRIBO output)
+    """
+
+    if "fiveprime" in mapping:
+        return "fiveprime"
+    elif "threeprime" in mapping:
+        return "threeprime"
+    elif "global" in mapping:
+        return "global"
+    elif "centered" in mapping:
+        return "centered"
+
+def build_offset_dictionary(offset_file, genome, mapping_tis, mapping_tts):
+    """
+    read a json offset file and process
+    """
+    with open(offset_file, "r") as f:
+        offset_data = json.load(f)
+    print(offset_data)
+    print(dictionary_depth(offset_data))
+    if dictionary_depth(offset_data) == 2:
+        return offset_data
+
+    else:
+        new_dict = {}
+        chromosome_name = ""
+        cur_length = 0
+        for key, val in io.generate_genome_dict(genome).items():
+            if len(val) > cur_length:
+                chromosome_name = key
+                cur_length = len(val)
+
+        mapping_tis = base_mapping(os.path.basename(mapping_tis))
+        mapping_tts = base_mapping(os.path.basename(mapping_tts))
+
+        for method, norm_dict in offset_data.items():
+            if method.lower() not in ["tis", "tts"]:
+                continue
+
+            total_offset = 0
+            total_count = 0
+            for norm, sample_dict in norm_dict.items():
+                if norm.lower() != "raw":
+                    continue
+
+                for mapping, readlength_dict in sample_dict.items():
+                    cur_chrom, cur_mapping = mapping.split("_")
+                    if cur_mapping in [mapping_tis, mapping_tts] and chromsome == cur_chrom:
+                        if "raw" in readlength_dict:
+                            offset = int(read_dict["raw"].split(",")[0])
+
+                        elif "mean" in readlength_dict:
+                            offset = int(read_dict["mean"].split(",")[0])
+
+                        elif len(readlength_dict) != 0:
+                            counter = 0
+                            offset = 0
+                            for readlength, value in readlength_dict.items():
+
+                                if readlength.lower() in ["raw", "mean"]:
+                                    continue
+                                counter += 1
+                                offset += int(value.split(","))
+                            offset = int(offset / counter)
+                        else:
+                            msg.error("Error: empty readlength data in JSON file")
+
+                    else:
+                        continue
+
+                    if method in new_dict:
+                        new_dict[method][sample] = offset
+                    else:
+                        new_dict[method] = {sample : offset}
+
+                    total_count += 1
+                    total_offset = offset
+            new_dict[method]["default"] = int(total_offset / total_count)
+
+    return new_dict

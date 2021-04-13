@@ -201,7 +201,7 @@ def count_reads(chrom, start, stop, strand, read_interlap_dict):
     """
     return len(list(read_interlap_dict[(chrom, strand)].find((start, stop))))
 
-def retrieve_read_counts(read_count_dict, wildcards, bam_files):
+def retrieve_read_counts(read_count_dict, bam_files):
     """
     run over all available bam files and add read_counts for each interval in the interval dict.
     """

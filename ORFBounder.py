@@ -106,7 +106,7 @@ def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig
                                           predictions, min_peak_height, peak_height_calculation)
         if bam_files != -1:
             read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
-            read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
+            read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, bam_files)
 
         result_df = misc.generate_result_dataframe(predictions, gene_density_dict_TIS, {}, genome_dict, read_count_dict, \
                                             total_mapped_list, wildcards, method, headers)
@@ -119,7 +119,7 @@ def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig
                                           predictions, min_peak_height, peak_height_calculation)
         if bam_files != -1:
             read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
-            read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
+            read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, bam_files)
 
         result_df = misc.generate_result_dataframe(predictions, {}, gene_density_dict_TTS, genome_dict, read_count_dict, \
                                             total_mapped_list, wildcards, method, headers)
@@ -142,7 +142,7 @@ def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig
         if bam_files != -1:
             read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
             read_count_dict = expr.init_read_count_dict(read_count_dict, combined_predictions)
-            read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, wildcards, bam_files)
+            read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, bam_files)
 
         result_df = misc.generate_result_dataframe(predictions, gene_density_dict_TIS, gene_density_dict_TTS, genome_dict, \
                                             read_count_dict, total_mapped_list, wildcards, method, headers)
