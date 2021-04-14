@@ -14,6 +14,7 @@ import lib.misc as misc
 import lib.expression as expr
 import lib.io as io
 
+import matplotlib.pyplot as plt
 
 def read_input_table(input_table):
     """
@@ -129,7 +130,7 @@ def check_bamfile_input(bam_file_path, wildcards):
     if bam_file_path == "" or not isinstance(bam_file_path, str):
         return -1
 
-    valid_bam = set()
+    valid_bam = []
 
     _, _, bam_file_list = next(os.walk(bam_file_path))
     bam_file_list = [ file for file in bam_file_list if file.endswith(".bam")]
@@ -137,16 +138,16 @@ def check_bamfile_input(bam_file_path, wildcards):
     for card in wildcards:
 
         if "TIS" in card:
-            RNATIS_prefix = "RNATIS-" + "-".join(card.split("-")[1:])
+            #RNATIS_prefix = "RNATIS-" + "-".join(card.split("-")[1:])
             for file in bam_file_list:
-                if card in file or RNATIS_prefix in file:
-                    valid_bam.add(os.path.join(bam_file_path,file))
+                if card in file and not "RNA" in file:# or RNATIS_prefix in file:
+                    valid_bam.append(os.path.join(bam_file_path,file))
 
         if "TTS" in card:
-            RNATTS_prefix = "RNATTS-" + "-".join(card.split("-")[1:])
+            #RNATTS_prefix = "RNATTS-" + "-".join(card.split("-")[1:])
             for file in bam_file_list:
-                if card in file or RNATTS_prefix in file:
-                    valid_bam.add(os.path.join(bam_file_path,file))
+                if card in file and not "RNA" in file:# or RNATTS_prefix in file:
+                    valid_bam.append(os.path.join(bam_file_path,file))
 
     if len(valid_bam) == 0:
         return -1
@@ -157,6 +158,7 @@ def retrieve_original_offset_position(start, stop, strand, offset, method):
     """
     retrieve the original position of the peaks
     """
+
     original_position = 0
     if method == "TIS":
         if strand == "+":
@@ -178,7 +180,7 @@ def create_replicate_peak_dict(xlsx_df, replicate, offset_dict):
     """
 
     replicate_index = list(xlsx_df.columns).index(replicate+"_peak_height")
-    if "TIS" in card:
+    if "TIS" in replicate:
         method = "TIS"
     else:
         method = "TTS"
@@ -193,15 +195,15 @@ def create_replicate_peak_dict(xlsx_df, replicate, offset_dict):
 
         offset = offset_dict[method][replicate]
 
-        original_position = retrieve_original_offset_position(chrom, start-1, stop-1, strand, offset)
+        original_position = retrieve_original_offset_position(int(start)-1, int(stop)-1, strand, int(offset), method)
 
         replicate_dict[(chrom, original_position-2, original_position+2, strand)] = (unique_id, peak_height, 0)
 
     return replicate_dict
 
-def write_test_file(read_count_dict, output_path, replicate):
+def create_dataframe(read_count_dict, replicate):
     """
-    write a test file
+    create dataframe with results
     """
 
     header = ["Identifier", "Genome", "Start", "Stop", "Strand", "Original_peak_pos"] \
@@ -217,10 +219,15 @@ def write_test_file(read_count_dict, output_path, replicate):
 
         result_rows.append(nTuple(unique_id, chrom, start, stop, strand, interval_start+2, peak_height, rpkm))
 
+    return pd.DataFrame.from_records(result_rows, columns=header)
 
+def write_test_file(out_df, output_path):
+    """
+    write a test file
+    """
     Path(os.path.dirname(output_path)).mkdir(parents=True, exist_ok=True)
 
-    io.excel_writer(output_path, {"CDS" : pd.DataFrame.from_records(result_rows, columns=header)})
+    io.excel_writer(output_path, {"CDS" : out_df})
 
 
 
@@ -242,17 +249,28 @@ def main():
     offset_dict = misc.build_offset_dictionary(args.offset_json, args.genome, args.mapping_tis, args.mapping_tts)
 
     wildcards = get_wildcards(xlsx_df)
-    bam_files = check_bamfile_input(args.bam_files, wildcards)
+    bam_files = list(check_bamfile_input(args.bam_files, wildcards))
 
-    for idx, card in enumerate(wildcards[0]):
-        replicate_dict = get_original_peak_positions(xlsx_df, card, offset_dict)
-        interlap_dict, total_mapped = misc.create_interlap_dict(bam_file[idx])
-        for (chrom, start, stop, strand), val in read_count_dict.keys():
+    for idx, card in enumerate(wildcards):
+        if idx != 0:
+            continue
+        print(idx, card)
+        read_count_dict = create_replicate_peak_dict(xlsx_df, card, offset_dict)
+        interlap_dict, total_mapped = expr.create_interlap_dict(bam_files[idx])
+        for (chrom, start, stop, strand), val in read_count_dict.items():
             read_count = expr.count_reads(chrom, start, stop, strand, interlap_dict)
-            rpkm = expr.calculate_rpkm(total_mapped, read_count, stop-start+1)
+            rpkm = expr.calculate_rpkm(total_mapped[chrom], read_count, int(stop)-int(start)+1)
 
             read_count_dict[(chrom,start,stop,strand)] = (val[0], val[1], rpkm)
 
+        df = create_dataframe(read_count_dict, card)
+        peak_height_list = df[card+"_peak_height"].to_list()
+        plt.plot(peak_height_list)
+        plt.savefig("/mnt/datavault/SPP2002/analysis/test_ORFBounder/peak_height_test.png")
+        rpkm_list = df[card+"_peak_rpkm"].to_list()
+        plt.plot(rpkm_list)
+        plt.savefig("/mnt/datavault/SPP2002/analysis/test_ORFBounder/peak_rpkm_test.png")
+        write_test_file(df, args.output_path)
 
 if __name__ == '__main__':
     main()

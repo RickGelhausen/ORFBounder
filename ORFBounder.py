@@ -171,7 +171,6 @@ def main():
     parser.add_argument("--offset_TIS", action="store", dest="offset_TIS", type=int, default=15)
     parser.add_argument("--offset_TTS", action="store", dest="offset_TTS", type=int, default=15)
 
-    parser.add_argument("--split_gff", action="store_true", dest="split_gff", help="Split gff into one for each gene_type.")
     parser.add_argument("--peak_height_calculation", action="store", dest="peak_height_calculation", default="max"
                                                    , help="{max,sum}:\n"\
                                                          +"'max': within the codon interval select the highest value (> min_peak_height)"\
@@ -180,17 +179,18 @@ def main():
                                                , help="{furthest_inframe, next_inframe}\n"\
                                                       "'furthest_inframe': select the furthest inframe start codon that, without overstepping the next inframe stop codon.\n"\
                                                       "'next_inframe': select the closest inframe start codon.")
-    parser.add_argument("--bam_file_path", action="store", dest="bam_file_path", default=""\
-                                         , help="(optional) bam file to calculate RPKM and TE values for the final results.")
     parser.add_argument("--max_ORF_length", action="store", dest="max_ORF_length", type=int, default=100\
                                           , help="The maximum ORF length to take into account when using the combination method for TIS+TTS.")
-    parser.add_argument("--output_basename", action="store", dest="output_basename", required=True\
-                                           , help="the basename for all output files." )
     parser.add_argument("--min_peak_height", action="store", dest="min_peak_height", default=5, type=int\
                                            , help="Minimum height value to be considered a peak. (max option)\n"\
                                                  +"Minimum height value to be added to the total peak value (sum option)")
+    parser.add_argument("--bam_file_path", action="store", dest="bam_file_path", default=""\
+                                         , help="(optional) bam file to calculate RPKM and TE values for the final results.")
+    parser.add_argument("--output_basename", action="store", dest="output_basename", required=True\
+                                           , help="the basename for all output files." )
     parser.add_argument("-o","--output_path", action="store", dest="output_path", required=True\
                                             , help="Output path to the result folder.")
+    parser.add_argument("--split_gff", action="store_true", dest="split_gff", help="Split gff into one for each gene_type.")
     args = parser.parse_args()
 
     result_df, combined_result_df = \
