@@ -21,7 +21,7 @@ while getopts "h?b:r:o:s:g:" opt; do
 done
 
 normalization=("mil" "min" "raw")
-mappings=("threeprimetracks" "fiveprimetracks")
+mappings=("threeprimetracks" "fiveprimetracks" "globaltracks")
 
 bam_list=()
 for file in $bamfolder/*.bam; do
@@ -74,6 +74,11 @@ for length in "${readlengths[@]}"; do
             $hriboscriptpath/mapping.py --mapping_style first_base_only --bam_path $bam --wiggle_file_path $outputfolder/bam$length/wig/fiveprimetracks/ --no_of_aligned_reads_file_path $outputfolder/bam$length/readcounts --library_name ${y##*/}
     done
 
+    mkdir -p $outputfolder/bam$length/wig/globaltracks; mkdir -p $outputfolder/bam$length/wig/globaltracks/raw; mkdir -p $outputfolder/bam$length/wig/globaltracks/mil; mkdir -p $outputfolder/bam$length/wig/globaltracks/min;
+    for bam in "${new_bam_list[@]}"; do
+            y=${bam%.bam}
+            $hriboscriptpath/mapping.py --mapping_style global --bam_path $bam --wiggle_file_path $outputfolder/bam$length/wig/globaltracks/ --no_of_aligned_reads_file_path $outputfolder/bam$length/readcounts --library_name ${y##*/}
+    done
 
     for norm in ${normalization[@]}; do
         for mapping in ${mappings[@]}; do

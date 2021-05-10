@@ -8,7 +8,6 @@ from collections import deque
 
 from Bio.Seq import Seq
 from Bio import SeqIO
-from Bio.Alphabet import generic_dna
 
 from interlap import InterLap
 import lib.expression as expr
@@ -148,6 +147,36 @@ def create_codon_interlaps(chrom, genome_seq, codons, p_offset):
 
     return fwd_codon_interlap, rev_codon_interlap, codon_dict
 
+def create_area_interlaps(chrom, genome_seq, codons, p_offset):
+    """
+    create interlaps around each codon, incorporating the offset
+    """
+    reverse_codons = [str(Seq(codon).reverse_complement()) for codon in codons]
+
+    fwd_codon_interlap = InterLap()
+    rev_codon_interlap = InterLap()
+    codon_dict = {}
+    for pos in range(len(genome_seq)-2):
+        codon = genome_seq[pos:pos+3]
+        if codon in codons:
+            interval_start = pos + p_offset - 49
+            interval_stop = pos + p_offset + 49
+            if interval_start < 0 or interval_stop > len(genome_seq)-2:
+                continue
+            key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "+")
+            fwd_codon_interlap.add((interval_start, interval_stop, key))
+            codon_dict[key] = [codon, 0]
+        elif codon in reverse_codons:
+            interval_start = pos - p_offset - 47
+            interval_stop = pos - p_offset + 51
+            if interval_start < 0 or interval_stop > len(genome_seq)-2:
+                continue
+            key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "-")
+            rev_codon_interlap.add((interval_start, interval_stop, key))
+            codon_dict[key] = [str(Seq(codon).reverse_complement()), 0]
+
+    return fwd_codon_interlap, rev_codon_interlap, codon_dict
+
 def annotation_interlap(annotation_file, method):
     """
     create an interlap object for the annotation
@@ -193,7 +222,7 @@ def get_genome_information(start, stop, strand, genome_seq, method):
 
     if strand == "+":
         nt_seq = genome_seq[start:stop+1]
-        aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
+        aa_seq = str(Seq(nt_seq).translate(table=11, to_stop=False))
 
         if method == "TIS":
             nt_window = genome_seq[start-15:start]
@@ -201,7 +230,7 @@ def get_genome_information(start, stop, strand, genome_seq, method):
             nt_window = genome_seq[stop+1:stop+16]
     else:
         nt_seq = str(Seq(genome_seq[start:stop+1]).reverse_complement())
-        aa_seq = str(Seq(nt_seq, generic_dna).translate(table=11, to_stop=False))
+        aa_seq = str(Seq(nt_seq).translate(table=11, to_stop=False))
 
         if method == "TIS":
             nt_window = str(Seq(genome_seq[stop+1:stop+16]).reverse_complement())
@@ -216,7 +245,7 @@ def get_genome_information(start, stop, strand, genome_seq, method):
 def get_gene_information(chrom, start_position, stop_position, strand, gene_dict):
     """
     determine the gene_name and gene_type
-    # TODO clean up this function
+    # TODO clean up this function, check NC_002163.1:46424-49027:+, NC_002163.1:46557-46580:+
     """
 
     start_position += 1

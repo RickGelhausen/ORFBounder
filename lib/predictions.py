@@ -32,6 +32,21 @@ def screen_wig_for_tss(wig_file_data, codon_interlap, codon_dict, min_peak_heigh
 
     return codon_dict
 
+def screen_area_for_tss(wig_file_data, codon_interlap, codon_dict):
+    """
+    screen over wig file and update the according codon entries
+    """
+
+    for line in wig_file_data:
+        position, read_count = line.rstrip().split(" ")
+        position = int(position)-1
+        read_count = abs(float(read_count))
+
+        matching_codons = list(codon_interlap.find((position, position)))
+        for match in matching_codons:
+            codon_dict[match[2]][1] += read_count
+
+    return codon_dict
 
 def search_codon_forward(cur_position, genome_seq, match_codons):
     """
