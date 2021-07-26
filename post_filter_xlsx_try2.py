@@ -124,7 +124,17 @@ def create_replicate_peak_dict(xlsx_df, replicate, offset_dict):
         if np.isnan(peak_height):
             peak_height = 0
 
-        replicate_dict[(chrom, peak_position-2, peak_position+2, strand)] = (unique_id, peak_height, 0, 0)
+        if method == "TIS":
+            if strand == "+":
+                replicate_dict[(chrom, peak_position-2, peak_position+2, strand)] = (unique_id, peak_height, 0, 0, int(start)-1)
+            else:
+                replicate_dict[(chrom, peak_position-2, peak_position+2, strand)] = (unique_id, peak_height, 0, 0, int(stop)-1)
+
+        else:
+            if strand == "+":
+                replicate_dict[(chrom, peak_position-2, peak_position+2, strand)] = (unique_id, peak_height, 0, 0, int(stop)-1)
+            else:
+                replicate_dict[(chrom, peak_position-2, peak_position+2, strand)] = (unique_id, peak_height, 0, 0, int(start)-1)
 
     return replicate_dict
 
@@ -192,12 +202,33 @@ def create_interlap_dict(bam_file):
 
 
 def calculate_tpm(read_count_list, length_list):
-    """
-    """
 
     tmp = [x/y for x,y in zip(read_count_list, length_list)]
 
     return [1000000*(i / sum(tmp)) for i in tmp]
+
+def create_area_coverage_dict(area_intervals_path):
+    """
+    read gff and create create an area coverage dictionary
+    """
+    _, _, area_intervals = next(os.walk(area_intervals_path))
+    area_intervals = [ file for file in area_intervals if file.endswith(".gff")]
+
+    area_coverage_dict = {}
+    for area_interval in area_intervals:
+        area_df = pd.read_csv(os.path.join(area_intervals_path, area_interval), sep="\t", header=None, comment="#")
+        wildcard = area_interval.split("_")[0]
+
+        attributes = area_df[8]
+        for attribute in attributes.to_list():
+            attribute_list = [x.strip(" ") for x in re.split('[;=]', attribute) if x != ""]
+
+            area_coverage = float(attribute_list[attribute_list.index("Area_coverage")+1])
+            original_position = int(attribute_list[attribute_list.index("Original_position")+1])
+
+            area_coverage_dict[(wildcard, original_position)] = area_coverage
+
+    return area_coverage_dict
 
 def main():
     # store commandline args
@@ -209,10 +240,13 @@ def main():
     parser.add_argument("--genome", action="store", dest="genome", required=True, help="The genome file.")
     parser.add_argument("--bamfiles", action="store", dest="bam_files", required=True)
     parser.add_argument("--validated", action="store", dest="validated_orfs", required=True)
+    parser.add_argument("--input_area_intervals", action="store", dest="area_intervals_path", required=True)
 
     # parser.add_argument("-t","--tmp_folder", action="store", dest="tmp_folder", required=True, help="folder for storing temporary files.")
     parser.add_argument("-o","--output_path", action="store", dest="output_path", required=True, help="Output file .xlsx format")
     args = parser.parse_args()
+
+    area_coverage_dict = create_area_coverage_dict(args.area_intervals_path)
 
     xlsx_df = read_input_table(args.input_table)
     offset_dict = misc.build_offset_dictionary(args.offset_json, args.genome, args.mapping_tis, args.mapping_tts)
@@ -225,8 +259,6 @@ def main():
     with open(args.validated_orfs, "r") as f:
         validated_orfs = [x.strip() for x in f.readlines() if x != ""]
 
-    print(validated_orfs)
-
     for idx, card in enumerate(wildcards):
         read_count_dict = create_replicate_peak_dict(xlsx_df, card, offset_dict)
         interlap_dict, total_mapped = create_interlap_dict(bam_files[idx])
@@ -234,6 +266,7 @@ def main():
         rpkm_list = []
         read_count_list = []
         length_list = []
+        lonely_measure_list = []
         for (chrom, start, stop, strand), val in read_count_dict.items():
             read_count = expr.count_reads(chrom, start, stop, strand, interlap_dict)
             rpkm = expr.calculate_rpkm(total_mapped[chrom], read_count, int(stop)-int(start)+1)
@@ -245,86 +278,92 @@ def main():
             read_count_list.append(read_count)
             rpkm_list.append(rpkm)
 
+            try:
+                lonely_measure_list.append(val[1]/area_coverage_dict[(card, val[4])])
+            except KeyError:
+                lonely_measure_list.append(0)
+
         tpm_list = calculate_tpm(read_count_list, length_list)
 
         new_df["%s_peak_height" % card] = peak_height_list
         new_df["%s_read_count" % card] = read_count_list
         new_df["%s_peak_rpkm" % card] = rpkm_list
         new_df["%s_peak_tpm" % card] = tpm_list
-
-    l_thresh = 30
-    u_thresh = 5000
-    new_df = new_df.loc[(new_df["TIS-dcmeB-1_peak_rpkm"] > l_thresh) & (new_df["TIS-dcmeB-2_peak_rpkm"] > l_thresh) & (new_df["TIS-dcmeB-3_peak_rpkm"] > l_thresh)]
-    new_df = new_df.loc[(new_df["TIS-dcmeB-1_peak_rpkm"] < u_thresh) & (new_df["TIS-dcmeB-2_peak_rpkm"] < u_thresh) & (new_df["TIS-dcmeB-3_peak_rpkm"] < u_thresh)]
-
-    rep1_rpkm = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-1_peak_rpkm"].to_list())
-    rep2_rpkm = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-2_peak_rpkm"].to_list())
-    rep3_rpkm = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-3_peak_rpkm"].to_list())
-
-    rep1_read_count = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-1_read_count"].to_list())
-    rep2_read_count = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-2_read_count"].to_list())
-    rep3_read_count = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-3_read_count"].to_list())
-
-    rep1_peak_height = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-1_peak_height"].to_list())
-    rep2_peak_height = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-2_peak_height"].to_list())
-    rep3_peak_height = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-3_peak_height"].to_list())
-
-    rep1_peak_tpm = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-1_peak_tpm"].to_list())
-    rep2_peak_tpm = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-2_peak_tpm"].to_list())
-    rep3_peak_tpm = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-3_peak_tpm"].to_list())
+        new_df["%s_lonely_measure" % card] = lonely_measure_list
     #
-    print("--------------------------------------------------------------------------------------------------------")
-    print("RPKM_peak r1 v r2: ",scipy.stats.wilcoxon(rep1_rpkm,rep2_rpkm))
-    print("RPKM_peak r1 v r3: ",scipy.stats.wilcoxon(rep1_rpkm,rep3_rpkm))
-    print("RPKM_peak r2 v r3: ",scipy.stats.wilcoxon(rep2_rpkm,rep3_rpkm))
-
-    print("Read_count r1 v r2: ",scipy.stats.wilcoxon(rep1_read_count,rep2_read_count))
-    print("Read_count r1 v r3: ",scipy.stats.wilcoxon(rep1_read_count,rep3_read_count))
-    print("Read_count r2 v r3: ",scipy.stats.wilcoxon(rep2_read_count,rep3_read_count))
-
-    print("Peak_height r1 v r2: ",scipy.stats.wilcoxon(rep1_peak_height,rep2_peak_height))
-    print("Peak_height r1 v r3: ",scipy.stats.wilcoxon(rep1_peak_height,rep3_peak_height))
-    print("Peak_height r2 v r3: ",scipy.stats.wilcoxon(rep2_peak_height,rep3_peak_height))
-
-    print("TPM_peak r1 v r2: ",scipy.stats.wilcoxon(rep1_peak_tpm,rep2_peak_tpm))
-    print("TPM_peak r1 v r3: ",scipy.stats.wilcoxon(rep1_peak_tpm,rep3_peak_tpm))
-    print("TPM_peak r2 v r3: ",scipy.stats.wilcoxon(rep2_peak_tpm,rep3_peak_tpm))
-
-    print("--------------------------------------------------------------------------------------------------------")
-    print("RPKM_peak r1 v r2: ",scipy.stats.ks_2samp(rep1_rpkm,rep2_rpkm))
-    print("RPKM_peak r1 v r3: ",scipy.stats.ks_2samp(rep1_rpkm,rep3_rpkm))
-    print("RPKM_peak r2 v r3: ",scipy.stats.ks_2samp(rep2_rpkm,rep3_rpkm))
-
-    print("Read_count r1 v r2: ",scipy.stats.ks_2samp(rep1_read_count,rep2_read_count))
-    print("Read_count r1 v r3: ",scipy.stats.ks_2samp(rep1_read_count,rep3_read_count))
-    print("Read_count r2 v r3: ",scipy.stats.ks_2samp(rep2_read_count,rep3_read_count))
-
-    print("Peak_height r1 v r2: ",scipy.stats.ks_2samp(rep1_peak_height,rep2_peak_height))
-    print("Peak_height r1 v r3: ",scipy.stats.ks_2samp(rep1_peak_height,rep3_peak_height))
-    print("Peak_height r2 v r3: ",scipy.stats.ks_2samp(rep2_peak_height,rep3_peak_height))
-
-    print("TPM_peak r1 v r2: ",scipy.stats.ks_2samp(rep1_peak_tpm,rep2_peak_tpm))
-    print("TPM_peak r1 v r3: ",scipy.stats.ks_2samp(rep1_peak_tpm,rep3_peak_tpm))
-    print("TPM_peak r2 v r3: ",scipy.stats.ks_2samp(rep2_peak_tpm,rep3_peak_tpm))
-
-    print("--------------------------------------------------------------------------------------------------------")
-    print("RPKM_peak r1 v r2: ",scipy.stats.kruskal(rep1_rpkm,rep2_rpkm))
-    print("RPKM_peak r1 v r3: ",scipy.stats.kruskal(rep1_rpkm,rep3_rpkm))
-    print("RPKM_peak r2 v r3: ",scipy.stats.kruskal(rep2_rpkm,rep3_rpkm))
-
-    print("Read_count r1 v r2: ",scipy.stats.kruskal(rep1_read_count,rep2_read_count))
-    print("Read_count r1 v r3: ",scipy.stats.kruskal(rep1_read_count,rep3_read_count))
-    print("Read_count r2 v r3: ",scipy.stats.kruskal(rep2_read_count,rep3_read_count))
-
-    print("Peak_height r1 v r2: ",scipy.stats.kruskal(rep1_peak_height,rep2_peak_height))
-    print("Peak_height r1 v r3: ",scipy.stats.kruskal(rep1_peak_height,rep3_peak_height))
-    print("Peak_height r2 v r3: ",scipy.stats.kruskal(rep2_peak_height,rep3_peak_height))
-
-    print("TPM_peak r1 v r2: ",scipy.stats.kruskal(rep1_peak_tpm,rep2_peak_tpm))
-    print("TPM_peak r1 v r3: ",scipy.stats.kruskal(rep1_peak_tpm,rep3_peak_tpm))
-    print("TPM_peak r2 v r3: ",scipy.stats.kruskal(rep2_peak_tpm,rep3_peak_tpm))
-
-    print("--------------------------------------------------------------------------------------------------------")
+    # l_thresh = 30
+    # u_thresh = 5000
+    # new_df = new_df.loc[(new_df["TIS-dcmeB-1_peak_rpkm"] > l_thresh) & (new_df["TIS-dcmeB-2_peak_rpkm"] > l_thresh) & (new_df["TIS-dcmeB-3_peak_rpkm"] > l_thresh)]
+    # new_df = new_df.loc[(new_df["TIS-dcmeB-1_peak_rpkm"] < u_thresh) & (new_df["TIS-dcmeB-2_peak_rpkm"] < u_thresh) & (new_df["TIS-dcmeB-3_peak_rpkm"] < u_thresh)]
+    #
+    # rep1_rpkm = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-1_peak_rpkm"].to_list())
+    # rep2_rpkm = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-2_peak_rpkm"].to_list())
+    # rep3_rpkm = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-3_peak_rpkm"].to_list())
+    #
+    # rep1_read_count = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-1_read_count"].to_list())
+    # rep2_read_count = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-2_read_count"].to_list())
+    # rep3_read_count = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-3_read_count"].to_list())
+    #
+    # rep1_peak_height = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-1_peak_height"].to_list())
+    # rep2_peak_height = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-2_peak_height"].to_list())
+    # rep3_peak_height = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-3_peak_height"].to_list())
+    #
+    # rep1_peak_tpm = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-1_peak_tpm"].to_list())
+    # rep2_peak_tpm = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-2_peak_tpm"].to_list())
+    # rep3_peak_tpm = np.array(new_df.loc[new_df["Strand"].isin(["+","-"]), "TIS-dcmeB-3_peak_tpm"].to_list())
+    # #
+    # print("--------------------------------------------------------------------------------------------------------")
+    # print("RPKM_peak r1 v r2: ",scipy.stats.wilcoxon(rep1_rpkm,rep2_rpkm))
+    # print("RPKM_peak r1 v r3: ",scipy.stats.wilcoxon(rep1_rpkm,rep3_rpkm))
+    # print("RPKM_peak r2 v r3: ",scipy.stats.wilcoxon(rep2_rpkm,rep3_rpkm))
+    #
+    # print("Read_count r1 v r2: ",scipy.stats.wilcoxon(rep1_read_count,rep2_read_count))
+    # print("Read_count r1 v r3: ",scipy.stats.wilcoxon(rep1_read_count,rep3_read_count))
+    # print("Read_count r2 v r3: ",scipy.stats.wilcoxon(rep2_read_count,rep3_read_count))
+    #
+    # print("Peak_height r1 v r2: ",scipy.stats.wilcoxon(rep1_peak_height,rep2_peak_height))
+    # print("Peak_height r1 v r3: ",scipy.stats.wilcoxon(rep1_peak_height,rep3_peak_height))
+    # print("Peak_height r2 v r3: ",scipy.stats.wilcoxon(rep2_peak_height,rep3_peak_height))
+    #
+    # print("TPM_peak r1 v r2: ",scipy.stats.wilcoxon(rep1_peak_tpm,rep2_peak_tpm))
+    # print("TPM_peak r1 v r3: ",scipy.stats.wilcoxon(rep1_peak_tpm,rep3_peak_tpm))
+    # print("TPM_peak r2 v r3: ",scipy.stats.wilcoxon(rep2_peak_tpm,rep3_peak_tpm))
+    #
+    # print("--------------------------------------------------------------------------------------------------------")
+    # print("RPKM_peak r1 v r2: ",scipy.stats.ks_2samp(rep1_rpkm,rep2_rpkm))
+    # print("RPKM_peak r1 v r3: ",scipy.stats.ks_2samp(rep1_rpkm,rep3_rpkm))
+    # print("RPKM_peak r2 v r3: ",scipy.stats.ks_2samp(rep2_rpkm,rep3_rpkm))
+    #
+    # print("Read_count r1 v r2: ",scipy.stats.ks_2samp(rep1_read_count,rep2_read_count))
+    # print("Read_count r1 v r3: ",scipy.stats.ks_2samp(rep1_read_count,rep3_read_count))
+    # print("Read_count r2 v r3: ",scipy.stats.ks_2samp(rep2_read_count,rep3_read_count))
+    #
+    # print("Peak_height r1 v r2: ",scipy.stats.ks_2samp(rep1_peak_height,rep2_peak_height))
+    # print("Peak_height r1 v r3: ",scipy.stats.ks_2samp(rep1_peak_height,rep3_peak_height))
+    # print("Peak_height r2 v r3: ",scipy.stats.ks_2samp(rep2_peak_height,rep3_peak_height))
+    #
+    # print("TPM_peak r1 v r2: ",scipy.stats.ks_2samp(rep1_peak_tpm,rep2_peak_tpm))
+    # print("TPM_peak r1 v r3: ",scipy.stats.ks_2samp(rep1_peak_tpm,rep3_peak_tpm))
+    # print("TPM_peak r2 v r3: ",scipy.stats.ks_2samp(rep2_peak_tpm,rep3_peak_tpm))
+    #
+    # print("--------------------------------------------------------------------------------------------------------")
+    # print("RPKM_peak r1 v r2: ",scipy.stats.kruskal(rep1_rpkm,rep2_rpkm))
+    # print("RPKM_peak r1 v r3: ",scipy.stats.kruskal(rep1_rpkm,rep3_rpkm))
+    # print("RPKM_peak r2 v r3: ",scipy.stats.kruskal(rep2_rpkm,rep3_rpkm))
+    #
+    # print("Read_count r1 v r2: ",scipy.stats.kruskal(rep1_read_count,rep2_read_count))
+    # print("Read_count r1 v r3: ",scipy.stats.kruskal(rep1_read_count,rep3_read_count))
+    # print("Read_count r2 v r3: ",scipy.stats.kruskal(rep2_read_count,rep3_read_count))
+    #
+    # print("Peak_height r1 v r2: ",scipy.stats.kruskal(rep1_peak_height,rep2_peak_height))
+    # print("Peak_height r1 v r3: ",scipy.stats.kruskal(rep1_peak_height,rep3_peak_height))
+    # print("Peak_height r2 v r3: ",scipy.stats.kruskal(rep2_peak_height,rep3_peak_height))
+    #
+    # print("TPM_peak r1 v r2: ",scipy.stats.kruskal(rep1_peak_tpm,rep2_peak_tpm))
+    # print("TPM_peak r1 v r3: ",scipy.stats.kruskal(rep1_peak_tpm,rep3_peak_tpm))
+    # print("TPM_peak r2 v r3: ",scipy.stats.kruskal(rep2_peak_tpm,rep3_peak_tpm))
+    #
+    # print("--------------------------------------------------------------------------------------------------------")
     with open(os.path.join(args.output_path, "test_table.xlsx"), "w") as f:
         new_df.to_csv(f, sep="\t", index=None)
     with open(os.path.join(args.output_path, "exp11and16_table_validated.xlsx"), "w") as f:
