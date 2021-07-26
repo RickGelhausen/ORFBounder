@@ -59,13 +59,13 @@ def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd
         codon_dict = pred.screen_wig_for_tss(fwd_wig_dict[key], fwd_codon_interlap, codon_dict, min_peak_height, peak_height_calculation)
         codon_dict = pred.screen_wig_for_tss(rev_wig_dict[key], rev_codon_interlap, codon_dict, min_peak_height, peak_height_calculation)
 
-        io.write_codon_interval_gff(output_path, os.path.join("codon_intervals","%s_%s_intervals_%s.gff" % (output_basename, key, method)), codon_dict, offset, method)
+        io.write_codon_interval_gff(output_path, os.path.join("codon_intervals","%s-%s_%s_intervals.gff" % (method, output_basename, key)), codon_dict, offset, method)
 
         fwd_area_interlap, rev_area_interlap, area_dict = misc.create_area_interlaps(key, val, search_codons, offset)
         area_dict = pred.screen_area_for_tss(fwd_wig_dict[key], fwd_area_interlap, area_dict)
         area_dict = pred.screen_area_for_tss(rev_wig_dict[key], rev_area_interlap, area_dict)
 
-        io.write_area_interval_gff(output_path, os.path.join("area_intervals","%s_%s_intervals_%s.gff" % (output_basename, key, method)), area_dict, offset, method)
+        #io.write_area_interval_gff(output_path, os.path.join("area_intervals","%s-%s_%s_intervals.gff" % (method, output_basename, key)), area_dict, offset, method)
 
         detected_ORFs_dict = pred.detect_potential_ORFs(codon_dict, val, search_codons, match_codons, offset, method, detected_ORFs_dict, longest_potential_ORF)
 

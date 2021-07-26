@@ -11,7 +11,7 @@ from pathlib import Path
 
 from Bio.Seq import Seq
 from Bio import SeqIO
-from Bio.Alphabet import generic_dna
+
 
 import lib.misc as misc
 import lib.messaging as msg
@@ -165,16 +165,16 @@ def write_area_interval_gff(output_path, output_basename, area_dict, offset, met
 
         if method == "TIS":
             if strand == "+":
-                cur_position = int(start) - offset + 49
+                cur_position = int(start) - offset + 24
             elif strand == "-":
-                cur_position = int(start) + offset + 49
+                cur_position = int(start) + offset + 24
 
             attribute = "ID=%s;Area_coverage=%s;Name=%s;Start_codon=%s;Original_position=%s" % ("%s:%s-%s:%s" % (chrom,int(start)+1, int(stop)+1, strand), val[1], val[0], val[0], cur_position)
         else:# change here if interval changes
             if strand == "+":
-                cur_position = int(start) - offset + 49
+                cur_position = int(start) - offset + 24
             elif strand == "-":
-                cur_position = int(start) + offset + 49
+                cur_position = int(start) + offset + 24
 
             attribute = "ID=%s;Area_coverage=%s;Name=%s;Stop_codon=%s;Original_position=%s" % ("%s:%s-%s:%s" % (chrom, int(start)+1, int(stop)+1, strand), val[1], val[0], val[0], cur_position)
 
@@ -183,6 +183,31 @@ def write_area_interval_gff(output_path, output_basename, area_dict, offset, met
     df = pd.DataFrame.from_records(rows, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
 
     write_gff_file(df, output_path, output_basename)
+
+# def area_coverage_dict(output_path, output_basename, area_dict, offset, method):
+#     """
+#     """
+#
+#     area_coverage_dict = {}
+#     for key, val in area_dict.items():
+#         if val[1] <= 0:
+#             continue
+#         chrom, mid, strand = key.split(":")
+#         start, stop = mid.split("-")
+#
+#         if method == "TIS":
+#             if strand == "+":
+#                 cur_position = int(start) - offset + 49
+#             elif strand == "-":
+#                 cur_position = int(start) + offset + 49
+#         else:
+#             if strand == "+":
+#                 cur_position = int(start) - offset + 49
+#             elif strand == "-":
+#                 cur_position = int(start) + offset + 49
+#
+#         area_coverage_dict
+
 
 def excel_writer(out_file_name, data_frames):
     """

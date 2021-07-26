@@ -159,16 +159,16 @@ def create_area_interlaps(chrom, genome_seq, codons, p_offset):
     for pos in range(len(genome_seq)-2):
         codon = genome_seq[pos:pos+3]
         if codon in codons:
-            interval_start = pos + p_offset - 49
-            interval_stop = pos + p_offset + 49
+            interval_start = pos + p_offset - 24
+            interval_stop = pos + p_offset + 24
             if interval_start < 0 or interval_stop > len(genome_seq)-2:
                 continue
             key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "+")
             fwd_codon_interlap.add((interval_start, interval_stop, key))
             codon_dict[key] = [codon, 0]
         elif codon in reverse_codons:
-            interval_start = pos - p_offset - 47
-            interval_stop = pos - p_offset + 51
+            interval_start = pos - p_offset - 22
+            interval_stop = pos - p_offset + 26
             if interval_start < 0 or interval_stop > len(genome_seq)-2:
                 continue
             key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "-")
