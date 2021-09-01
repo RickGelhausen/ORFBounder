@@ -71,20 +71,20 @@ def prediction_call(annotation_file, genome_dict, start_codons, stop_codons, fwd
 
     return detected_ORFs_dict, gene_density_dict, codon_dict
 
-def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig_file_TTS, bam_file_path, \
+def run_ORFBounder(fwd_wig_file_tis, rev_wig_file_tis, fwd_wig_file_TTS, rev_wig_file_TTS, bam_file_path, \
                 annotation_file, genome_file, start_codons, stop_codons, output_path, output_basename, \
-                offset_TIS, offset_TTS, TTS_start_selection, min_peak_height, split_gff, max_ORF_length, \
+                offset_tis, offset_TTS, TTS_start_selection, min_peak_height, split_gff, max_ORF_length, \
                 peak_height_calculation):
     """
     run functions necessary to generate the final output of ORFBounder
     """
 
-    method = io.handle_input(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig_file_TTS)
-    bam_files = io.check_bamfile_input(bam_file_path, fwd_wig_file_TIS, fwd_wig_file_TTS)
+    method = io.handle_input(fwd_wig_file_tis, rev_wig_file_tis, fwd_wig_file_TTS, rev_wig_file_TTS)
+    bam_files = io.check_bamfile_input(bam_file_path, fwd_wig_file_tis, fwd_wig_file_TTS)
 
     headers = ["TIS","TTS"]
-    if fwd_wig_file_TIS != "":
-        headers[0] = re.split('_|\.', os.path.basename(fwd_wig_file_TIS))[0]
+    if fwd_wig_file_tis != "":
+        headers[0] = re.split('_|\.', os.path.basename(fwd_wig_file_tis))[0]
     if fwd_wig_file_TTS != "":
         headers[1] = re.split('_|\.', os.path.basename(fwd_wig_file_TTS))[0]
 
@@ -102,19 +102,19 @@ def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig
     msg.success("Done.")
 
     read_count_dict, total_mapped_list = {}, []
-    predictions, gene_density_dict_TIS, gene_density_dict_TTS = {}, {}, {}
+    predictions, gene_density_dict_tis, gene_density_dict_TTS = {}, {}, {}
     combined_result_df = pd.DataFrame()
     if method == "TIS":
-        predictions, gene_density_dict_TIS, _ \
+        predictions, gene_density_dict_tis, _ \
                         = prediction_call(annotation_file, genome_dict, start_codons, stop_codons, \
-                                          fwd_wig_file_TIS, rev_wig_file_TIS, output_path, \
-                                          output_basename, offset_TIS, "TIS", TTS_start_selection, \
+                                          fwd_wig_file_tis, rev_wig_file_tis, output_path, \
+                                          output_basename, offset_tis, "TIS", TTS_start_selection, \
                                           predictions, min_peak_height, peak_height_calculation)
         if bam_files != -1:
             read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
             read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, bam_files)
 
-        result_df = misc.generate_result_dataframe(predictions, gene_density_dict_TIS, {}, genome_dict, read_count_dict, \
+        result_df = misc.generate_result_dataframe(predictions, gene_density_dict_tis, {}, genome_dict, read_count_dict, \
                                             total_mapped_list, wildcards, method, headers)
         msg.success("Potential ORFs detected: %s" % len(result_df))
     elif method == "TTS":
@@ -132,10 +132,10 @@ def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig
 
         msg.success("Potential ORFs detected: %s" % len(result_df))
     else:
-        predictions, gene_density_dict_TIS, codon_dict_TIS \
+        predictions, gene_density_dict_tis, codon_dict_tis \
                         = prediction_call(annotation_file, genome_dict, start_codons, stop_codons, \
-                                          fwd_wig_file_TIS, rev_wig_file_TIS, output_path, \
-                                          output_basename, offset_TIS, "TIS", TTS_start_selection, \
+                                          fwd_wig_file_tis, rev_wig_file_tis, output_path, \
+                                          output_basename, offset_tis, "TIS", TTS_start_selection, \
                                           predictions, min_peak_height, peak_height_calculation)
 
         predictions, gene_density_dict_TTS, codon_dict_TTS \
@@ -144,16 +144,16 @@ def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig
                                           output_basename, offset_TTS, "TTS", TTS_start_selection, \
                                           predictions, min_peak_height, peak_height_calculation)
 
-        combined_predictions = pred.combined_data_detection(codon_dict_TIS, codon_dict_TTS, offset_TIS, offset_TTS, max_ORF_length)
+        combined_predictions = pred.combined_data_detection(codon_dict_tis, codon_dict_TTS, offset_tis, offset_TTS, max_ORF_length)
         if bam_files != -1:
             read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
             read_count_dict = expr.init_read_count_dict(read_count_dict, combined_predictions)
             read_count_dict, total_mapped_list = expr.retrieve_read_counts(read_count_dict, bam_files)
 
-        result_df = misc.generate_result_dataframe(predictions, gene_density_dict_TIS, gene_density_dict_TTS, genome_dict, \
+        result_df = misc.generate_result_dataframe(predictions, gene_density_dict_tis, gene_density_dict_TTS, genome_dict, \
                                             read_count_dict, total_mapped_list, wildcards, method, headers)
 
-        combined_result_df = misc.generate_result_dataframe(combined_predictions, gene_density_dict_TIS, gene_density_dict_TTS, genome_dict, \
+        combined_result_df = misc.generate_result_dataframe(combined_predictions, gene_density_dict_tis, gene_density_dict_TTS, genome_dict, \
                                                     read_count_dict, total_mapped_list, wildcards, method, headers)
         msg.success("Potential ORFs detected: %s" % len(result_df))
         msg.success("Combined ORFs detected: %s" % len(combined_result_df))
@@ -162,9 +162,9 @@ def run_ORFBounder(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig
 
 def main():
     # store commandline args
-    parser = argparse.ArgumentParser(description="ORFBounder is a peak detection and annotation script for TIS and TTS data. It can be run with either TIS, TTS or both.")
-    parser.add_argument("--fwd_file_TIS", action="store", dest="fwd_wig_file_TIS", default="", help="input forward wig file for TIS.")
-    parser.add_argument("--rev_file_TIS", action="store", dest="rev_wig_file_TIS", default="", help="input reverse wig file for TIS.")
+    parser = argparse.ArgumentParser(description="ORFBounder is a peak detection and annotation script for TIS and TTS data. It can be run with either TIS, TTS or both.", formatter_class=argparse.RawTextHelpFormatter)
+    parser.add_argument("--fwd_file_tis", action="store", dest="fwd_wig_file_tis", default="", help="input forward wig file for TIS.")
+    parser.add_argument("--rev_file_tis", action="store", dest="rev_wig_file_tis", default="", help="input reverse wig file for TIS.")
     parser.add_argument("--fwd_file_TTS", action="store", dest="fwd_wig_file_TTS", default="", help="input forward wig file for TTS.")
     parser.add_argument("--rev_file_TTS", action="store", dest="rev_wig_file_TTS", default="", help="input reverse wig file for TTS.")
 
@@ -174,7 +174,7 @@ def main():
     parser.add_argument("--start_codons", nargs="+", dest="start_codons", default=["ATG","GTG","TTG"])
     parser.add_argument("--stop_codons", nargs="+", dest="stop_codons", default=["TAG","TAA","TGA"])
 
-    parser.add_argument("--offset_TIS", action="store", dest="offset_TIS", type=int, default=15)
+    parser.add_argument("--offset_tis", action="store", dest="offset_tis", type=int, default=15)
     parser.add_argument("--offset_TTS", action="store", dest="offset_TTS", type=int, default=15)
 
     parser.add_argument("--peak_height_calculation", action="store", dest="peak_height_calculation", default="max"
@@ -200,9 +200,9 @@ def main():
     args = parser.parse_args()
 
     result_df, combined_result_df = \
-             run_ORFBounder(args.fwd_wig_file_TIS, args.rev_wig_file_TIS, args.fwd_wig_file_TTS, args.rev_wig_file_TTS, \
+             run_ORFBounder(args.fwd_wig_file_tis, args.rev_wig_file_tis, args.fwd_wig_file_TTS, args.rev_wig_file_TTS, \
                             args.bam_file_path, args.annotation_file, args.genome_file, args.start_codons, args.stop_codons, \
-                            args.output_path, args.output_basename, args.offset_TIS, args.offset_TTS, args.TTS_start_selection, \
+                            args.output_path, args.output_basename, args.offset_tis, args.offset_TTS, args.TTS_start_selection, \
                             args.min_peak_height, args.split_gff, args.max_ORF_length, args.peak_height_calculation)
 
     io.write_results_to_gff(result_df, os.path.join(args.output_path, "result_tables"), args.output_basename, args.split_gff)

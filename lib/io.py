@@ -27,24 +27,24 @@ def generate_genome_dict(genome_file):
 
     return genome_dict
 
-def handle_input(fwd_wig_file_TIS, rev_wig_file_TIS, fwd_wig_file_TTS, rev_wig_file_TTS):
+def handle_input(fwd_wig_file_tis, rev_wig_file_TIS, fwd_wig_file_tts, rev_wig_file_TTS):
     """
     Check if input is valid.
     """
 
-    if fwd_wig_file_TIS != "" and rev_wig_file_TIS != "" and fwd_wig_file_TTS != "" and rev_wig_file_TTS != "":
+    if fwd_wig_file_tis != "" and rev_wig_file_TIS != "" and fwd_wig_file_tts != "" and rev_wig_file_TTS != "":
         return "combined_methods"
 
-    if fwd_wig_file_TIS != "" and rev_wig_file_TIS != "":
+    if fwd_wig_file_tis != "" and rev_wig_file_TIS != "":
         return "TIS"
 
-    if fwd_wig_file_TTS != "" and rev_wig_file_TTS != "":
+    if fwd_wig_file_tts != "" and rev_wig_file_TTS != "":
         return "TTS"
 
     msg.error("Error: Please ensure to either provide 2 TIS files, 2 TTS files OR both!")
 
 
-def check_bamfile_input(bam_file_path, fwd_wig_file_TIS, fwd_wig_file_TTS):
+def check_bamfile_input(bam_file_path, fwd_wig_file_tis, fwd_wig_file_tts):
     """
     Check bam input path.
     Ensure that there is:
@@ -59,19 +59,28 @@ def check_bamfile_input(bam_file_path, fwd_wig_file_TIS, fwd_wig_file_TTS):
 
     _, _, bam_file_list = next(os.walk(bam_file_path))
     bam_file_list = [ file for file in bam_file_list if file.endswith(".bam")]
-    if fwd_wig_file_TIS != "":
-        TIS_prefix = os.path.basename(fwd_wig_file_TIS).split(".")[0]
-        RNATIS_prefix = "RNATIS-" + "-".join(TIS_prefix.split("-")[1:])
+    
+    condition, replicate = "", ""
+    if fwd_wig_file_tis != "":
+        tis_prefix = os.path.basename(fwd_wig_file_tis).split(".")[0]
+        condition, replicate = tis_prefix.split("-")[1:]
+        rnatis_prefix = "RNATIS-%s-%s" % (condition, replicate) 
         for file in bam_file_list:
-            if TIS_prefix in file or RNATIS_prefix in file:
-                valid_bam.add(os.path.join(bam_file_path,file))
+            if tis_prefix in file or rnatis_prefix in file:
+                valid_bam.add(os.path.join(bam_file_path, file))
 
-    if fwd_wig_file_TTS != "":
-        TTS_prefix = os.path.basename(fwd_wig_file_TTS).split(".")[0]
-        RNATTS_prefix = "RNATTS-" + "-".join(TTS_prefix.split("-")[1:])
+    if fwd_wig_file_tts != "":
+        tts_prefix = os.path.basename(fwd_wig_file_tts).split(".")[0]        
+        condition, replicate = tts_prefix.split("-")[1:]
+        rnatts_prefix = "RNATTS-%s-%s" % (condition, replicate)
         for file in bam_file_list:
-            if TTS_prefix in file or RNATTS_prefix in file:
-                valid_bam.add(os.path.join(bam_file_path,file))
+            if tts_prefix in file or rnatts_prefix in file:
+                valid_bam.add(os.path.join(bam_file_path, file))
+
+    if condition != "" and replicate != "":
+        for file in bam_file_list:
+            if "RIBO-%s-%s" % (condition, replicate) in file or "RNA-%s-%s" % (condition, replicate) in file:
+                valid_bam.add(os.path.join(bam_file_path, file))
 
     if len(valid_bam) == 0:
         return -1
@@ -184,31 +193,6 @@ def write_area_interval_gff(output_path, output_basename, area_dict, offset, met
 
     write_gff_file(df, output_path, output_basename)
 
-# def area_coverage_dict(output_path, output_basename, area_dict, offset, method):
-#     """
-#     """
-#
-#     area_coverage_dict = {}
-#     for key, val in area_dict.items():
-#         if val[1] <= 0:
-#             continue
-#         chrom, mid, strand = key.split(":")
-#         start, stop = mid.split("-")
-#
-#         if method == "TIS":
-#             if strand == "+":
-#                 cur_position = int(start) - offset + 49
-#             elif strand == "-":
-#                 cur_position = int(start) + offset + 49
-#         else:
-#             if strand == "+":
-#                 cur_position = int(start) - offset + 49
-#             elif strand == "-":
-#                 cur_position = int(start) + offset + 49
-#
-#         area_coverage_dict
-
-
 def excel_writer(out_file_name, data_frames):
     """
     create an excel sheet out of a dictionary of data_frames
@@ -251,7 +235,7 @@ def write_results_to_gff(result_df, output_path, output_basename, split_gff):
 
         attribute = "ID=%s;Name=%s;Peak_height_TIS=%s;Peak_height_TTS=%s;Start_codon=%s;Stop_codon=%s;Codon_count=%s;Type=%s" \
                     % (identifier, gene_name, rpm_start, rpm_stop, start_codon, stop_codon, codon_count, gene_type)
-        cur_tuple = nTuple_gff(chrom, "ORFBounder", "CDS", int(start)+1, int(stop)+1, ".", strand, ".", attribute)
+        cur_tuple = nTuple_gff(chrom, "ORFBounder", "CDS", int(start), int(stop), ".", strand, ".", attribute)
 
         gff_all.append(cur_tuple)
         if split_gff:

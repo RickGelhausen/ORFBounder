@@ -11,33 +11,34 @@ import lib.messaging as msg
 class OrderedCounter(Counter, OrderedDict):
     pass
 
-def get_TE_header(wildcards):
+RNAMAP = {"RIBO" : "RNA", "TIS" : "RNATIS", "TTS" : "RNATTS"}
+
+def header_to_dictionary(method, condition, replicate, wildcards, cur_dict):
     """
-    generate the correct TE_header based on the available data
+    Add a header value to the correct sample in the given dictionary
     """
-    TE_header = []
-    TE_header_dict = OrderedDict()
+    if "%s-%s-%s" %(RNAMAP[method], condition, replicate) in wildcards:
+        if (method, condition) in  cur_dict:
+            cur_dict[(method, condition)].append(replicate)
+        else:
+            cur_dict[(method, condition)] = [replicate]
+
+def get_te_header(wildcards):
+    """
+    generate the correct te_header based on the available data
+    """
+    te_header = []
+    te_header_dict = OrderedDict()
     for card in wildcards:
         if "-" not in card:
             continue
         method, condition, replicate = card.split("-")
-        if method == "TIS":
-            if "%s-%s-%s" %("RNATIS", condition, replicate) in wildcards:
-                if ("TIS", condition) in  TE_header_dict:
-                    TE_header_dict[("TIS", condition)].append(replicate)
-                else:
-                    TE_header_dict[("TIS", condition)] = [replicate]
-        elif method == "TTS":
-            if "%s-%s-%s" %("RNATTS", condition, replicate) in wildcards:
-                if ("TTS", condition) in  TE_header_dict:
-                    TE_header_dict[("TTS", condition)].append(replicate)
-                else:
-                    TE_header_dict[("TTS", condition)] = [replicate]
+        header_to_dictionary(method, condition, replicate, wildcards, te_header_dict)
 
-    for key, val in TE_header_dict.items():
-        TE_header.extend(["%s-%s-%s" % (key[0], key[1], x) for x in val])
+    for key, val in te_header_dict.items():
+        te_header.extend(["%s-%s-%s" % (key[0], key[1], x) for x in val])
 
-    return TE_header
+    return te_header
 
 
 def calculate_rpkm(total_mapped, read_count, read_length):
@@ -85,53 +86,48 @@ def get_avg(t_eff):
 
     return t_eff
 
-def calculate_TE(read_list, wildcards):
+def te_value_to_dictionary(method, condition, replicate, read_dict, cur_dict):
+    """
+    add Translational Efficiency value to the correct dictionary entry
+    """
+
+    if (RNAMAP[method], condition, replicate) in read_dict:
+        rpkm_ribo = read_dict[(method, condition, replicate)]
+        rpkm_rna = read_dict[(RNAMAP[method], condition, replicate)]
+        cur_TE = TE(rpkm_ribo, rpkm_rna)
+        if (method, condition) in cur_dict:
+            cur_dict[(method, condition)].append(cur_TE)
+        else:
+            cur_dict[(method, condition)] = [cur_TE]
+
+def calculate_te(read_list, wildcards):
     """
     calculate the translational efficiency
     """
     read_dict = OrderedDict()
-    TE_dict = OrderedDict()
+    te_dict = OrderedDict()
     for idx in range(len(wildcards)):
         method, condition, replicate = wildcards[idx].split("-")
         key = (method, condition, replicate)
         if key not in read_dict:
             read_dict[key] = read_list[idx]
         else:
-            msg.warning("Warning: multiple equal keys in calculate_TE")
+            msg.warning("Warning: multiple equal keys in calculate_te")
 
-    TE_list = []
+    te_list = []
     for key, val in read_dict.items():
         method, condition, replicate = key
+        te_value_to_dictionary(method, condition, replicate, read_dict, te_dict)
 
-        if method == "TIS":
-            if ("RNATIS", condition, replicate) in read_dict:
-                rpkm_ribo = read_dict[key]
-                rpkm_rna = read_dict[("RNATIS", condition, replicate)]
-                cur_TE = TE(rpkm_ribo, rpkm_rna)
-                if ("TIS", condition) in TE_dict:
-                    TE_dict[("TIS", condition)].append(cur_TE)
-                else:
-                    TE_dict[("TIS", condition)] = [cur_TE]
-
-        elif method == "TTS":
-            if ("RNATTS", condition, replicate) in read_dict:
-                rpkm_ribo = read_dict[key]
-                rpkm_rna = read_dict[("RNATTS", condition, replicate)]
-                cur_TE = TE(rpkm_ribo, rpkm_rna)
-                if ("TTS", condition) in TE_dict:
-                    TE_dict[("TTS", condition)].append(cur_TE)
-                else:
-                    TE_dict[("TTS", condition)] = [cur_TE]
-
-    TE_list = []
-    for key, val in TE_dict.items():
+    te_list = []
+    for key, val in te_dict.items():
         if len(val) > 1:
             t_eff = get_avg(val)
         else:
             t_eff = val
-        TE_list.extend(t_eff)
+        te_list.extend(t_eff)
 
-    return TE_list
+    return te_list
 
 
 def init_read_count_dict(read_count_dict, result_dict):

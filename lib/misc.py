@@ -325,21 +325,21 @@ def calculate_relative_density(rpm, gene_name, gene_type, gene_dict):
 
     return np.nan
 
-def generate_result_dataframe(detected_ORFs_dict, gene_dict_TIS, gene_dict_TTS, genome, read_count_dict, \
+def generate_result_dataframe(detected_ORFs_dict, gene_dict_tis, gene_dict_tts, genome, read_count_dict, \
                             total_mapped_list, wildcards, method, headers):
     """
     Generate the final dataframe to be written to file.
     This contains RPKM, TE, nucleotide and aminoacid sequences and more.
     """
 
-    TIS_header, TTS_header = headers
+    tis_header, tts_header = headers
 
-    TE_header = expr.get_TE_header(wildcards)
+    te_header = expr.get_te_header(wildcards)
     header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count", \
-              TIS_header + "_peak_height", TTS_header + "_peak_height", "Start_codon", "Stop_codon", "15nt_window",\
-              "Nucleotide_Seq", "Amino_Acid_Seq", TIS_header + "_relative_density", TTS_header + "_relative_density", \
+              tis_header + "_peak_height", tts_header + "_peak_height", "Start_codon", "Stop_codon", "15nt_window",\
+              "Nucleotide_Seq", "Amino_Acid_Seq", tis_header + "_relative_density", tts_header + "_relative_density", \
               "5'-distance", "3'-distance"] + [card + "_rpkm" for card in wildcards] +\
-              [cond + "_TE" for cond in TE_header]
+              [cond + "_TE" for cond in te_header]
     name_list = ["s%s" % str(x) for x in range(len(header))]
     nTuple = collections.namedtuple('Pandas', name_list)
 
@@ -347,40 +347,40 @@ def generate_result_dataframe(detected_ORFs_dict, gene_dict_TIS, gene_dict_TTS, 
     for (chrom, strand) in detected_ORFs_dict.keys():
         for (start, stop) in detected_ORFs_dict[(chrom, strand)].keys():
             rpm_start, rpm_stop = detected_ORFs_dict[(chrom, strand)][(start, stop)]
-            if gene_dict_TIS != {}:
-                gene_type, gene_name = get_gene_information(chrom, start, stop, strand, gene_dict_TIS)
+            if gene_dict_tis != {}:
+                gene_type, gene_name = get_gene_information(chrom, start, stop, strand, gene_dict_tis)
             else:
-                gene_type, gene_name = get_gene_information(chrom, start, stop, strand, gene_dict_TTS)
+                gene_type, gene_name = get_gene_information(chrom, start, stop, strand, gene_dict_tts)
             nt_seq, aa_seq, nt_window, start_codon, stop_codon = get_genome_information(start, stop, strand, genome[chrom], method)
 
             if aa_seq.count("*") > 1:
                 continue
             rpkm_list = []
-            TE_list = []
+            te_list = []
             if read_count_dict != {}:
                 for idx, val in enumerate(read_count_dict[(chrom, start, stop, strand)]):
                     rpkm_list.append(expr.calculate_rpkm(total_mapped_list[idx][chrom], val, len(nt_seq)))
 
-                TE_list = expr.calculate_TE(rpkm_list, wildcards)
+                te_list = expr.calculate_te(rpkm_list, wildcards)
 
             identifier = "%s:%s-%s:%s" % (chrom, start+1, stop+1, strand)
             codon_count = int(len(nt_seq)/3)
 
-            if gene_dict_TIS != {}:
-                fiveprime_dist, threeprime_dist = calculate_utr_distance(start, stop, gene_name, gene_dict_TIS, method)
-                relative_density_start = calculate_relative_density(rpm_start, gene_name, gene_type, gene_dict_TIS)
-                relative_density_stop = calculate_relative_density(rpm_stop, gene_name, gene_type, gene_dict_TTS)
+            if gene_dict_tis != {}:
+                fiveprime_dist, threeprime_dist = calculate_utr_distance(start, stop, gene_name, gene_dict_tis, method)
+                relative_density_start = calculate_relative_density(rpm_start, gene_name, gene_type, gene_dict_tis)
+                relative_density_stop = calculate_relative_density(rpm_stop, gene_name, gene_type, gene_dict_tts)
             else:
-                fiveprime_dist, threeprime_dist = calculate_utr_distance(start, stop, gene_name, gene_dict_TTS, method)
-                relative_density_start = calculate_relative_density(rpm_start, gene_name, gene_type, gene_dict_TIS)
-                relative_density_stop = calculate_relative_density(rpm_stop, gene_name, gene_type, gene_dict_TTS)
+                fiveprime_dist, threeprime_dist = calculate_utr_distance(start, stop, gene_name, gene_dict_tts, method)
+                relative_density_start = calculate_relative_density(rpm_start, gene_name, gene_type, gene_dict_tis)
+                relative_density_stop = calculate_relative_density(rpm_stop, gene_name, gene_type, gene_dict_tts)
 
             rpm_start = rpm_start if rpm_start != -1 else np.nan
             rpm_stop = rpm_stop if rpm_stop != -1 else np.nan
 
             result = [gene_type, identifier, chrom, start+1, stop+1, strand, gene_name, codon_count, rpm_start, rpm_stop, \
                       start_codon, stop_codon, nt_window, nt_seq, aa_seq, relative_density_start, relative_density_stop, \
-                      fiveprime_dist, threeprime_dist] + rpkm_list + TE_list
+                      fiveprime_dist, threeprime_dist] + rpkm_list + te_list
 
             result_rows.append(nTuple(*result))
 

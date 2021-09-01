@@ -25,7 +25,7 @@ def extend_combined_dictionary(xlsx_df, meta_dict, dynamic_dict):
     peak_height_map = {}
     relative_density_map = {}
     rpkm_map = {}
-    TE_map = {}
+    te_map = {}
     for i, val in enumerate(xlsx_df.columns):
         if val.endswith("_peak_height"):
             peak_height_map[val[:-12]] = i
@@ -34,7 +34,7 @@ def extend_combined_dictionary(xlsx_df, meta_dict, dynamic_dict):
         elif val.endswith("_rpkm"):
             rpkm_map[val[:-5]] = i
         elif val.endswith("_TE"):
-            TE_map[val[:-3]] = i
+            te_map[val[:-3]] = i
 
     for row in xlsx_df.itertuples(index=False, name=None):
         gene_type, unique_id = row[0], row[1]
@@ -64,7 +64,7 @@ def extend_combined_dictionary(xlsx_df, meta_dict, dynamic_dict):
             else:
                 dynamic_dict[unique_id][key] = [np.nan, np.nan, float(row[val]), np.nan]
 
-        for key, val in TE_map.items():
+        for key, val in te_map.items():
             if key in dynamic_dict[unique_id]:
                 dynamic_dict[unique_id][key][3] = float(row[val])
             else:
@@ -86,7 +86,7 @@ def build_merged_dataframe(meta_dict, dynamic_dict):
            + ["Start_codon", "Stop_codon", "15nt_window", "Nucleotide_Seq", "Amino_Acid_Seq", "5'-distance", "3'-distance"] \
            + [card + "_relative_density" for card in wildcards if ("TIS" in card or "TTS" in card) and not "RNA" in card] \
            + [card + "_rpkm" for card in wildcards] \
-           + [card + "_TE" for card in expr.get_TE_header(wildcards)]
+           + [card + "_TE" for card in expr.get_te_header(wildcards)]
     name_list = ["s%s" % str(x) for x in range(len(header))]
     nTuple = collections.namedtuple('Pandas', name_list)
 
@@ -119,7 +119,7 @@ def build_merged_dataframe(meta_dict, dynamic_dict):
             else:
                 result.append(np.nan)
 
-        for card in expr.get_TE_header(wildcards):
+        for card in expr.get_te_header(wildcards):
             if card in wild_dict:
                 result.append(wild_dict[card][3])
             else:
