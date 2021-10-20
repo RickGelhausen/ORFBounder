@@ -183,7 +183,7 @@ def call_ORFBounder(config_df, tts_start_selection, min_peak_height, peak_height
         bamfolder = getattr(row, "Bam_folder")
 
         if max_ORF_length == "" or math.isnan(max_ORF_length):
-            max_ORF_length = 100
+            max_ORF_length = 150
         else:
             max_ORF_length = int(max_ORF_length)
 

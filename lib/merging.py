@@ -1,6 +1,5 @@
 #!/usr/bin/env python
 import argparse
-import re
 import os
 import pandas as pd
 import numpy as np
@@ -23,12 +22,18 @@ def extend_combined_dictionary(xlsx_df, meta_dict, dynamic_dict):
     { chrom:start-stop:strand : metadata }
     """
     peak_height_map = {}
+    peak_height_max_map = {}
+    offsets_map = {}
     relative_density_map = {}
     rpkm_map = {}
     te_map = {}
     for i, val in enumerate(xlsx_df.columns):
         if val.endswith("_peak_height"):
             peak_height_map[val[:-12]] = i
+        elif val.endswith("_peak_height_max"):
+            peak_height_max_map[val[:-16]] = i
+        elif val.endswith("_offsets"):
+            offsets_map[val[:-8]] = i
         elif val.endswith("_relative_density"):
             relative_density_map[val[:-17]] = i
         elif val.endswith("_rpkm"):
@@ -39,8 +44,8 @@ def extend_combined_dictionary(xlsx_df, meta_dict, dynamic_dict):
     for row in xlsx_df.itertuples(index=False, name=None):
         gene_type, unique_id = row[0], row[1]
         gene_name, codon_count = row[6], row[7]
-        start_codon, stop_codon, nt_upstream, nt_seq, aa_seq = row[10:15]
-        fiveprime, threeprime = row[17], row[18]
+        start_codon, stop_codon, nt_upstream, nt_seq, aa_seq = row[14:19]
+        fiveprime, threeprime = row[21], row[22]
 
         meta_dict[unique_id] = (gene_type, gene_name, codon_count, start_codon, stop_codon, nt_upstream, nt_seq, aa_seq, fiveprime, threeprime)
         if unique_id not in dynamic_dict:
@@ -48,27 +53,39 @@ def extend_combined_dictionary(xlsx_df, meta_dict, dynamic_dict):
 
         for key, val in peak_height_map.items():
             if key in dynamic_dict[unique_id]:
-                dynamic_dict[unique_id][key][0] = float(row[val])
+                dynamic_dict[unique_id][key][0] = row[val]
             else:
-                dynamic_dict[unique_id][key] = [float(row[val]), np.nan, np.nan, np.nan]
+                dynamic_dict[unique_id][key] = [row[val], np.nan, np.nan, np.nan, np.nan, np.nan]
 
-        for key, val in relative_density_map.items():
+        for key, val in peak_height_max_map.items():
             if key in dynamic_dict[unique_id]:
                 dynamic_dict[unique_id][key][1] = float(row[val])
             else:
-                dynamic_dict[unique_id][key] = [np.nan, float(row[val]), np.nan, np.nan]
+                dynamic_dict[unique_id][key] = [np.nan, float(row[val]), np.nan, np.nan, np.nan, np.nan]
+
+        for key, val in offsets_map.items():
+            if key in dynamic_dict[unique_id]:
+                dynamic_dict[unique_id][key][2] = row[val]
+            else:
+                dynamic_dict[unique_id][key] = [np.nan, np.nan, row[val], np.nan, np.nan, np.nan]
+
+        for key, val in relative_density_map.items():
+            if key in dynamic_dict[unique_id]:
+                dynamic_dict[unique_id][key][3] = row[val]
+            else:
+                dynamic_dict[unique_id][key] = [np.nan, np.nan, np.nan, row[val], np.nan, np.nan]
 
         for key, val in rpkm_map.items():
             if key in dynamic_dict[unique_id]:
-                dynamic_dict[unique_id][key][2] = float(row[val])
+                dynamic_dict[unique_id][key][4] = float(row[val])
             else:
-                dynamic_dict[unique_id][key] = [np.nan, np.nan, float(row[val]), np.nan]
+                dynamic_dict[unique_id][key] = [np.nan, np.nan, np.nan, np.nan, float(row[val]), np.nan]
 
         for key, val in te_map.items():
             if key in dynamic_dict[unique_id]:
-                dynamic_dict[unique_id][key][3] = float(row[val])
+                dynamic_dict[unique_id][key][5] = float(row[val])
             else:
-                dynamic_dict[unique_id][key] = [np.nan, np.nan, np.nan, float(row[val])]
+                dynamic_dict[unique_id][key] = [np.nan, np.nan, np.nan,  np.nan, np.nan, float(row[val])]
 
     return meta_dict, dynamic_dict
 
@@ -83,6 +100,8 @@ def build_merged_dataframe(meta_dict, dynamic_dict):
     wildcards = sorted(list(wildcards))
     header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count"] \
            + [card + "_peak_height" for card in wildcards if ("TIS" in card or "TTS" in card) and not "RNA" in card] \
+           + [card + "_peak_height_max" for card in wildcards if ("TIS" in card or "TTS" in card) and not "RNA" in card] \
+           + [card + "_offsets" for card in wildcards if ("TIS" in card or "TTS" in card) and not "RNA" in card] \
            + ["Start_codon", "Stop_codon", "15nt_window", "Nucleotide_Seq", "Amino_Acid_Seq", "5'-distance", "3'-distance"] \
            + [card + "_relative_density" for card in wildcards if ("TIS" in card or "TTS" in card) and not "RNA" in card] \
            + [card + "_rpkm" for card in wildcards] \
@@ -105,7 +124,6 @@ def build_merged_dataframe(meta_dict, dynamic_dict):
                 else:
                     result.append(np.nan)
 
-        result.extend(val[3:])
         for card in wildcards:
             if ("TIS" in card or "TTS" in card) and not "RNA" in card:
                 if card in wild_dict:
@@ -114,14 +132,29 @@ def build_merged_dataframe(meta_dict, dynamic_dict):
                     result.append(np.nan)
 
         for card in wildcards:
+            if ("TIS" in card or "TTS" in card) and not "RNA" in card:
+                if card in wild_dict:
+                    result.append(wild_dict[card][2])
+                else:
+                    result.append(np.nan)
+
+        result.extend(val[3:])
+        for card in wildcards:
+            if ("TIS" in card or "TTS" in card) and not "RNA" in card:
+                if card in wild_dict:
+                    result.append(wild_dict[card][3])
+                else:
+                    result.append(np.nan)
+
+        for card in wildcards:
             if card in wild_dict:
-                result.append(wild_dict[card][2])
+                result.append(wild_dict[card][4])
             else:
                 result.append(np.nan)
 
         for card in expr.get_te_header(wildcards):
             if card in wild_dict:
-                result.append(wild_dict[card][3])
+                result.append(wild_dict[card][5])
             else:
                 result.append(np.nan)
         result_rows.append(nTuple(*result))
@@ -156,6 +189,30 @@ def write_merged_table(meta_dict, dynamic_dict, output_path):
 
     io.excel_writer(output_path, {"CDS" : df_res})
 
+def write_merged_gff(meta_dict, output_path):
+    """
+    create final merged annotation file in gff3 file
+    """
+    nTuple = collections.namedtuple('Pandas', ["chromosome", "source", "type", "start", "stop", "score", "strand", "phase", "attribute"])
+
+    result_rows = []
+    for unique_id, val in meta_dict.items():
+        chrom, mid, strand = unique_id.split(":")
+        start, stop = mid.split("-")
+
+        attribute = "ID=%s;Name=%s" % (unique_id, val[1])
+        result_rows.append(nTuple(chrom, "ORFBounder", "CDS", int(start), int(stop), ".", strand, ".", attribute))
+
+    df = pd.DataFrame.from_records(result_rows, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+    Path(os.path.dirname(output_path)).mkdir(parents=True, exist_ok=True)
+
+    with open(output_path.replace(".xlsx", ".gff"), "w") as f:
+        f.write("##gff-version 3\n")
+    with open(output_path.replace(".xlsx", ".gff"), "a") as f:
+        df.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
+
+
+
 def merge_tables(table_list, output_path):
     """
     collect information from all input tables and merge them into one final output table
@@ -163,6 +220,7 @@ def merge_tables(table_list, output_path):
 
     meta_dict, dynamic_dict = screen_input_tables(table_list)
     write_merged_table(meta_dict, dynamic_dict, output_path)
+    write_merged_gff(meta_dict, output_path)
 
 def main():
     # store commandline args

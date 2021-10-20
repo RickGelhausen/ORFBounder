@@ -138,13 +138,13 @@ def run_ORFBounder(fwd_wig_file_tis, rev_wig_file_tis, fwd_wig_file_TTS, rev_wig
                                           output_basename, offset_tis, "TIS", TTS_start_selection, \
                                           predictions, min_peak_height, peak_height_calculation)
 
-        predictions, gene_density_dict_TTS, codon_dict_TTS \
+        predictions, gene_density_dict_TTS, codon_dict_tts \
                         = prediction_call(annotation_file, genome_dict, start_codons, stop_codons, \
                                           fwd_wig_file_TTS, rev_wig_file_TTS, output_path, \
                                           output_basename, offset_TTS, "TTS", TTS_start_selection, \
                                           predictions, min_peak_height, peak_height_calculation)
 
-        combined_predictions = pred.combined_data_detection(codon_dict_tis, codon_dict_TTS, offset_tis, offset_TTS, max_ORF_length)
+        #combined_predictions = pred.combined_data_detection(codon_dict_tis, codon_dict_tts, offset_tis, offset_TTS, max_ORF_length)
         if bam_files != -1:
             read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
             read_count_dict = expr.init_read_count_dict(read_count_dict, combined_predictions)
@@ -153,11 +153,11 @@ def run_ORFBounder(fwd_wig_file_tis, rev_wig_file_tis, fwd_wig_file_TTS, rev_wig
         result_df = misc.generate_result_dataframe(predictions, gene_density_dict_tis, gene_density_dict_TTS, genome_dict, \
                                             read_count_dict, total_mapped_list, wildcards, method, headers)
 
-        combined_result_df = misc.generate_result_dataframe(combined_predictions, gene_density_dict_tis, gene_density_dict_TTS, genome_dict, \
-                                                    read_count_dict, total_mapped_list, wildcards, method, headers)
+        #combined_result_df = misc.generate_result_dataframe(combined_predictions, gene_density_dict_tis, gene_density_dict_TTS, genome_dict, \
+         #                                           read_count_dict, total_mapped_list, wildcards, method, headers)
         msg.success("Potential ORFs detected: %s" % len(result_df))
-        msg.success("Combined ORFs detected: %s" % len(combined_result_df))
-
+        #msg.success("Combined ORFs detected: %s" % len(combined_result_df))
+        #
     return result_df, combined_result_df
 
 def main():
@@ -174,8 +174,8 @@ def main():
     parser.add_argument("--start_codons", nargs="+", dest="start_codons", default=["ATG","GTG","TTG"])
     parser.add_argument("--stop_codons", nargs="+", dest="stop_codons", default=["TAG","TAA","TGA"])
 
-    parser.add_argument("--offset_tis", action="store", dest="offset_tis", type=int, default=15)
-    parser.add_argument("--offset_TTS", action="store", dest="offset_TTS", type=int, default=15)
+    parser.add_argument("--offset_tis", action="store", dest="offset_tis", default=15)
+    parser.add_argument("--offset_TTS", action="store", dest="offset_TTS", default=15)
 
     parser.add_argument("--peak_height_calculation", action="store", dest="peak_height_calculation", default="max"
                                                    , help="{max,sum}:\n"\

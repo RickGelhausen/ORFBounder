@@ -117,65 +117,95 @@ def generate_annotation_dict(annotation_path):
 
     return annotation_dict
 
-def create_codon_interlaps(chrom, genome_seq, codons, p_offset):
+def create_codon_interlaps(chrom, genome_seq, codons, offset):
     """
     create interlaps around each codon, incorporating the offset
     """
     reverse_codons = [str(Seq(codon).reverse_complement()) for codon in codons]
 
-    fwd_codon_interlap = InterLap()
-    rev_codon_interlap = InterLap()
+    if "," in str(offset):
+        offset_list = [int(off) for off in offset.split(",")]
+    else:
+        offset_list = [offset]
+
+    fwd_interlap_dict = {}
+    for offset in offset_list:
+        fwd_codon_interlap = InterLap()
+        fwd_interlap_dict[offset] = fwd_codon_interlap
+
+    rev_interlap_dict = {}
+    for offset in offset_list:
+        rev_codon_interlap = InterLap()
+        rev_interlap_dict[offset] = rev_codon_interlap
+
     codon_dict = {}
     for pos in range(len(genome_seq)-2):
         codon = genome_seq[pos:pos+3]
         if codon in codons:
-            interval_start = pos + p_offset - 2
-            interval_stop = pos + p_offset + 2
-            if interval_start < 0 or interval_stop > len(genome_seq)-2:
-                continue
-            key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "+")
-            fwd_codon_interlap.add((interval_start, interval_stop, key))
-            codon_dict[key] = [codon, 0]
+            for offset in offset_list:
+                interval_start = pos + offset - 2
+                interval_stop = pos + offset + 2
+                if interval_start < 0 or interval_stop > len(genome_seq)-2:
+                    continue
+                key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "+")
+                fwd_interlap_dict[offset].add((interval_start, interval_stop, key))
+                codon_dict[(key, offset)] = [codon, 0]
         elif codon in reverse_codons:
-            interval_start = pos - p_offset
-            interval_stop = pos - p_offset + 4
-            if interval_start < 0 or interval_stop > len(genome_seq)-2:
-                continue
-            key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "-")
-            rev_codon_interlap.add((interval_start, interval_stop, key))
-            codon_dict[key] = [str(Seq(codon).reverse_complement()), 0]
+            for offset in offset_list:
+                interval_start = pos - offset
+                interval_stop = pos - offset + 4
+                if interval_start < 0 or interval_stop > len(genome_seq)-2:
+                    continue
+                key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "-")
+                rev_interlap_dict[offset].add((interval_start, interval_stop, key))
+                codon_dict[(key,offset)] = [str(Seq(codon).reverse_complement()), 0]
 
-    return fwd_codon_interlap, rev_codon_interlap, codon_dict
+    return fwd_interlap_dict, rev_interlap_dict, codon_dict
 
-def create_area_interlaps(chrom, genome_seq, codons, p_offset):
+def create_area_interlaps(chrom, genome_seq, codons, offset):
     """
     create interlaps around each codon, incorporating the offset
     """
     reverse_codons = [str(Seq(codon).reverse_complement()) for codon in codons]
 
-    fwd_codon_interlap = InterLap()
-    rev_codon_interlap = InterLap()
+    if "," in str(offset):
+        offset_list = [int(off) for off in offset.split(",")]
+    else:
+        offset_list = [offset]
+
+    fwd_interlap_dict = {}
+    for offset in offset_list:
+        fwd_codon_interlap = InterLap()
+        fwd_interlap_dict[offset] = fwd_codon_interlap
+
+    rev_interlap_dict = {}
+    for offset in offset_list:
+        rev_codon_interlap = InterLap()
+        rev_interlap_dict[offset] = rev_codon_interlap
+
     codon_dict = {}
     for pos in range(len(genome_seq)-2):
         codon = genome_seq[pos:pos+3]
         if codon in codons:
-            interval_start = pos + p_offset - 24
-            interval_stop = pos + p_offset + 24
-            if interval_start < 0 or interval_stop > len(genome_seq)-2:
-                continue
-            key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "+")
-            fwd_codon_interlap.add((interval_start, interval_stop, key))
-            codon_dict[key] = [codon, 0]
+            for offset in offset_list:
+                interval_start = pos + offset - 24
+                interval_stop = pos + offset + 24
+                if interval_start < 0 or interval_stop > len(genome_seq)-2:
+                    continue
+                key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "+")
+                fwd_interlap_dict[offset].add((interval_start, interval_stop, key))
+                codon_dict[(key,offset)] = [codon, 0]
         elif codon in reverse_codons:
-            interval_start = pos - p_offset - 22
-            interval_stop = pos - p_offset + 26
-            if interval_start < 0 or interval_stop > len(genome_seq)-2:
-                continue
-            key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "-")
-            rev_codon_interlap.add((interval_start, interval_stop, key))
-            codon_dict[key] = [str(Seq(codon).reverse_complement()), 0]
+            for offset in offset_list:
+                interval_start = pos - offset - 22
+                interval_stop = pos - offset + 26
+                if interval_start < 0 or interval_stop > len(genome_seq)-2:
+                    continue
+                key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "-")
+                rev_interlap_dict[offset].add((interval_start, interval_stop, key))
+                codon_dict[(key,offset)] = [str(Seq(codon).reverse_complement()), 0]
 
-    return fwd_codon_interlap, rev_codon_interlap, codon_dict
+    return fwd_interlap_dict, rev_interlap_dict, codon_dict
 
 def annotation_interlap(annotation_file, method):
     """
@@ -308,22 +338,40 @@ def calculate_utr_distance(start_position, stop_position, gene_name, gene_dict, 
 
     return fiveprime_dist, threeprime_dist
 
-def calculate_relative_density(rpm, gene_name, gene_type, gene_dict):
+def calculate_relative_density(rpm_list, gene_name, gene_type, gene_dict):
     """
     calculate the relative density
     """
 
-    if gene_dict == {} or gene_type == "N-terminal_extension" or gene_name not in gene_dict:
+    if gene_dict == {} or gene_type == "N-terminal_extension" or gene_name not in gene_dict or rpm_list == []:
         return np.nan
 
     else:
-        gene_rpm = gene_dict[gene_name][4]
-        if gene_rpm != 0 and rpm != -1:
-            return rpm / gene_rpm
-        else:
-            return np.nan
+        density_list = []
+        for rpm in rpm_list:
+            gene_rpm = gene_dict[gene_name][4]
+            if gene_rpm != 0:
+                density_list.append(rpm / gene_rpm)
+            else:
+                density_list.append(0.0)
 
-    return np.nan
+        return "|".join(["%.2f" % d for d in density_list ])
+
+
+# def create_output_dict(detected_ORFs_dict):
+#     """
+#     combine the results of all offsets
+#     """
+
+#     result_dict = {}
+#     for offset in detected_ORFs_dict.keys():
+#         for (chrom, strand) in detected_ORFs_dict[offset].keys():
+#             for (start, stop), (rpk_tis, rpk_tts) in detected_ORFs_dict[offset][(chrom, strand)].items():
+#                 if (chrom, start, stop, strand) in result_dict:
+
+#                     result_dict[(chrom, start, stop, strand)] = ()
+#                 else:
+#                     result_dict[(chrom, start, stop, strand)] = (rpk_tis)
 
 def generate_result_dataframe(detected_ORFs_dict, gene_dict_tis, gene_dict_tts, genome, read_count_dict, \
                             total_mapped_list, wildcards, method, headers):
@@ -336,7 +384,8 @@ def generate_result_dataframe(detected_ORFs_dict, gene_dict_tis, gene_dict_tts, 
 
     te_header = expr.get_te_header(wildcards)
     header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count", \
-              tis_header + "_peak_height", tts_header + "_peak_height", "Start_codon", "Stop_codon", "15nt_window",\
+              tis_header + "_peak_height", tts_header + "_peak_height", tis_header + "_peak_height_max", tts_header + "_peak_height_max",\
+              tis_header + "_offsets", tts_header + "_offsets", "Start_codon", "Stop_codon", "15nt_window",\
               "Nucleotide_Seq", "Amino_Acid_Seq", tis_header + "_relative_density", tts_header + "_relative_density", \
               "5'-distance", "3'-distance"] + [card + "_rpkm" for card in wildcards] +\
               [cond + "_TE" for cond in te_header]
@@ -346,7 +395,14 @@ def generate_result_dataframe(detected_ORFs_dict, gene_dict_tis, gene_dict_tts, 
     result_rows = []
     for (chrom, strand) in detected_ORFs_dict.keys():
         for (start, stop) in detected_ORFs_dict[(chrom, strand)].keys():
-            rpm_start, rpm_stop = detected_ORFs_dict[(chrom, strand)][(start, stop)]
+            rpm_start_list, rpm_stop_list, offset_start_list, offset_stop_list = detected_ORFs_dict[(chrom, strand)][(start, stop)]
+
+            # sort both lists
+            if rpm_start_list != []:
+                rpm_start_list, offset_start_list = [list(t) for t in zip(*sorted(zip(rpm_start_list, offset_start_list), key=lambda x: x[1]))]
+            if rpm_stop_list != []:
+                rpm_stop_list, offset_stop_list = [list(t) for t in zip(*sorted(zip(rpm_stop_list, offset_stop_list), key=lambda x: x[1]))]
+
             if gene_dict_tis != {}:
                 gene_type, gene_name = get_gene_information(chrom, start, stop, strand, gene_dict_tis)
             else:
@@ -368,18 +424,33 @@ def generate_result_dataframe(detected_ORFs_dict, gene_dict_tis, gene_dict_tts, 
 
             if gene_dict_tis != {}:
                 fiveprime_dist, threeprime_dist = calculate_utr_distance(start, stop, gene_name, gene_dict_tis, method)
-                relative_density_start = calculate_relative_density(rpm_start, gene_name, gene_type, gene_dict_tis)
-                relative_density_stop = calculate_relative_density(rpm_stop, gene_name, gene_type, gene_dict_tts)
+                relative_density_start = calculate_relative_density(rpm_start_list, gene_name, gene_type, gene_dict_tis)
+                relative_density_stop = calculate_relative_density(rpm_stop_list, gene_name, gene_type, gene_dict_tts)
             else:
                 fiveprime_dist, threeprime_dist = calculate_utr_distance(start, stop, gene_name, gene_dict_tts, method)
-                relative_density_start = calculate_relative_density(rpm_start, gene_name, gene_type, gene_dict_tis)
-                relative_density_stop = calculate_relative_density(rpm_stop, gene_name, gene_type, gene_dict_tts)
+                relative_density_start = calculate_relative_density(rpm_start_list, gene_name, gene_type, gene_dict_tis)
+                relative_density_stop = calculate_relative_density(rpm_stop_list, gene_name, gene_type, gene_dict_tts)
 
-            rpm_start = rpm_start if rpm_start != -1 else np.nan
-            rpm_stop = rpm_stop if rpm_stop != -1 else np.nan
+            if rpm_start_list == []:
+                rpm_start = np.nan
+                rpm_start_max = np.nan
+                offsets_start = np.nan
+            else:
+                rpm_start = "|".join(["%.2f" %r for r in rpm_start_list])
+                rpm_start_max = max(rpm_start_list)
+                offsets_start = "|".join([str(o) for o in offset_start_list])
 
-            result = [gene_type, identifier, chrom, start+1, stop+1, strand, gene_name, codon_count, rpm_start, rpm_stop, \
-                      start_codon, stop_codon, nt_window, nt_seq, aa_seq, relative_density_start, relative_density_stop, \
+            if rpm_stop_list == []:
+                rpm_stop = np.nan
+                rpm_stop_max = np.nan
+                offsets_stop = np.nan
+            else:
+                rpm_stop = "|".join(["%.2f" %r for r in rpm_stop_list])
+                rpm_stop_max = max(rpm_stop_list)
+                offsets_stop = "|".join([str(o) for o in offset_stop_list])
+
+            result = [gene_type, identifier, chrom, start+1, stop+1, strand, gene_name, codon_count, rpm_start, rpm_stop, rpm_start_max, rpm_stop_max, \
+                      offsets_start, offsets_stop, start_codon, stop_codon, nt_window, nt_seq, aa_seq, relative_density_start, relative_density_stop, \
                       fiveprime_dist, threeprime_dist] + rpkm_list + te_list
 
             result_rows.append(nTuple(*result))

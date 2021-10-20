@@ -59,23 +59,23 @@ def check_bamfile_input(bam_file_path, fwd_wig_file_tis, fwd_wig_file_tts):
 
     _, _, bam_file_list = next(os.walk(bam_file_path))
     bam_file_list = [ file for file in bam_file_list if file.endswith(".bam")]
-    
+
     condition, replicate = "", ""
     if fwd_wig_file_tis != "":
         tis_prefix = os.path.basename(fwd_wig_file_tis).split(".")[0]
         condition, replicate = tis_prefix.split("-")[1:]
-        rnatis_prefix = "RNATIS-%s-%s" % (condition, replicate) 
-        for file in bam_file_list:
-            if tis_prefix in file or rnatis_prefix in file:
-                valid_bam.add(os.path.join(bam_file_path, file))
+#        rnatis_prefix = "RNATIS-%s-%s" % (condition, replicate)
+#        for file in bam_file_list:
+#            if tis_prefix in file or rnatis_prefix in file:
+#                valid_bam.add(os.path.join(bam_file_path, file))
 
     if fwd_wig_file_tts != "":
-        tts_prefix = os.path.basename(fwd_wig_file_tts).split(".")[0]        
+        tts_prefix = os.path.basename(fwd_wig_file_tts).split(".")[0]
         condition, replicate = tts_prefix.split("-")[1:]
-        rnatts_prefix = "RNATTS-%s-%s" % (condition, replicate)
-        for file in bam_file_list:
-            if tts_prefix in file or rnatts_prefix in file:
-                valid_bam.add(os.path.join(bam_file_path, file))
+#        rnatts_prefix = "RNATTS-%s-%s" % (condition, replicate)
+#        for file in bam_file_list:
+#            if tts_prefix in file or rnatts_prefix in file:
+#                valid_bam.add(os.path.join(bam_file_path, file))
 
     if condition != "" and replicate != "":
         for file in bam_file_list:
@@ -123,7 +123,7 @@ def write_gff_file(dataframe_out, output_path, output_filename):
     with open(filename, "a") as f:
         dataframe_out.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
 
-def write_codon_interval_gff(output_path, output_basename, codon_dict, p_offset, method):
+def write_codon_interval_gff(output_path, output_basename, codon_dict, offset, method):
     """
     Create a gff3 file with all codon intervals.
     """
@@ -134,23 +134,24 @@ def write_codon_interval_gff(output_path, output_basename, codon_dict, p_offset,
     for key, val in codon_dict.items():
         if val[1] <= 0:
             continue
-        chrom, mid, strand = key.split(":")
+        chrom, mid, strand = key[0].split(":")
+        offset = key[1]
         start, stop = mid.split("-")
 
         if method == "TIS":
             if strand == "+":
-                cur_position = int(start) - p_offset + 2
+                cur_position = int(start) - offset + 2
             elif strand == "-":
-                cur_position = int(start) + p_offset + 2
+                cur_position = int(start) + offset + 2
 
-            attribute = "ID=%s;Peak_height=%s;Name=%s;Start_codon=%s;Original_position=%s" % (key, val[1], val[0], val[0], cur_position)
+            attribute = "ID=%s;Peak_height=%s;Name=%s;Start_codon=%s;Original_position=%s;Offset=%s" % (key, val[1], val[0], val[0], cur_position, offset)
         else:# change here if interval changes
             if strand == "+":
-                cur_position = int(start) - p_offset + 2
+                cur_position = int(start) - offset + 2
             elif strand == "-":
-                cur_position = int(start) + p_offset + 2
+                cur_position = int(start) + offset + 2
 
-            attribute = "ID=%s;Peak_height=%s;Name=%s;Stop_codon=%s;Original_position=%s" % (key, val[1], val[0], val[0], cur_position)
+            attribute = "ID=%s;Peak_height=%s;Name=%s;Stop_codon=%s;Original_position=%s;Offset=%s" % (key, val[1], val[0], val[0], cur_position, offset)
 
         rows.append(nTuple_gff(chrom, "ORFBounder", "codon_interval", int(start)+1, int(stop)+1, ".", strand, ".", attribute))
 
@@ -231,10 +232,10 @@ def write_results_to_gff(result_df, output_path, output_basename, split_gff):
     gff_internal_out = []
 
     for row in result_df.itertuples(index=False, name=None):
-        gene_type, identifier, chrom, start, stop, strand, gene_name, codon_count, rpm_start, rpm_stop, start_codon, stop_codon = row[0:12]
+        gene_type, identifier, chrom, start, stop, strand, gene_name, codon_count, rpm_start, rpm_stop, rpm_start_max, rpm_stop_max, start_offsets, stop_offsets, start_codon, stop_codon = row[0:16]
 
-        attribute = "ID=%s;Name=%s;Peak_height_TIS=%s;Peak_height_TTS=%s;Start_codon=%s;Stop_codon=%s;Codon_count=%s;Type=%s" \
-                    % (identifier, gene_name, rpm_start, rpm_stop, start_codon, stop_codon, codon_count, gene_type)
+        attribute = "ID=%s;Name=%s;Peak_height_TIS=%s;Peak_height_TTS=%s;Start_codon=%s;Stop_codon=%s;Codon_count=%s;Type=%s;Start_offsets=%s;Stop_offsets=%s" \
+                    % (identifier, gene_name, rpm_start, rpm_stop, start_codon, stop_codon, codon_count, gene_type, start_offsets, stop_offsets)
         cur_tuple = nTuple_gff(chrom, "ORFBounder", "CDS", int(start), int(stop), ".", strand, ".", attribute)
 
         gff_all.append(cur_tuple)

@@ -20,15 +20,16 @@ def screen_wig_for_tss(wig_file_data, codon_interlap, codon_dict, min_peak_heigh
         if read_count <= min_peak_height:
             continue
 
-        matching_codons = list(codon_interlap.find((position, position)))
-        for match in matching_codons:
-            if peak_height_calculation == "sum":
-                codon_dict[match[2]][1] += read_count
-            elif peak_height_calculation == "max":
-                if read_count > codon_dict[match[2]][1]:
-                    codon_dict[match[2]][1] = read_count
-            else:
-                msg.error("Invalid method! Use either 'sum' or 'max'!")
+        for offset in codon_interlap.keys():
+            matching_codons = list(codon_interlap[offset].find((position, position)))
+            for match in matching_codons:
+                if peak_height_calculation == "sum":
+                    codon_dict[(match[2], offset)][1] += read_count
+                elif peak_height_calculation == "max":
+                    if read_count > codon_dict[match[2]][1]:
+                        codon_dict[(match[2], offset)][1] = read_count
+                else:
+                    msg.error("Invalid method! Use either 'sum' or 'max'!")
 
     return codon_dict
 
@@ -42,9 +43,10 @@ def screen_area_for_tss(wig_file_data, codon_interlap, codon_dict):
         position = int(position)-1
         read_count = abs(float(read_count))
 
-        matching_codons = list(codon_interlap.find((position, position)))
-        for match in matching_codons:
-            codon_dict[match[2]][1] += read_count
+        for offset in codon_interlap.keys():
+            matching_codons = list(codon_interlap[offset].find((position, position)))
+            for match in matching_codons:
+                codon_dict[(match[2],offset)][1] += read_count
 
     return codon_dict
 
@@ -145,11 +147,12 @@ def detect_potential_ORFs(codon_dict, genome_seq, search_codons, match_codons, p
         if val[1] <= 0:
             continue
 
-        chrom, mid, strand = key.split(":")
+        chrom, mid, strand = key[0].split(":")
+        offset = key[1]
         interval_start, interval_stop = mid.split("-")
         if method == "TIS":
             if strand == "+":
-                cur_start = int(interval_start) - p_offset + 2
+                cur_start = int(interval_start) - offset + 2
                 cur_position = cur_start
 
                 cur_position = search_codon_forward(cur_position, genome_seq, match_codons)
@@ -159,7 +162,7 @@ def detect_potential_ORFs(codon_dict, genome_seq, search_codons, match_codons, p
                 cur_stop = cur_position + 2
 
             elif strand == "-":
-                cur_start = int(interval_start) + p_offset + 2
+                cur_start = int(interval_start) + offset + 2
                 cur_position = cur_start - 2
 
                 cur_position = search_codon_reverse(cur_position, genome_seq, reverse_match_codons)
@@ -170,7 +173,7 @@ def detect_potential_ORFs(codon_dict, genome_seq, search_codons, match_codons, p
 
         elif method == "TTS":
             if strand == "+":
-                cur_stop = int(interval_start) - p_offset + 4
+                cur_stop = int(interval_start) - offset + 4
                 cur_position = cur_stop - 2
 
                 if TTS_start_selection == "next_inframe":
@@ -187,7 +190,7 @@ def detect_potential_ORFs(codon_dict, genome_seq, search_codons, match_codons, p
                 cur_start = cur_position
 
             elif strand == "-":
-                cur_stop = int(interval_start) + p_offset
+                cur_stop = int(interval_start) + offset
                 cur_position = cur_stop
 
                 if TTS_start_selection == "next_inframe":
@@ -207,23 +210,57 @@ def detect_potential_ORFs(codon_dict, genome_seq, search_codons, match_codons, p
             out_start, out_stop = cur_start, cur_stop
         else:
             out_start, out_stop = cur_stop, cur_start
+        # if offset in detected_ORFs_dict:
+        #     if (chrom, strand) in detected_ORFs_dict[offset]:
+        #         if (out_start, out_stop) in detected_ORFs_dict[offset][(chrom, strand)]:
+        #             if method == "TIS":
+        #                 detected_ORFs_dict[offset][(chrom, strand)][(out_start, out_stop)] = (val[1], detected_ORFs_dict[offset][(chrom, strand)][(out_start, out_stop)][1])
+        #             else:
+        #                 detected_ORFs_dict[offset][(chrom, strand)][(out_start, out_stop)] = (detected_ORFs_dict[offset][(chrom, strand)][(out_start, out_stop)][0], val[1])
+        #         else:
+        #             if method == "TIS":
+        #                 detected_ORFs_dict[offset][(chrom, strand)][(out_start, out_stop)] = (val[1], -1)
+        #             else:
+        #                 detected_ORFs_dict[offset][(chrom, strand)][(out_start, out_stop)] = (-1, val[1])
+        #     else:
+        #         if method == "TIS":
+        #             detected_ORFs_dict[offset][(chrom, strand)] = {(out_start, out_stop) : (val[1], -1)}
+        #         else:
+        #             detected_ORFs_dict[offset][(chrom, strand)] = {(out_start, out_stop) : (-1, val[1])}
+        # else:
+        #     if method == "TIS":
+        #         detected_ORFs_dict[offset] = {(chrom, strand) : {(out_start, out_stop) : (val[1], -1)}}
+        #     else:
+        #         detected_ORFs_dict[offset] = {(chrom, strand) : {(out_start, out_stop) : (-1, val[1])}}
 
         if (chrom, strand) in detected_ORFs_dict:
             if (out_start, out_stop) in detected_ORFs_dict[(chrom, strand)]:
                 if method == "TIS":
-                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = (val[1], detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][1])
+                    tmp_val = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][0]
+                    tmp_val.append(val[1])
+                    tmp_offset = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][2]
+                    tmp_offset.append(offset)
+                    tmp_tts_val = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][1]
+                    tmp_tts_offset = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][3]
+                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = (tmp_val, tmp_tts_val, tmp_offset, tmp_tts_offset)
                 else:
-                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = (detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][0], val[1])
+                    tmp_val = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][1]
+                    tmp_val.append(val[1])
+                    tmp_offset = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][3]
+                    tmp_offset.append(offset)
+                    tmp_tis_val = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][0]
+                    tmp_tis_offset = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][2]
+                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = (tmp_tis_val, tmp_val, tmp_tis_offset, tmp_offset)
             else:
                 if method == "TIS":
-                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = (val[1], -1)
+                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = ([val[1]], [], [offset], [])
                 else:
-                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = (-1, val[1])
+                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = ([], [val[1]], [], [offset])
         else:
             if method == "TIS":
-                detected_ORFs_dict[(chrom, strand)] = {(out_start, out_stop) : (val[1], -1)}
+                detected_ORFs_dict[(chrom, strand)] = {(out_start, out_stop) : ([val[1]], [], [offset], [])}
             else:
-                detected_ORFs_dict[(chrom, strand)] = {(out_start, out_stop) : (-1, val[1])}
+                detected_ORFs_dict[(chrom, strand)] = {(out_start, out_stop) : ([], [val[1]], [], [offset])}
 
     return detected_ORFs_dict
 
@@ -235,7 +272,8 @@ def convert_codon_dict(codon_dict_TIS, codon_dict_TTS, offset_TIS, offset_TTS):
 
     start_codon_dict = {}
     for key, val in codon_dict_TIS.items():
-        chrom, mid, strand = key.split(":")
+        chrom, mid, strand = key[0].split(":")
+        offset_TIS = key[1]
         interval_start, interval_stop = mid.split("-")
         if val[1] < 1:
             continue
@@ -245,14 +283,18 @@ def convert_codon_dict(codon_dict_TIS, codon_dict_TTS, offset_TIS, offset_TTS):
         else:
             cur_start = int(interval_start) + offset_TIS + 2
 
-        if (chrom, strand) in start_codon_dict:
-            start_codon_dict[(chrom, strand)].append((cur_start, val[1]))
+        if offset_TIS in start_codon_dict:
+            if (chrom, strand) in start_codon_dict[offset_TIS]:
+                start_codon_dict[offset_TIS][(chrom, strand)].append((cur_start, val[1]))
+            else:
+                start_codon_dict[offset_TIS][(chrom, strand)] = [(cur_start, val[1])]
         else:
-            start_codon_dict[(chrom, strand)] = [(cur_start, val[1])]
+            start_codon_dict[offset_TIS] = {(chrom, strand) : [(cur_start, val[1])] }
 
     stop_codon_dict = {}
     for key, val in codon_dict_TTS.items():
-        chrom, mid, strand = key.split(":")
+        chrom, mid, strand = key[0].split(":")
+        offset_TTS = key[1]
         interval_start, interval_stop = mid.split("-")
         if val[1] < 1:
             continue
@@ -262,10 +304,14 @@ def convert_codon_dict(codon_dict_TIS, codon_dict_TTS, offset_TIS, offset_TTS):
         else:
             cur_stop = int(interval_start) + offset_TTS
 
-        if (chrom, strand) in stop_codon_dict:
-            stop_codon_dict[(chrom, strand)].append((cur_stop, val[1]))
+        if offset_TTS in stop_codon_dict:
+            if (chrom, strand) in stop_codon_dict[offset_TTS]:
+                stop_codon_dict[offset_TTS][(chrom, strand)].append((cur_stop, val[1]))
+            else:
+                stop_codon_dict[offset_TTS][(chrom, strand)] = [(cur_stop, val[1])]
         else:
-            stop_codon_dict[(chrom, strand)] = [(cur_stop, val[1])]
+            stop_codon_dict[offset_TTS] = { (chrom, strand) : [(cur_stop, val[1])] }
+
 
     return start_codon_dict, stop_codon_dict
 

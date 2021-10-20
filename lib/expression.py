@@ -30,7 +30,7 @@ def get_te_header(wildcards):
     te_header = []
     te_header_dict = OrderedDict()
     for card in wildcards:
-        if "-" not in card:
+        if "-" not in card or "rna" in card.lower():
             continue
         method, condition, replicate = card.split("-")
         header_to_dictionary(method, condition, replicate, wildcards, te_header_dict)
@@ -117,6 +117,8 @@ def calculate_te(read_list, wildcards):
     te_list = []
     for key, val in read_dict.items():
         method, condition, replicate = key
+        if "rna" in method.lower():
+            continue
         te_value_to_dictionary(method, condition, replicate, read_dict, te_dict)
 
     te_list = []
@@ -142,6 +144,19 @@ def init_read_count_dict(read_count_dict, result_dict):
                 read_count_dict[(chrom, start, stop, strand)] = []
 
     return read_count_dict
+
+# def init_read_count_dict(read_count_dict, result_dict):
+#     """
+#     Collect intervals needed for read_counting.
+#     adds all intervals that are not yet in the read_count_dict from the predictions_dict.
+#     """
+#     for offset in result_dict.keys():
+#         for (chrom, strand) in result_dict[offset].keys():
+#             for (start, stop) in result_dict[offset][(chrom, strand)].keys():
+#                 if (chrom, start, stop, strand) not in read_count_dict:
+#                     read_count_dict[(chrom, start, stop, strand)] = []
+
+#     return read_count_dict
 
 def create_interlap_dict(bam_file):
     """
