@@ -237,6 +237,7 @@ def call_ORFBounder(config_df, tts_start_selection, min_peak_height, peak_height
 
             if meta_dict:
                 mg.write_merged_table(meta_dict, dynamic_dict, os.path.join(res_path, "%s_final.xlsx" % experiment))
+                mg.write_merged_gff(meta_dict, os.path.join(res_path, "%s_final.xlsx" % experiment))
             if combined_meta_dict:
                 mg.write_merged_table(combined_meta_dict, combined_dynamic_dict, os.path.join(res_path, "%s_combined_final.xlsx" % experiment))
 def main():

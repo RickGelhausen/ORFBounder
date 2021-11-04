@@ -64,18 +64,18 @@ def check_bamfile_input(bam_file_path, fwd_wig_file_tis, fwd_wig_file_tts):
     if fwd_wig_file_tis != "":
         tis_prefix = os.path.basename(fwd_wig_file_tis).split(".")[0]
         condition, replicate = tis_prefix.split("-")[1:]
-#        rnatis_prefix = "RNATIS-%s-%s" % (condition, replicate)
-#        for file in bam_file_list:
-#            if tis_prefix in file or rnatis_prefix in file:
-#                valid_bam.add(os.path.join(bam_file_path, file))
+        rnatis_prefix = "RNATIS-%s-%s" % (condition, replicate)
+        for file in bam_file_list:
+            if tis_prefix in file or rnatis_prefix in file:
+                valid_bam.add(os.path.join(bam_file_path, file))
 
     if fwd_wig_file_tts != "":
         tts_prefix = os.path.basename(fwd_wig_file_tts).split(".")[0]
         condition, replicate = tts_prefix.split("-")[1:]
-#        rnatts_prefix = "RNATTS-%s-%s" % (condition, replicate)
-#        for file in bam_file_list:
-#            if tts_prefix in file or rnatts_prefix in file:
-#                valid_bam.add(os.path.join(bam_file_path, file))
+        rnatts_prefix = "RNATTS-%s-%s" % (condition, replicate)
+        for file in bam_file_list:
+            if tts_prefix in file or rnatts_prefix in file:
+                valid_bam.add(os.path.join(bam_file_path, file))
 
     if condition != "" and replicate != "":
         for file in bam_file_list:
