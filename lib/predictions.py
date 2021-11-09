@@ -150,7 +150,7 @@ def detect_potential_ORFs(codon_dict, genome_seq, search_codons, match_codons, p
         chrom, mid, strand = key[0].split(":")
         offset = key[1]
         interval_start, interval_stop = mid.split("-")
-        if method == "TIS":
+        if method == "TIS" or method == "RIBO":
             if strand == "+":
                 cur_start = int(interval_start) - offset + 2
                 cur_position = cur_start
@@ -235,32 +235,41 @@ def detect_potential_ORFs(codon_dict, genome_seq, search_codons, match_codons, p
 
         if (chrom, strand) in detected_ORFs_dict:
             if (out_start, out_stop) in detected_ORFs_dict[(chrom, strand)]:
+                tmp_tis_val = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][0]
+                tmp_tts_val = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][1]
+                tmp_ribo_val = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][2]
+                tmp_tis_offset = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][3]
+                tmp_tts_offset = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][4]
+                tmp_ribo_offset = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][5]
+
                 if method == "TIS":
-                    tmp_val = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][0]
-                    tmp_val.append(val[1])
-                    tmp_offset = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][2]
-                    tmp_offset.append(offset)
-                    tmp_tts_val = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][1]
-                    tmp_tts_offset = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][3]
-                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = (tmp_val, tmp_tts_val, tmp_offset, tmp_tts_offset)
+                    tmp_tis_val.append(val[1])
+                    tmp_tis_offset.append(offset)
+
+                elif method == "TTS":
+                    tmp_tts_val.append(val[1])
+                    tmp_tts_offset.append(offset)
+
                 else:
-                    tmp_val = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][1]
-                    tmp_val.append(val[1])
-                    tmp_offset = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][3]
-                    tmp_offset.append(offset)
-                    tmp_tis_val = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][0]
-                    tmp_tis_offset = detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)][2]
-                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = (tmp_tis_val, tmp_val, tmp_tis_offset, tmp_offset)
+                    tmp_ribo_val.append(val[1])
+                    tmp_ribo_offset.append(offset)
+
+                detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = (tmp_tis_val, tmp_tts_val, tmp_ribo_val, tmp_tis_offset, tmp_tts_offset, tmp_ribo_offset)
+
             else:
                 if method == "TIS":
-                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = ([val[1]], [], [offset], [])
+                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = ([val[1]], [], [], [offset], [], [])
+                elif method == "TTS":
+                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = ([], [val[1]], [], [], [offset], [])
                 else:
-                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = ([], [val[1]], [], [offset])
+                    detected_ORFs_dict[(chrom, strand)][(out_start, out_stop)] = ([], [], [val[1]], [], [], [offset])
         else:
             if method == "TIS":
-                detected_ORFs_dict[(chrom, strand)] = {(out_start, out_stop) : ([val[1]], [], [offset], [])}
+                detected_ORFs_dict[(chrom, strand)] = {(out_start, out_stop) : ([val[1]], [], [], [offset], [], [])}
+            elif method == "TTS":
+                detected_ORFs_dict[(chrom, strand)] = {(out_start, out_stop) : ([], [val[1]], [], [], [offset], [])}
             else:
-                detected_ORFs_dict[(chrom, strand)] = {(out_start, out_stop) : ([], [val[1]], [], [offset])}
+                detected_ORFs_dict[(chrom, strand)] = {(out_start, out_stop) : ([], [], [val[1]], [], [], [offset])}
 
     return detected_ORFs_dict
 

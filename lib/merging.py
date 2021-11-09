@@ -3,6 +3,7 @@ import argparse
 import os
 import pandas as pd
 import numpy as np
+import sys
 
 import collections
 import csv
@@ -89,7 +90,7 @@ def extend_combined_dictionary(xlsx_df, meta_dict, dynamic_dict):
 
     return meta_dict, dynamic_dict
 
-def build_merged_dataframe(meta_dict, dynamic_dict):
+def build_merged_dataframe(meta_dict, dynamic_dict, contrasts):
     """
     Given the input data of all tables build a new dataframe with sorted wildcards
     """
@@ -99,11 +100,11 @@ def build_merged_dataframe(meta_dict, dynamic_dict):
 
     wildcards = sorted(list(wildcards))
     header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count"] \
-           + [card + "_peak_height" for card in wildcards if ("TIS" in card or "TTS" in card) and not "RNA" in card] \
-           + [card + "_peak_height_max" for card in wildcards if ("TIS" in card or "TTS" in card) and not "RNA" in card] \
-           + [card + "_offsets" for card in wildcards if ("TIS" in card or "TTS" in card) and not "RNA" in card] \
+           + [card + "_peak_height" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
+           + [card + "_peak_height_max" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
+           + [card + "_offsets" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
            + ["Start_codon", "Stop_codon", "15nt_window", "Nucleotide_Seq", "Amino_Acid_Seq", "5'-distance", "3'-distance"] \
-           + [card + "_relative_density" for card in wildcards if ("TIS" in card or "TTS" in card) and not "RNA" in card] \
+           + [card + "_relative_density" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
            + [card + "_rpkm" for card in wildcards] \
            + [card + "_TE" for card in expr.get_te_header(wildcards)]
     name_list = ["s%s" % str(x) for x in range(len(header))]
@@ -118,21 +119,21 @@ def build_merged_dataframe(meta_dict, dynamic_dict):
         wild_dict = dynamic_dict[unique_id]
         result.extend([val[0], unique_id, chrom, int(start), int(stop), strand, val[1], val[2]])
         for card in wildcards:
-            if ("TIS" in card or "TTS" in card) and not "RNA" in card:
+            if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card:
                 if card in wild_dict:
                     result.append(wild_dict[card][0])
                 else:
                     result.append(np.nan)
 
         for card in wildcards:
-            if ("TIS" in card or "TTS" in card) and not "RNA" in card:
+            if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card:
                 if card in wild_dict:
                     result.append(wild_dict[card][1])
                 else:
                     result.append(np.nan)
 
         for card in wildcards:
-            if ("TIS" in card or "TTS" in card) and not "RNA" in card:
+            if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card:
                 if card in wild_dict:
                     result.append(wild_dict[card][2])
                 else:
@@ -140,7 +141,7 @@ def build_merged_dataframe(meta_dict, dynamic_dict):
 
         result.extend(val[3:])
         for card in wildcards:
-            if ("TIS" in card or "TTS" in card) and not "RNA" in card:
+            if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card:
                 if card in wild_dict:
                     result.append(wild_dict[card][3])
                 else:
@@ -159,7 +160,45 @@ def build_merged_dataframe(meta_dict, dynamic_dict):
                 result.append(np.nan)
         result_rows.append(nTuple(*result))
 
-    return pd.DataFrame.from_records(result_rows, columns=header), wildcards
+    result_df = pd.DataFrame.from_records(result_rows, columns=header)
+    if contrasts != []:
+        contrasts = [contrast.split("_") for contrast in contrasts]
+
+        for contrast in contrasts:
+            con1, con2 = contrast
+            result_df["%s_%s_log2FC" % (con1, con2) ] = result_df.apply(lambda row: calculate_fold_changes(row, con1, con2), axis=1)
+
+        new_header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count"] \
+                   + [card + "_peak_height" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
+                   + [card + "_peak_height_max" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
+                   + ["%s_%s_log2FC" % (con1, con2) for con1, con2 in contrasts] \
+                   + [card + "_offsets" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
+                   + ["Start_codon", "Stop_codon", "15nt_window", "Nucleotide_Seq", "Amino_Acid_Seq", "5'-distance", "3'-distance"] \
+                   + [card + "_relative_density" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
+                   + [card + "_rpkm" for card in wildcards] \
+                   + [card + "_TE" for card in expr.get_te_header(wildcards)]
+
+    result_df = result_df[new_header]
+    return result_df, wildcards
+
+def calculate_fold_changes(row, con1, con2):
+    """
+    Calculate the contrast between two columns
+    """
+
+    fold_change = np.nan
+
+    con1_height = row[con1 + "_peak_height_max"]
+    con2_height = row[con2 + "_peak_height_max"]
+
+    if type(con1_height) not in [int, float] or con1_height in [0, np.nan]:
+        return fold_change
+    if type(con2_height) not in [int, float] or con1_height in [np.nan]:
+        return fold_change
+
+    return np.log2(con2_height / con1_height)
+
+
 
 def screen_input_tables(table_list):
     """
@@ -174,11 +213,11 @@ def screen_input_tables(table_list):
 
     return meta_dict, dynamic_dict
 
-def write_merged_table(meta_dict, dynamic_dict, output_path):
+def write_merged_table(meta_dict, dynamic_dict, output_path, contrasts):
     """
     create final merged table and write it to xlsx/csv file
     """
-    df_res, wildcards = build_merged_dataframe(meta_dict, dynamic_dict)
+    df_res, _ = build_merged_dataframe(meta_dict, dynamic_dict, contrasts)
 
     #-empty_cols = [col for col in df_results.columns if list(df_results[col].unique()) == (["", nan])]
     #df_results.drop(empty_cols, axis=1, inplace=True)

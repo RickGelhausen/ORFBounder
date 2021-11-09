@@ -207,7 +207,7 @@ def create_area_interlaps(chrom, genome_seq, codons, offset):
 
     return fwd_interlap_dict, rev_interlap_dict, codon_dict
 
-def annotation_interlap(annotation_file, method):
+def annotation_interlap(annotation_file):
     """
     create an interlap object for the annotation
     """
@@ -247,6 +247,7 @@ def get_frame(position):
 
 def get_genome_information(start, stop, strand, genome_seq, method):
     """
+    TODO fix for combined method
     retrieve infomations from genome including nucleotide sequence, start_codon, stop_codon, amino acid sequence, 15nt window
     """
 
@@ -373,20 +374,38 @@ def calculate_relative_density(rpm_list, gene_name, gene_type, gene_dict):
 #                 else:
 #                     result_dict[(chrom, start, stop, strand)] = (rpk_tis)
 
-def generate_result_dataframe(detected_ORFs_dict, gene_dict_tis, gene_dict_tts, genome, read_count_dict, \
+def prepare_output_lists(rpm_list, offset_list):
+    """
+    Prepare output rpm and offset list for output
+    """
+
+    if rpm_list == []:
+        rpm = np.nan
+        rpm_max = np.nan
+        offsets = np.nan
+    else:
+        rpm = "|".join(["%.2f" %r for r in rpm_list])
+        rpm_max = max(rpm_list)
+        offsets = "|".join([str(o) for o in offset_list])
+
+    return rpm, rpm_max, offsets
+
+def generate_result_dataframe(detected_ORFs_dict, gene_dict_tis, gene_dict_tts, gene_dict_ribo, genome, read_count_dict, \
                             total_mapped_list, wildcards, method, headers):
     """
     Generate the final dataframe to be written to file.
     This contains RPKM, TE, nucleotide and aminoacid sequences and more.
     """
 
-    tis_header, tts_header = headers
+    tis_header, tts_header, ribo_header = headers
 
     te_header = expr.get_te_header(wildcards)
     header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count", \
-              tis_header + "_peak_height", tts_header + "_peak_height", tis_header + "_peak_height_max", tts_header + "_peak_height_max",\
-              tis_header + "_offsets", tts_header + "_offsets", "Start_codon", "Stop_codon", "15nt_window",\
-              "Nucleotide_Seq", "Amino_Acid_Seq", tis_header + "_relative_density", tts_header + "_relative_density", \
+              tis_header + "_peak_height", tts_header + "_peak_height", ribo_header + "_peak_height", \
+              tis_header + "_peak_height_max", tts_header + "_peak_height_max", ribo_header + "_peak_height_max", \
+              tis_header + "_offsets", tts_header + "_offsets", ribo_header + "_offsets", \
+              "Start_codon", "Stop_codon", "15nt_window", "Nucleotide_Seq", "Amino_Acid_Seq", \
+              tis_header + "_relative_density", tts_header + "_relative_density", ribo_header + "_relative_density", \
               "5'-distance", "3'-distance"] + [card + "_rpkm" for card in wildcards] +\
               [cond + "_TE" for cond in te_header]
     name_list = ["s%s" % str(x) for x in range(len(header))]
@@ -395,13 +414,15 @@ def generate_result_dataframe(detected_ORFs_dict, gene_dict_tis, gene_dict_tts, 
     result_rows = []
     for (chrom, strand) in detected_ORFs_dict.keys():
         for (start, stop) in detected_ORFs_dict[(chrom, strand)].keys():
-            rpm_start_list, rpm_stop_list, offset_start_list, offset_stop_list = detected_ORFs_dict[(chrom, strand)][(start, stop)]
+            rpm_start_list, rpm_stop_list, rpm_ribo_list, offset_start_list, offset_stop_list, offset_ribo_list = detected_ORFs_dict[(chrom, strand)][(start, stop)]
 
             # sort both lists
             if rpm_start_list != []:
                 rpm_start_list, offset_start_list = [list(t) for t in zip(*sorted(zip(rpm_start_list, offset_start_list), key=lambda x: x[1]))]
             if rpm_stop_list != []:
                 rpm_stop_list, offset_stop_list = [list(t) for t in zip(*sorted(zip(rpm_stop_list, offset_stop_list), key=lambda x: x[1]))]
+            if rpm_ribo_list != []:
+                rpm_ribo_list, offset_ribo_list = [list(t) for t in zip(*sorted(zip(rpm_ribo_list, offset_ribo_list), key=lambda x: x[1]))]
 
             if gene_dict_tis != {}:
                 gene_type, gene_name = get_gene_information(chrom, start, stop, strand, gene_dict_tis)
@@ -426,31 +447,22 @@ def generate_result_dataframe(detected_ORFs_dict, gene_dict_tis, gene_dict_tts, 
                 fiveprime_dist, threeprime_dist = calculate_utr_distance(start, stop, gene_name, gene_dict_tis, method)
                 relative_density_start = calculate_relative_density(rpm_start_list, gene_name, gene_type, gene_dict_tis)
                 relative_density_stop = calculate_relative_density(rpm_stop_list, gene_name, gene_type, gene_dict_tts)
+                relative_density_ribo = calculate_relative_density(rpm_stop_list, gene_name, gene_type, gene_dict_ribo)
             else:
                 fiveprime_dist, threeprime_dist = calculate_utr_distance(start, stop, gene_name, gene_dict_tts, method)
                 relative_density_start = calculate_relative_density(rpm_start_list, gene_name, gene_type, gene_dict_tis)
                 relative_density_stop = calculate_relative_density(rpm_stop_list, gene_name, gene_type, gene_dict_tts)
+                relative_density_ribo = calculate_relative_density(rpm_stop_list, gene_name, gene_type, gene_dict_ribo)
 
-            if rpm_start_list == []:
-                rpm_start = np.nan
-                rpm_start_max = np.nan
-                offsets_start = np.nan
-            else:
-                rpm_start = "|".join(["%.2f" %r for r in rpm_start_list])
-                rpm_start_max = max(rpm_start_list)
-                offsets_start = "|".join([str(o) for o in offset_start_list])
 
-            if rpm_stop_list == []:
-                rpm_stop = np.nan
-                rpm_stop_max = np.nan
-                offsets_stop = np.nan
-            else:
-                rpm_stop = "|".join(["%.2f" %r for r in rpm_stop_list])
-                rpm_stop_max = max(rpm_stop_list)
-                offsets_stop = "|".join([str(o) for o in offset_stop_list])
+            rpm_start, rpm_start_max, offsets_start = prepare_output_lists(rpm_start_list, offset_start_list)
+            rpm_stop, rpm_stop_max, offsets_stop = prepare_output_lists(rpm_stop_list, offset_stop_list)
+            rpm_ribo, rpm_ribo_max, offsets_ribo = prepare_output_lists(rpm_ribo_list, offset_ribo_list)
 
-            result = [gene_type, identifier, chrom, start+1, stop+1, strand, gene_name, codon_count, rpm_start, rpm_stop, rpm_start_max, rpm_stop_max, \
-                      offsets_start, offsets_stop, start_codon, stop_codon, nt_window, nt_seq, aa_seq, relative_density_start, relative_density_stop, \
+            result = [gene_type, identifier, chrom, start+1, stop+1, strand, gene_name, codon_count, \
+                      rpm_start, rpm_stop, rpm_ribo, rpm_start_max, rpm_stop_max, rpm_ribo_max, \
+                      offsets_start, offsets_stop, offsets_ribo, start_codon, stop_codon, \
+                      nt_window, nt_seq, aa_seq, relative_density_start, relative_density_stop, relative_density_ribo, \
                       fiveprime_dist, threeprime_dist] + rpkm_list + te_list
 
             result_rows.append(nTuple(*result))
@@ -460,7 +472,6 @@ def generate_result_dataframe(detected_ORFs_dict, gene_dict_tis, gene_dict_tts, 
     df_results = df_results.sort_values(by=["Genome", "Start", "Stop", "Strand"])
 
     return df_results
-
 
 def dictionary_depth(dic):
     """
@@ -493,6 +504,7 @@ def base_mapping(mapping):
 
 def build_offset_dictionary(offset_file, genome, mapping_tis, mapping_tts):
     """
+    TODO fix for HRIBO output
     read a json offset file and process
     """
     with open(offset_file, "r") as f:

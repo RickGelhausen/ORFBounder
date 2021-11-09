@@ -35,9 +35,9 @@ def check_config_sheet(config_sheet):
 
     config_df = pd.read_csv(config_sheet, sep="\t")
 
-    if sorted(config_df.columns) != ["Annotation", "Bam_folder", "Experiment", "Genome", "Mapping_TIS", "Mapping_TTS", "Normalization", "Offsets", "Start_codons", "Stop_codons"]:
+    if sorted(config_df.columns) != ["Annotation", "Bam_folder", "Experiment", "Genome", "Mapping_RIBO", "Mapping_TIS", "Mapping_TTS", "Normalization", "Offsets", "Start_codons", "Stop_codons"]:
         msg.error("Config Sheet columns are incomplete:\n\
-                Required columns: Experiment,Annotation,Genome,Mapping_TIS,Mapping_TTS,Normalization,Offsets,Bam_folder,Start_codons,Stop_codons\n\
+                Required columns: Experiment,Annotation,Genome,Mapping_TIS,Mapping_TTS,Mapping_RIBO,Normalization,Offsets,Bam_folder,Start_codons,Stop_codons\n\
                 Ensure that the file is TAB seperated.")
 
     for row in config_df.itertuples(index=False, name="Pandas"):
@@ -46,12 +46,14 @@ def check_config_sheet(config_sheet):
         genome = getattr(row, "Genome")
         mapping_tis = getattr(row, "Mapping_TIS")
         mapping_tts = getattr(row, "Mapping_TTS")
+        mapping_ribo = getattr(row, "Mapping_RIBO")
         normalization = getattr(row, "Normalization")
         bamfolder = getattr(row, "Bam_folder")
         offsets = getattr(row, "Offsets")
 
         with_tis = True
         with_tts = True
+        with_ribo = True
         if is_empty(experiment):
             msg.error("Empty entry found: Missing Experiment!")
         if is_empty(annotation):
@@ -62,6 +64,8 @@ def check_config_sheet(config_sheet):
             with_tis = False
         if is_empty(mapping_tts):
             with_tts = False
+        if is_empty(mapping_ribo):
+            with_ribo = False
         if is_empty(normalization):
             msg.error("Empty entry found: Missing Normalization!")
         if is_empty(offsets):
@@ -78,6 +82,8 @@ def check_config_sheet(config_sheet):
             msg.error("Mapping TIS directory is not valid! Ensure to enter a correct path!\n%s" % mapping_tis)
         if with_tts and not Path(mapping_tts).is_dir():
             msg.error("Mapping TTS directory is not valid! Ensure to enter a correct path!\n%s" % mapping_tts)
+        if with_ribo and not Path(mapping_ribo).is_dir():
+            msg.error("Mapping RIBO directory is not valid! Ensure to enter a correct path!\n%s" % mapping_ribo)
         if not Path(offsets).is_file():
             msg.error("Offsets file is not valid! Ensure to enter a correct file path!\n%s" % offsets)
         if bamfolder != "" and isinstance(bamfolder, str):
@@ -95,9 +101,14 @@ def check_config_sheet(config_sheet):
                 if not Path(norm_path).is_dir():
                     msg.error("Normalization path does not exist: %s" % norm_path)
 
+            if with_ribo:
+                norm_path = os.path.join(mapping_ribo, norm)
+                if not Path(norm_path).is_dir():
+                    msg.error("Normalization path does not exist: %s" % norm_path)
+
     return config_df
 
-def retrieve_wig_information(wig_path_tis, wig_path_tts, offset_dict):
+def retrieve_wig_information(wig_path_tis, wig_path_tts, wig_path_ribo, offset_dict):
     """
     Create a list of matching TIS/TTS condition+replicate files to run together.
     """
@@ -111,9 +122,15 @@ def retrieve_wig_information(wig_path_tis, wig_path_tts, offset_dict):
     else:
         wig_files_tts = []
 
+    if wig_path_ribo != "":
+        _, _, wig_files_ribo = next(os.walk(wig_path_ribo))
+    else:
+        wig_files_ribo = []
+
     tt_files = []
     tt_files.extend([wig for wig in wig_files_tis if ("TIS" in wig and not "RNA" in wig) and (wig.endswith(".wig"))])
     tt_files.extend([wig for wig in wig_files_tts if ("TTS" in wig and not "RNA" in wig) and (wig.endswith(".wig"))])
+    tt_files.extend([wig for wig in wig_files_ribo if ("RIBO" in wig and not "RNA" in wig) and (wig.endswith(".wig"))])
 
     sample_dict = {}
     for file in tt_files:
@@ -122,13 +139,17 @@ def retrieve_wig_information(wig_path_tis, wig_path_tts, offset_dict):
 
         if (condition, replicate) not in sample_dict:
             if (method == "TIS") and ("fwd" in file or "forward" in file):
-                sample_dict[(condition, replicate)] = [os.path.join(wig_path_tis, file),"","",""]
+                sample_dict[(condition, replicate)] = [os.path.join(wig_path_tis, file),"","","","",""]
             elif (method == "TIS") and ("rev" in file or "reverse" in file):
-                sample_dict[(condition, replicate)] = ["",os.path.join(wig_path_tis, file),"",""]
+                sample_dict[(condition, replicate)] = ["",os.path.join(wig_path_tis, file),"","","",""]
             elif (method == "TTS") and ("fwd" in file or "forward" in file):
-                sample_dict[(condition, replicate)] = ["","",os.path.join(wig_path_tts, file),""]
+                sample_dict[(condition, replicate)] = ["","",os.path.join(wig_path_tts, file),"","",""]
             elif (method == "TTS") and ("rev" in file or "reverse" in file):
-                sample_dict[(condition, replicate)] = ["","","",os.path.join(wig_path_tts, file)]
+                sample_dict[(condition, replicate)] = ["","","",os.path.join(wig_path_tts, file),"",""]
+            elif (method == "RIBO") and ("rev" in file or "forward" in file):
+                sample_dict[(condition, replicate)] = ["","","","",os.path.join(wig_path_ribo, file),""]
+            elif (method == "RIBO") and ("rev" in file or "reverse" in file):
+                sample_dict[(condition, replicate)] = ["","","","","",os.path.join(wig_path_ribo, file)]
 
         else:
             if (method == "TIS") and ("fwd" in file or "forward" in file):
@@ -139,10 +160,14 @@ def retrieve_wig_information(wig_path_tis, wig_path_tts, offset_dict):
                 sample_dict[(condition, replicate)][2] = os.path.join(wig_path_tts, file)
             elif (method == "TTS") and ("rev" in file or "reverse" in file):
                 sample_dict[(condition, replicate)][3] = os.path.join(wig_path_tts, file)
+            elif (method == "RIBO") and ("fwd" in file or "forward" in file):
+                sample_dict[(condition, replicate)][4] = os.path.join(wig_path_ribo, file)
+            elif (method == "RIBO") and ("rev" in file or "reverse" in file):
+                sample_dict[(condition, replicate)][5] = os.path.join(wig_path_ribo, file)
 
     wig_list = []
     for key, val in sample_dict.items():
-        if (val[0] != "" and val[1] != "") or (val[2] != "" and val[3] != ""):
+        if (val[0] != "" and val[1] != "") or (val[2] != "" and val[3] != "") or (val[4] != "" and val[5] != ""):
             tis_offset, tts_offset = 15, 15
 
             if "TIS" in offset_dict:
@@ -165,7 +190,7 @@ def retrieve_wig_information(wig_path_tis, wig_path_tts, offset_dict):
 
     return wig_list
 
-def call_ORFBounder(config_df, tts_start_selection, min_peak_height, peak_height_calculation, max_ORF_length, split_gff, result_path):
+def call_ORFBounder(config_df, tts_start_selection, min_peak_height, peak_height_calculation, max_ORF_length, split_gff, result_path, contrasts):
     """
     Run the ORFBounder experiments specified in the config sheet.
     """
@@ -176,6 +201,7 @@ def call_ORFBounder(config_df, tts_start_selection, min_peak_height, peak_height
         genome = getattr(row, "Genome")
         mapping_tis = getattr(row, "Mapping_TIS")
         mapping_tts = getattr(row, "Mapping_TTS")
+        mapping_ribo = getattr(row, "Mapping_RIBO")
         normalization = getattr(row, "Normalization").split(",")
         offset_file = getattr(row, "Offsets")
         start_codons = getattr(row, "Start_codons")
@@ -213,12 +239,17 @@ def call_ORFBounder(config_df, tts_start_selection, min_peak_height, peak_height
             except TypeError:
                 wig_path_tts = ""
 
-            wig_list = retrieve_wig_information(wig_path_tis, wig_path_tts, offset_data)
+            try:
+                wig_path_ribo = os.path.join(mapping_ribo, norm)
+            except TypeError:
+                wig_path_ribo = ""
+
+            wig_list = retrieve_wig_information(wig_path_tis, wig_path_tts, wig_path_ribo, offset_data)
 
             res_path = os.path.join(result_path, experiment, norm)
-            for (tis_fwd_wig, tis_rev_wig, tts_fwd_wig, tts_rev_wig), conrep, tis_offset, tts_offset in wig_list:
+            for (tis_fwd_wig, tis_rev_wig, tts_fwd_wig, tts_rev_wig, ribo_fwd_wig, ribo_rev_wig), conrep, tis_offset, tts_offset in wig_list:
                 try:
-                    res_df, combined_res_df = ob.run_ORFBounder(tis_fwd_wig, tis_rev_wig, tts_fwd_wig, tts_rev_wig, bamfolder, \
+                    res_df, combined_res_df = ob.run_ORFBounder(tis_fwd_wig, tis_rev_wig, tts_fwd_wig, tts_rev_wig, ribo_fwd_wig, ribo_rev_wig, bamfolder, \
                                                             annotation, genome, start_codons, stop_codons, res_path, conrep, \
                                                             tis_offset, tts_offset, tts_start_selection, min_peak_height, \
                                                             split_gff, max_ORF_length, peak_height_calculation)
@@ -236,10 +267,11 @@ def call_ORFBounder(config_df, tts_start_selection, min_peak_height, peak_height
                     combined_meta_dict, combined_dynamic_dict = mg.extend_combined_dictionary(combined_res_df, combined_meta_dict, combined_dynamic_dict)
 
             if meta_dict:
-                mg.write_merged_table(meta_dict, dynamic_dict, os.path.join(res_path, "%s_final.xlsx" % experiment))
+                mg.write_merged_table(meta_dict, dynamic_dict, os.path.join(res_path, "%s_final.xlsx" % experiment), contrasts)
                 mg.write_merged_gff(meta_dict, os.path.join(res_path, "%s_final.xlsx" % experiment))
             if combined_meta_dict:
-                mg.write_merged_table(combined_meta_dict, combined_dynamic_dict, os.path.join(res_path, "%s_combined_final.xlsx" % experiment))
+                mg.write_merged_table(combined_meta_dict, combined_dynamic_dict, os.path.join(res_path, "%s_combined_final.xlsx" % experiment), contrasts)
+
 def main():
     # store commandline args
     parser = argparse.ArgumentParser(description="Wrapper for the ORFBounder.py, when running ORFBounder for multiple experiments.", formatter_class=argparse.RawTextHelpFormatter)
@@ -258,11 +290,12 @@ def main():
                                            , help="Minimum height value to be considered a peak. (max option)\n"\
                                                  +"Minimum height value to be added to the total peak value (sum option)")
     parser.add_argument("--max_ORF_length", action="store", dest="max_ORF_length", type=int, default=100, help="The max length to take into account when using the combination method for TIS+TTS.")
+    parser.add_argument("--log_fold_contrasts", nargs="+", default=[], help="List of contrasts for which log2fold change will be calculated. (e.g. TIS-A-1_RIBO-A-1")
     parser.add_argument("-r","--result_path", action="store", dest="result_path", required=True, help="Path of the result folder.")
     args = parser.parse_args()
 
     config_df = check_config_sheet(args.config_sheet)
-    call_ORFBounder(config_df, args.tts_start_selection, args.min_peak_height, args.peak_height_calculation, args.max_ORF_length, args.split_gff, args.result_path)
+    call_ORFBounder(config_df, args.tts_start_selection, args.min_peak_height, args.peak_height_calculation, args.max_ORF_length, args.split_gff, args.result_path, args.log_fold_contrasts)
 
 
 if __name__ == '__main__':

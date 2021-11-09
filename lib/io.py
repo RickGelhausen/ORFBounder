@@ -138,7 +138,7 @@ def write_codon_interval_gff(output_path, output_basename, codon_dict, offset, m
         offset = key[1]
         start, stop = mid.split("-")
 
-        if method == "TIS":
+        if method == "TIS" or method == "RIBO":
             if strand == "+":
                 cur_position = int(start) - offset + 2
             elif strand == "-":
