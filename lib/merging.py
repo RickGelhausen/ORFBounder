@@ -45,8 +45,8 @@ def extend_combined_dictionary(xlsx_df, meta_dict, dynamic_dict):
     for row in xlsx_df.itertuples(index=False, name=None):
         gene_type, unique_id = row[0], row[1]
         gene_name, codon_count = row[6], row[7]
-        start_codon, stop_codon, nt_upstream, nt_seq, aa_seq = row[14:19]
-        fiveprime, threeprime = row[21], row[22]
+        start_codon, stop_codon, nt_upstream, nt_seq, aa_seq = row[17:22]
+        fiveprime, threeprime = row[24], row[25]
 
         meta_dict[unique_id] = (gene_type, gene_name, codon_count, start_codon, stop_codon, nt_upstream, nt_seq, aa_seq, fiveprime, threeprime)
         if unique_id not in dynamic_dict:
@@ -161,25 +161,42 @@ def build_merged_dataframe(meta_dict, dynamic_dict, contrasts):
         result_rows.append(nTuple(*result))
 
     result_df = pd.DataFrame.from_records(result_rows, columns=header)
+    tis_columns = [x for x in result_df.columns if ("TIS" in x) and ("_peak_height_max") in x]
+    result_df = result_df[result_df[tis_columns].any(axis="columns")]
+    contrast_header = []
     if contrasts != []:
         contrasts = [contrast.split("_") for contrast in contrasts]
 
         for contrast in contrasts:
             con1, con2 = contrast
             result_df["%s_%s_log2FC" % (con1, con2) ] = result_df.apply(lambda row: calculate_fold_changes(row, con1, con2), axis=1)
+            contrast_header.append("%s_%s_log2FC" % (con1, con2))
+            result_df["%s_%s_log2FC_max" % (con1, con2) ] = result_df.apply(lambda row: get_max(row, "%s_%s_log2FC" % (con1, con2)), axis=1)
+            contrast_header.append("%s_%s_log2FC_max" % (con1, con2))
+
 
         new_header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count"] \
                    + [card + "_peak_height" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
                    + [card + "_peak_height_max" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
-                   + ["%s_%s_log2FC" % (con1, con2) for con1, con2 in contrasts] \
+                   + contrast_header \
                    + [card + "_offsets" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
                    + ["Start_codon", "Stop_codon", "15nt_window", "Nucleotide_Seq", "Amino_Acid_Seq", "5'-distance", "3'-distance"] \
                    + [card + "_relative_density" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
                    + [card + "_rpkm" for card in wildcards] \
                    + [card + "_TE" for card in expr.get_te_header(wildcards)]
 
-    result_df = result_df[new_header]
+        result_df = result_df[new_header]
+
     return result_df, wildcards
+
+def get_max(row, column):
+    """
+    Get the maximum value from a given column seperated by |
+    """
+
+    entries = [float(x) for x in str(row[column]).split("|")]
+    return max(entries)
+
 
 def calculate_fold_changes(row, con1, con2):
     """
@@ -188,15 +205,30 @@ def calculate_fold_changes(row, con1, con2):
 
     fold_change = np.nan
 
-    con1_height = row[con1 + "_peak_height_max"]
-    con2_height = row[con2 + "_peak_height_max"]
+    con1_heights = str(row[con1 + "_peak_height"]).split("|")
+    con2_heights = str(row[con2 + "_peak_height"]).split("|")
 
-    if type(con1_height) not in [int, float] or con1_height in [0, np.nan]:
-        return fold_change
-    if type(con2_height) not in [int, float] or con1_height in [np.nan]:
+    con1_offsets = str(row[con1 + "_offsets"]).split("|")
+    con2_offsets = str(row[con2 + "_offsets"]).split("|")
+
+    if con1_heights == [] or con2_heights == []:
         return fold_change
 
-    return np.log2(con2_height / con1_height)
+    con2_dict = {}
+    for i in range(len(con2_offsets)):
+        con2_dict[con2_offsets[i]] = float(con2_heights[i])
+
+    res_logfcs = []
+    for i in range(len(con1_offsets)):
+        if con1_offsets[i] in con2_dict:
+            res_logfcs.append(np.log2(con2_dict[con1_offsets[i]] / float(con1_heights[i])))
+
+    if res_logfcs == []:
+        return fold_change
+    else:
+        fold_change = "|".join(["%.4f" % x for x in res_logfcs])
+
+    return fold_change
 
 
 

@@ -213,12 +213,12 @@ def call_ORFBounder(config_df, tts_start_selection, min_peak_height, peak_height
         else:
             max_ORF_length = int(max_ORF_length)
 
-        if start_codons == "" or math.isnan(start_codons):
+        if start_codons == "" or type(start_codons) != str:
             start_codons = ["ATG", "GTG", "TTG"]
         else:
             start_codons = [codon.strip(" ") for codon in start_codons.split(",")]
 
-        if stop_codons == "" or math.isnan(stop_codons):
+        if stop_codons == "" or type(stop_codons) != str:
             stop_codons = ["TAG", "TAA", "TGA"]
         else:
             stop_codons = [codon.strip(" ") for codon in stop_codons.split(",")]

@@ -447,12 +447,12 @@ def generate_result_dataframe(detected_ORFs_dict, gene_dict_tis, gene_dict_tts, 
                 fiveprime_dist, threeprime_dist = calculate_utr_distance(start, stop, gene_name, gene_dict_tis, method)
                 relative_density_start = calculate_relative_density(rpm_start_list, gene_name, gene_type, gene_dict_tis)
                 relative_density_stop = calculate_relative_density(rpm_stop_list, gene_name, gene_type, gene_dict_tts)
-                relative_density_ribo = calculate_relative_density(rpm_stop_list, gene_name, gene_type, gene_dict_ribo)
+                relative_density_ribo = calculate_relative_density(rpm_ribo_list, gene_name, gene_type, gene_dict_ribo)
             else:
                 fiveprime_dist, threeprime_dist = calculate_utr_distance(start, stop, gene_name, gene_dict_tts, method)
                 relative_density_start = calculate_relative_density(rpm_start_list, gene_name, gene_type, gene_dict_tis)
                 relative_density_stop = calculate_relative_density(rpm_stop_list, gene_name, gene_type, gene_dict_tts)
-                relative_density_ribo = calculate_relative_density(rpm_stop_list, gene_name, gene_type, gene_dict_ribo)
+                relative_density_ribo = calculate_relative_density(rpm_ribo_list, gene_name, gene_type, gene_dict_ribo)
 
 
             rpm_start, rpm_start_max, offsets_start = prepare_output_lists(rpm_start_list, offset_start_list)
