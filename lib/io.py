@@ -3,6 +3,7 @@
 import os
 import re
 import csv
+import json
 import collections
 import pandas as pd
 import numpy as np
@@ -13,7 +14,6 @@ from Bio.Seq import Seq
 from Bio import SeqIO
 
 
-import lib.misc as misc
 import lib.messaging as msg
 
 def generate_genome_dict(genome_file):
@@ -27,103 +27,131 @@ def generate_genome_dict(genome_file):
 
     return genome_dict
 
-def handle_input(fwd_wig_file_tis, rev_wig_file_TIS, fwd_wig_file_tts, rev_wig_file_TTS):
+def parse_read_lengths(read_lengths):
     """
-    Check if input is valid.
+    Parse the read length input into a continuous list form.
     """
 
-    if fwd_wig_file_tis != "" and rev_wig_file_TIS != "" and fwd_wig_file_tts != "" and rev_wig_file_TTS != "":
+    if read_lengths == "":
+        msg.warning("Warning: Empty read-lengths parameter given, using all available read lengths.")
+        return -1
+
+    parts = read_lengths.split(",")
+    read_lengths = set()
+    for part in parts:
+        if "-" in part:
+            interval = part.split("-")
+            if interval[0] < interval[1]:
+                i1, i2 = interval[0], interval[1]
+            else:
+                i1, i2 = interval[1], interval[0]
+
+            for i in range(i1,i2+1):
+                read_lengths.add(i)
+        else:
+            read_lengths.add(part)
+
+    return [str(i) for i in sorted(list(read_lengths))]
+
+def parse_alignment_input(alignment_file_tis, alignment_file_tts):
+    """
+    Check whether the input alignment files are valid and determine the execution method for ORFBounder
+    """
+
+
+    if alignment_file_tis != "" and alignment_file_tts != "":
+        if not os.path.isfile(alignment_file_tis):
+            msg.error("Error: Non-empty alignment file path given for TIS does not exist: %s " % alignment_file_tis)
+        if not os.path.isfile(alignment_file_tts):
+            msg.error("Error: Non-empty alignment file path given for TTS does not exist: %s " % alignment_file_tts)
+
         return "combined_methods"
 
-    if fwd_wig_file_tis != "" and rev_wig_file_TIS != "":
+    if alignment_file_tis != "":
+        if not os.path.isfile(alignment_file_tis):
+            msg.error("Error: Non-empty alignment file path given for TIS does not exist: %s " % alignment_file_tis)
         return "TIS"
 
-    if fwd_wig_file_tts != "" and rev_wig_file_TTS != "":
+    if alignment_file_tts != "":
+        if not os.path.isfile(alignment_file_tts):
+            msg.error("Error: Non-empty alignment file path given for TTS does not exist: %s " % alignment_file_tts)
         return "TTS"
 
-    msg.error("Error: Please ensure to either provide 2 TIS files, 2 TTS files OR both!")
+    msg.error("Error: Please ensure to either provide a TIS file, a TTS file or both!")
 
 
-def check_bamfile_input(bam_file_path, fwd_wig_file_tis, fwd_wig_file_tts):
+def check_alignment_path_input(alignment_file_path, alignment_file_tis, alignment_file_tts):
     """
-    Check bam input path.
+    Check alignment input path.
     Ensure that there is:
-     - one bam file corresponding to each input method (TIS, TTS)
+     - one sam/bam file corresponding to each input method (TIS, TTS)
      - (optional) one RNA bam file corresponding to each input method (TIS, TTS)
     """
 
-    if bam_file_path == "" or not isinstance(bam_file_path, str):
+    if alignment_file_path == "" or not isinstance(alignment_file_path, str):
         return -1
 
     valid_bam = set()
 
-    _, _, bam_file_list = next(os.walk(bam_file_path))
-    bam_file_list = [ file for file in bam_file_list if file.endswith(".bam")]
+    _, _, alignment_file_list = next(os.walk(alignment_file_path))
+    alignment_file_list = [ file for file in alignment_file_list if file.endswith(".bam") or file.endswith(".sam")]
 
     condition, replicate = "", ""
-    if fwd_wig_file_tis != "":
-        tis_prefix = os.path.basename(fwd_wig_file_tis).split(".")[0]
+    if alignment_file_tis != "":
+        tis_prefix = os.path.basename(alignment_file_tis).split(".")[0]
         condition, replicate = tis_prefix.split("-")[1:]
         rnatis_prefix = "RNATIS-%s-%s" % (condition, replicate)
-        for file in bam_file_list:
+        for file in alignment_file_list:
             if tis_prefix in file or rnatis_prefix in file:
-                valid_bam.add(os.path.join(bam_file_path, file))
+                valid_bam.add(os.path.join(alignment_file_path, file))
 
-    if fwd_wig_file_tts != "":
-        tts_prefix = os.path.basename(fwd_wig_file_tts).split(".")[0]
+    if alignment_file_tts != "":
+        tts_prefix = os.path.basename(alignment_file_tts).split(".")[0]
         condition, replicate = tts_prefix.split("-")[1:]
         rnatts_prefix = "RNATTS-%s-%s" % (condition, replicate)
-        for file in bam_file_list:
+        for file in alignment_file_list:
             if tts_prefix in file or rnatts_prefix in file:
-                valid_bam.add(os.path.join(bam_file_path, file))
+                valid_bam.add(os.path.join(alignment_file_path, file))
 
     if condition != "" and replicate != "":
-        for file in bam_file_list:
+        for file in alignment_file_list:
             if "RIBO-%s-%s" % (condition, replicate) in file or "RNA-%s-%s" % (condition, replicate) in file:
-                valid_bam.add(os.path.join(bam_file_path, file))
+                valid_bam.add(os.path.join(alignment_file_path, file))
 
     if len(valid_bam) == 0:
         return -1
 
     return valid_bam
 
-def load_wig(wig_path):
+def parse_offset_json(offset_json):
     """
-    load wig file into a dictionary
+    Read offset JSON file into a dictionary
     """
-    with open(wig_path, 'r') as wig_file:
-        chromosome = ""
-        wig_data_dict = {}
-        for line in wig_file.readlines():
-            line = line.rstrip()
 
-            if line[0].isdigit() and line[0] != "0":
-                if chromosome not in wig_data_dict.keys():
-                    msg.error("Error: Incomplete header in wig file! Missing chrom= field!")
+    if os.path.isfile(offset_json):
+        with open(offset_json, 'r') as json_file:
+            offset_dict = json.load(json_file)
+        #except:
+        #    msg.error("Error: Provided Offset JSON file is not in correct JSON format!")
+    else:
+        msg.error("Error: Offset JSON file does not exist! %s" % offset_json)
 
-                wig_data_dict[chromosome].append(line)
-
-            elif "chrom=" in line:
-                tmp = re.split('[ =]', line)
-                chromosome = tmp[tmp.index("chrom")+1]
-                if chromosome not in wig_data_dict:
-                    wig_data_dict[chromosome] = []
-
-    return wig_data_dict
+    return offset_dict
 
 def write_gff_file(dataframe_out, output_path, output_filename):
     """
     write a dataframe to a gff file
     """
-    filename = os.path.join(output_path, output_filename)
-    Path(os.path.dirname(filename)).mkdir(parents=True, exist_ok=True)
+    file_name = os.path.join(output_path, output_filename)
+    Path(os.path.dirname(file_name)).mkdir(parents=True, exist_ok=True)
 
-    with open(filename, "w") as f:
+    msg.message("Writing: %s" % file_name)
+    with open(file_name, "w") as f:
         f.write("##gff-version 3\n")
-    with open(filename, "a") as f:
+    with open(file_name, "a") as f:
         dataframe_out.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
 
-def write_codon_interval_gff(output_path, output_basename, codon_dict, offset, method):
+def write_codon_interval_gff(output_path, output_basename, codon_dict):
     """
     Create a gff3 file with all codon intervals.
     """
@@ -134,65 +162,51 @@ def write_codon_interval_gff(output_path, output_basename, codon_dict, offset, m
     for key, val in codon_dict.items():
         if val[1] <= 0:
             continue
-        chrom, mid, strand = key[0].split(":")
-        offset = key[1]
-        start, stop = mid.split("-")
-
-        if method == "TIS" or method == "RIBO":
-            if strand == "+":
-                cur_position = int(start) - offset + 2
-            elif strand == "-":
-                cur_position = int(start) + offset + 2
-
-            attribute = "ID=%s;Peak_height=%s;Name=%s;Start_codon=%s;Original_position=%s;Offset=%s" % (key, val[1], val[0], val[0], cur_position, offset)
-        else:# change here if interval changes
-            if strand == "+":
-                cur_position = int(start) - offset + 2
-            elif strand == "-":
-                cur_position = int(start) + offset + 2
-
-            attribute = "ID=%s;Peak_height=%s;Name=%s;Stop_codon=%s;Original_position=%s;Offset=%s" % (key, val[1], val[0], val[0], cur_position, offset)
-
-        rows.append(nTuple_gff(chrom, "ORFBounder", "codon_interval", int(start)+1, int(stop)+1, ".", strand, ".", attribute))
-
-    df = pd.DataFrame.from_records(rows, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-
-    write_gff_file(df, output_path, output_basename)
-
-def write_area_interval_gff(output_path, output_basename, area_dict, offset, method):
-    """
-    Create a gff3 file with all codon intervals.
-    """
-
-    nTuple_gff = collections.namedtuple('Pandas', ["chromosome","source","type","start","stop","score","strand","phase","attribute"])
-
-    rows = []
-    for key, val in area_dict.items():
-        if val[1] <= 0:
-            continue
         chrom, mid, strand = key.split(":")
         start, stop = mid.split("-")
 
-        if method == "TIS":
-            if strand == "+":
-                cur_position = int(start) - offset + 24
-            elif strand == "-":
-                cur_position = int(start) + offset + 24
-
-            attribute = "ID=%s;Area_coverage=%s;Name=%s;Start_codon=%s;Original_position=%s" % ("%s:%s-%s:%s" % (chrom,int(start)+1, int(stop)+1, strand), val[1], val[0], val[0], cur_position)
-        else:# change here if interval changes
-            if strand == "+":
-                cur_position = int(start) - offset + 24
-            elif strand == "-":
-                cur_position = int(start) + offset + 24
-
-            attribute = "ID=%s;Area_coverage=%s;Name=%s;Stop_codon=%s;Original_position=%s" % ("%s:%s-%s:%s" % (chrom, int(start)+1, int(stop)+1, strand), val[1], val[0], val[0], cur_position)
+        attribute = "ID=%s;Peak_height=%s;Name=%s;Start_codon=%s" % (key, val[1], val[0], val[0])
 
         rows.append(nTuple_gff(chrom, "ORFBounder", "codon_interval", int(start)+1, int(stop)+1, ".", strand, ".", attribute))
 
     df = pd.DataFrame.from_records(rows, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
 
     write_gff_file(df, output_path, output_basename)
+
+# def write_area_interval_gff(output_path, output_basename, area_dict, offset, method):
+#     """
+#     Create a gff3 file with all codon intervals.
+#     """
+
+#     nTuple_gff = collections.namedtuple('Pandas', ["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+
+#     rows = []
+#     for key, val in area_dict.items():
+#         if val[1] <= 0:
+#             continue
+#         chrom, mid, strand = key.split(":")
+#         start, stop = mid.split("-")
+
+#         if method == "TIS":
+#             if strand == "+":
+#                 cur_position = int(start) - offset + 24
+#             elif strand == "-":
+#                 cur_position = int(start) + offset + 24
+
+#             attribute = "ID=%s;Area_coverage=%s;Name=%s;Start_codon=%s;Original_position=%s" % ("%s:%s-%s:%s" % (chrom,int(start)+1, int(stop)+1, strand), val[1], val[0], val[0], cur_position)
+#         else:# change here if interval changes
+#             if strand == "+":
+#                 cur_position = int(start) - offset + 24
+#             elif strand == "-":
+#                 cur_position = int(start) + offset + 24
+
+#             attribute = "ID=%s;Area_coverage=%s;Name=%s;Stop_codon=%s;Original_position=%s" % ("%s:%s-%s:%s" % (chrom, int(start)+1, int(stop)+1, strand), val[1], val[0], val[0], cur_position)
+
+#         rows.append(nTuple_gff(chrom, "ORFBounder", "codon_interval", int(start)+1, int(stop)+1, ".", strand, ".", attribute))
+
+#     df = pd.DataFrame.from_records(rows, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+
+#     write_gff_file(df, output_path, output_basename)
 
 def excel_writer(out_file_name, data_frames):
     """

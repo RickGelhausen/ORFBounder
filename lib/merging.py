@@ -31,10 +31,6 @@ def extend_combined_dictionary(xlsx_df, meta_dict, dynamic_dict):
     for i, val in enumerate(xlsx_df.columns):
         if val.endswith("_peak_height"):
             peak_height_map[val[:-12]] = i
-        elif val.endswith("_peak_height_max"):
-            peak_height_max_map[val[:-16]] = i
-        elif val.endswith("_offsets"):
-            offsets_map[val[:-8]] = i
         elif val.endswith("_relative_density"):
             relative_density_map[val[:-17]] = i
         elif val.endswith("_rpkm"):
@@ -45,8 +41,8 @@ def extend_combined_dictionary(xlsx_df, meta_dict, dynamic_dict):
     for row in xlsx_df.itertuples(index=False, name=None):
         gene_type, unique_id = row[0], row[1]
         gene_name, codon_count = row[6], row[7]
-        start_codon, stop_codon, nt_upstream, nt_seq, aa_seq = row[17:22]
-        fiveprime, threeprime = row[24], row[25]
+        start_codon, stop_codon, nt_upstream, nt_seq, aa_seq = row[11:16]
+        fiveprime, threeprime = row[19], row[20]
 
         meta_dict[unique_id] = (gene_type, gene_name, codon_count, start_codon, stop_codon, nt_upstream, nt_seq, aa_seq, fiveprime, threeprime)
         if unique_id not in dynamic_dict:
@@ -58,33 +54,21 @@ def extend_combined_dictionary(xlsx_df, meta_dict, dynamic_dict):
             else:
                 dynamic_dict[unique_id][key] = [row[val], np.nan, np.nan, np.nan, np.nan, np.nan]
 
-        for key, val in peak_height_max_map.items():
-            if key in dynamic_dict[unique_id]:
-                dynamic_dict[unique_id][key][1] = float(row[val])
-            else:
-                dynamic_dict[unique_id][key] = [np.nan, float(row[val]), np.nan, np.nan, np.nan, np.nan]
-
-        for key, val in offsets_map.items():
-            if key in dynamic_dict[unique_id]:
-                dynamic_dict[unique_id][key][2] = row[val]
-            else:
-                dynamic_dict[unique_id][key] = [np.nan, np.nan, row[val], np.nan, np.nan, np.nan]
-
         for key, val in relative_density_map.items():
             if key in dynamic_dict[unique_id]:
-                dynamic_dict[unique_id][key][3] = row[val]
+                dynamic_dict[unique_id][key][1] = row[val]
             else:
                 dynamic_dict[unique_id][key] = [np.nan, np.nan, np.nan, row[val], np.nan, np.nan]
 
         for key, val in rpkm_map.items():
             if key in dynamic_dict[unique_id]:
-                dynamic_dict[unique_id][key][4] = float(row[val])
+                dynamic_dict[unique_id][key][2] = float(row[val])
             else:
                 dynamic_dict[unique_id][key] = [np.nan, np.nan, np.nan, np.nan, float(row[val]), np.nan]
 
         for key, val in te_map.items():
             if key in dynamic_dict[unique_id]:
-                dynamic_dict[unique_id][key][5] = float(row[val])
+                dynamic_dict[unique_id][key][3] = float(row[val])
             else:
                 dynamic_dict[unique_id][key] = [np.nan, np.nan, np.nan,  np.nan, np.nan, float(row[val])]
 
@@ -100,11 +84,9 @@ def build_merged_dataframe(meta_dict, dynamic_dict, contrasts):
 
     wildcards = sorted(list(wildcards))
     header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count"] \
-           + [card + "_peak_height" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
-           + [card + "_peak_height_max" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
-           + [card + "_offsets" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
+           + [card + "_peak_height" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card.split("-")[0]] \
            + ["Start_codon", "Stop_codon", "15nt_window", "Nucleotide_Seq", "Amino_Acid_Seq", "5'-distance", "3'-distance"] \
-           + [card + "_relative_density" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
+           + [card + "_relative_density" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card.split("-")[0]] \
            + [card + "_rpkm" for card in wildcards] \
            + [card + "_TE" for card in expr.get_te_header(wildcards)]
     name_list = ["s%s" % str(x) for x in range(len(header))]
@@ -119,69 +101,52 @@ def build_merged_dataframe(meta_dict, dynamic_dict, contrasts):
         wild_dict = dynamic_dict[unique_id]
         result.extend([val[0], unique_id, chrom, int(start), int(stop), strand, val[1], val[2]])
         for card in wildcards:
-            if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card:
+            if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card.split("-")[0]:
                 if card in wild_dict:
                     result.append(wild_dict[card][0])
                 else:
                     result.append(np.nan)
 
+        result.extend(val[3:])
         for card in wildcards:
-            if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card:
+            if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card.split("-")[0]:
                 if card in wild_dict:
                     result.append(wild_dict[card][1])
                 else:
                     result.append(np.nan)
 
         for card in wildcards:
-            if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card:
-                if card in wild_dict:
-                    result.append(wild_dict[card][2])
-                else:
-                    result.append(np.nan)
-
-        result.extend(val[3:])
-        for card in wildcards:
-            if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card:
-                if card in wild_dict:
-                    result.append(wild_dict[card][3])
-                else:
-                    result.append(np.nan)
-
-        for card in wildcards:
             if card in wild_dict:
-                result.append(wild_dict[card][4])
+                result.append(wild_dict[card][2])
             else:
                 result.append(np.nan)
 
         for card in expr.get_te_header(wildcards):
             if card in wild_dict:
-                result.append(wild_dict[card][5])
+                result.append(wild_dict[card][3])
             else:
                 result.append(np.nan)
         result_rows.append(nTuple(*result))
 
     result_df = pd.DataFrame.from_records(result_rows, columns=header)
-    tis_columns = [x for x in result_df.columns if ("TIS" in x) and ("_peak_height_max") in x]
-    result_df = result_df[result_df[tis_columns].any(axis="columns")]
+
     contrast_header = []
     if contrasts != []:
         contrasts = [contrast.split("_") for contrast in contrasts]
+        tis_columns = [x for x in result_df.columns if ("TIS" in x.split("_")[0] and not "RNA" in x.split("_")[0]) ]
+        result_df = result_df[result_df[tis_columns].any(axis="columns")]
 
         for contrast in contrasts:
             con1, con2 = contrast
             result_df["%s_%s_log2FC" % (con1, con2) ] = result_df.apply(lambda row: calculate_fold_changes(row, con1, con2), axis=1)
             contrast_header.append("%s_%s_log2FC" % (con1, con2))
-            result_df["%s_%s_log2FC_max" % (con1, con2) ] = result_df.apply(lambda row: get_max(row, "%s_%s_log2FC" % (con1, con2)), axis=1)
-            contrast_header.append("%s_%s_log2FC_max" % (con1, con2))
 
 
         new_header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count"] \
-                   + [card + "_peak_height" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
-                   + [card + "_peak_height_max" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
+                   + [card + "_peak_height" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card.split("-")[0]] \
                    + contrast_header \
-                   + [card + "_offsets" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
                    + ["Start_codon", "Stop_codon", "15nt_window", "Nucleotide_Seq", "Amino_Acid_Seq", "5'-distance", "3'-distance"] \
-                   + [card + "_relative_density" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card] \
+                   + [card + "_relative_density" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card.split("-")[0]] \
                    + [card + "_rpkm" for card in wildcards] \
                    + [card + "_TE" for card in expr.get_te_header(wildcards)]
 

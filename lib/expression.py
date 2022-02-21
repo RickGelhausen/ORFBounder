@@ -8,6 +8,8 @@ from interlap import InterLap
 from collections import Counter, OrderedDict
 import lib.messaging as msg
 
+from lib.alignment_reader import IntervalReader
+
 class OrderedCounter(Counter, OrderedDict):
     pass
 
@@ -30,9 +32,11 @@ def get_te_header(wildcards):
     te_header = []
     te_header_dict = OrderedDict()
     for card in wildcards:
-        if "-" not in card or "rna" in card.lower():
+        if "-" not in card:
             continue
         method, condition, replicate = card.split("-")
+        if "rna" in method.lower():
+            continue
         header_to_dictionary(method, condition, replicate, wildcards, te_header_dict)
 
     for key, val in te_header_dict.items():
@@ -212,16 +216,17 @@ def count_reads(chrom, start, stop, strand, read_interlap_dict):
     """
     return len(list(read_interlap_dict[(chrom, strand)].find((start, stop))))
 
-def retrieve_read_counts(read_count_dict, bam_files):
+def retrieve_read_counts(read_count_dict, bam_files, read_lengths, all_reads_rpkm):
     """
     run over all available bam files and add read_counts for each interval in the interval dict.
     """
 
-    total_mapped_list = []
-    for idx in range(len(bam_files)):
-        interlap_dict, total_mapped = create_interlap_dict(bam_files[idx])
-        total_mapped_list.append(total_mapped)
+    accepted_read_list = []
+    for bam_file in bam_files:
+        interlap_dict, accepted_read_dict = IntervalReader(bam_file, read_lengths, all_reads_rpkm).output()
+
+        accepted_read_list.append(accepted_read_dict)
         for (chrom, start, stop, strand) in read_count_dict.keys():
             read_count_dict[(chrom,start,stop,strand)].append(count_reads(chrom, start, stop, strand, interlap_dict))
 
-    return read_count_dict, total_mapped_list
+    return read_count_dict, accepted_read_list

@@ -17,6 +17,33 @@ def error(text):
     print(f"{mcolors.RED}{mcolors.BOLD}%s{mcolors.ENDC}" % text)
     sys.exit()
 
+def error_list(prefix_text, suffix_text, input_description, expected_list, input_list):
+    """
+    Write an error message in bold red,
+    """
+    missing_entries = list(set(expected_list) - set(input_list))
+    description_length = len(input_description)
+
+    item_list = []
+    for item in expected_list:
+        if len(item_list) == 0:
+            if item in missing_entries:
+                item_list.append(" "+f"{mcolors.RED}{mcolors.BOLD}%s{mcolors.ENDC}\n" % item)
+            else:
+                item_list.append(" "+f"{mcolors.GREEN}{mcolors.BOLD}%s{mcolors.ENDC}\n" % item)
+        else:
+            if item in missing_entries:
+                item_list.append(" "*(description_length+1)+ f"{mcolors.RED}{mcolors.BOLD}%s{mcolors.ENDC}\n" % item)
+            else:
+                item_list.append(" "*(description_length+1)+ f"{mcolors.GREEN}{mcolors.BOLD}%s{mcolors.ENDC}\n" % item)
+
+    print(f"{mcolors.RED}{mcolors.BOLD}%s{mcolors.ENDC}" % prefix_text\
+         +f"{mcolors.RED}{mcolors.BOLD}%s{mcolors.ENDC}" % input_description\
+         +"".join(item_list)\
+         +f"{mcolors.RED}{mcolors.BOLD}%s{mcolors.ENDC}" % suffix_text)
+
+    sys.exit()
+
 def success(text):
     """
     Write a message in green

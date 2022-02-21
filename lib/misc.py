@@ -13,21 +13,6 @@ from interlap import InterLap
 import lib.expression as expr
 import lib.messaging as msg
 
-def calculate_density(wig_file_data, annotation_interlap, gene_dict):
-    """
-    calculate density for each annotated gene
-    """
-
-    for line in wig_file_data:
-        position, read_count = line.rstrip().split(" ")
-        position = int(position)-1
-        read_count = abs(float(read_count))
-
-        matching_genes = list(annotation_interlap.find((position, position)))
-        for gene in matching_genes:
-            gene_dict[gene[2]][4] += read_count
-
-    return gene_dict
 
 def generate_annotation_dict(annotation_path):
     """
@@ -117,108 +102,17 @@ def generate_annotation_dict(annotation_path):
 
     return annotation_dict
 
-def create_codon_interlaps(chrom, genome_seq, codons, offset):
-    """
-    create interlaps around each codon, incorporating the offset
-    """
-    reverse_codons = [str(Seq(codon).reverse_complement()) for codon in codons]
-
-    if "," in str(offset):
-        offset_list = [int(off) for off in offset.split(",")]
-    else:
-        offset_list = [offset]
-
-    fwd_interlap_dict = {}
-    for offset in offset_list:
-        fwd_codon_interlap = InterLap()
-        fwd_interlap_dict[offset] = fwd_codon_interlap
-
-    rev_interlap_dict = {}
-    for offset in offset_list:
-        rev_codon_interlap = InterLap()
-        rev_interlap_dict[offset] = rev_codon_interlap
-
-    codon_dict = {}
-    for pos in range(len(genome_seq)-2):
-        codon = genome_seq[pos:pos+3]
-        if codon in codons:
-            for offset in offset_list:
-                interval_start = pos + offset - 2
-                interval_stop = pos + offset + 2
-                if interval_start < 0 or interval_stop > len(genome_seq)-2:
-                    continue
-                key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "+")
-                fwd_interlap_dict[offset].add((interval_start, interval_stop, key))
-                codon_dict[(key, offset)] = [codon, 0]
-        elif codon in reverse_codons:
-            for offset in offset_list:
-                interval_start = pos - offset
-                interval_stop = pos - offset + 4
-                if interval_start < 0 or interval_stop > len(genome_seq)-2:
-                    continue
-                key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "-")
-                rev_interlap_dict[offset].add((interval_start, interval_stop, key))
-                codon_dict[(key,offset)] = [str(Seq(codon).reverse_complement()), 0]
-
-    return fwd_interlap_dict, rev_interlap_dict, codon_dict
-
-def create_area_interlaps(chrom, genome_seq, codons, offset):
-    """
-    create interlaps around each codon, incorporating the offset
-    """
-    reverse_codons = [str(Seq(codon).reverse_complement()) for codon in codons]
-
-    if "," in str(offset):
-        offset_list = [int(off) for off in offset.split(",")]
-    else:
-        offset_list = [offset]
-
-    fwd_interlap_dict = {}
-    for offset in offset_list:
-        fwd_codon_interlap = InterLap()
-        fwd_interlap_dict[offset] = fwd_codon_interlap
-
-    rev_interlap_dict = {}
-    for offset in offset_list:
-        rev_codon_interlap = InterLap()
-        rev_interlap_dict[offset] = rev_codon_interlap
-
-    codon_dict = {}
-    for pos in range(len(genome_seq)-2):
-        codon = genome_seq[pos:pos+3]
-        if codon in codons:
-            for offset in offset_list:
-                interval_start = pos + offset - 24
-                interval_stop = pos + offset + 24
-                if interval_start < 0 or interval_stop > len(genome_seq)-2:
-                    continue
-                key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "+")
-                fwd_interlap_dict[offset].add((interval_start, interval_stop, key))
-                codon_dict[(key,offset)] = [codon, 0]
-        elif codon in reverse_codons:
-            for offset in offset_list:
-                interval_start = pos - offset - 22
-                interval_stop = pos - offset + 26
-                if interval_start < 0 or interval_stop > len(genome_seq)-2:
-                    continue
-                key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "-")
-                rev_interlap_dict[offset].add((interval_start, interval_stop, key))
-                codon_dict[(key,offset)] = [str(Seq(codon).reverse_complement()), 0]
-
-    return fwd_interlap_dict, rev_interlap_dict, codon_dict
-
 def annotation_interlap(annotation_file):
     """
     create an interlap object for the annotation
     """
     annotation_dict = generate_annotation_dict(annotation_file)
 
-    annotation_fwd_interlap = InterLap()
-    annotation_rev_interlap = InterLap()
-    gene_dict = {}
+    annotation_interlap_dict = {}
+    gene_density_dict = {}
 
     for key, val in annotation_dict.items():
-        genome, mid, strand = key.split(":")
+        chromosome, mid, strand = key.split(":")
         start, stop = mid.split("-")
         start, stop = int(start), int(stop)
 
@@ -227,16 +121,71 @@ def annotation_interlap(annotation_file):
         else:
             locus_tag = val[4]
 
-        if strand == "+":
-            annotation_fwd_interlap.add((start, stop, locus_tag))
+        if (chromosome, strand) in annotation_interlap_dict:
+            annotation_interlap_dict[(chromosome, strand)].add((start, stop, locus_tag))
         else:
-            annotation_rev_interlap.add((start, stop, locus_tag))
+            inter = InterLap()
+            inter.add((start, stop, locus_tag))
+            annotation_interlap_dict[(chromosome, strand)] = inter
 
-        if locus_tag not in gene_dict:
-            gene_dict[locus_tag] = [genome, start, stop, strand, 0]
+        if locus_tag not in gene_density_dict:
+            gene_density_dict[locus_tag] = [chromosome, start, stop, strand, 0]
 
-    return annotation_fwd_interlap, annotation_rev_interlap, gene_dict
+    return annotation_interlap_dict, gene_density_dict
 
+def calculate_density(alignment_position_dict, annotation_interlap_dict, gene_density_dict):
+    """
+    calculate density for each annotated gene
+    """
+
+    for (chrom, strand) in alignment_position_dict:
+        for position, read_count in alignment_position_dict[(chrom, strand)].items():
+            matching_genes = list(annotation_interlap_dict[(chrom, strand)].find((position, position)))
+            for gene in matching_genes:
+                gene_density_dict[gene[2]][4] += read_count
+
+    return gene_density_dict
+
+def create_codon_interlaps(chrom, genome_seq, codons):
+    """
+    create interlaps around each codon
+    """
+    reverse_codons = [str(Seq(codon).reverse_complement()) for codon in codons]
+
+    interlap_dict = {}
+    codon_dict = {}
+    for pos in range(len(genome_seq)-2):
+        codon = genome_seq[pos:pos+3]
+        if codon in codons:
+            interval_start = pos - 2
+            interval_stop = pos + 2
+            if interval_start < 0 or interval_stop > len(genome_seq)-2:
+                continue
+            key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "+")
+            if (chrom, "+") in interlap_dict:
+                interlap_dict[(chrom, "+")].add((interval_start, interval_stop, key))
+            else:
+                inter = InterLap()
+                inter.add((interval_start, interval_stop, key))
+                interlap_dict[(chrom, "+")] = inter
+
+            codon_dict[key] = [codon, 0]
+        elif codon in reverse_codons:
+            interval_start = pos
+            interval_stop = pos + 4
+            if interval_start < 0 or interval_stop > len(genome_seq)-2:
+                continue
+            key = "%s:%s-%s:%s" % (chrom, interval_start, interval_stop, "-")
+            if (chrom, "-") in interlap_dict:
+                interlap_dict[(chrom, "-")].add((interval_start, interval_stop, key))
+            else:
+                inter = InterLap()
+                inter.add((interval_start, interval_stop, key))
+                interlap_dict[(chrom, "-")] = inter
+
+            codon_dict[key] = [str(Seq(codon).reverse_complement()), 0]
+
+    return interlap_dict, codon_dict
 
 def get_frame(position):
     """
@@ -339,59 +288,27 @@ def calculate_utr_distance(start_position, stop_position, gene_name, gene_dict, 
 
     return fiveprime_dist, threeprime_dist
 
-def calculate_relative_density(rpm_list, gene_name, gene_type, gene_dict):
+def calculate_relative_density(rpm, gene_name, gene_type, gene_dict):
     """
     calculate the relative density
     """
 
-    if gene_dict == {} or gene_type == "N-terminal_extension" or gene_name not in gene_dict or rpm_list == []:
+    if gene_dict == {} or gene_type == "N-terminal_extension" or gene_name not in gene_dict:
         return np.nan
 
     else:
-        density_list = []
-        for rpm in rpm_list:
-            gene_rpm = gene_dict[gene_name][4]
-            if gene_rpm != 0:
-                density_list.append(rpm / gene_rpm)
-            else:
-                density_list.append(0.0)
+        density = 0.0
 
-        return "|".join(["%.2f" % d for d in density_list ])
+        gene_rpm = gene_dict[gene_name][4]
+        if gene_rpm != 0:
+            density = rpm / gene_rpm
+        else:
+            density = 0.0
 
+        return density
 
-# def create_output_dict(detected_ORFs_dict):
-#     """
-#     combine the results of all offsets
-#     """
-
-#     result_dict = {}
-#     for offset in detected_ORFs_dict.keys():
-#         for (chrom, strand) in detected_ORFs_dict[offset].keys():
-#             for (start, stop), (rpk_tis, rpk_tts) in detected_ORFs_dict[offset][(chrom, strand)].items():
-#                 if (chrom, start, stop, strand) in result_dict:
-
-#                     result_dict[(chrom, start, stop, strand)] = ()
-#                 else:
-#                     result_dict[(chrom, start, stop, strand)] = (rpk_tis)
-
-def prepare_output_lists(rpm_list, offset_list):
-    """
-    Prepare output rpm and offset list for output
-    """
-
-    if rpm_list == []:
-        rpm = np.nan
-        rpm_max = np.nan
-        offsets = np.nan
-    else:
-        rpm = "|".join(["%.2f" %r for r in rpm_list])
-        rpm_max = max(rpm_list)
-        offsets = "|".join([str(o) for o in offset_list])
-
-    return rpm, rpm_max, offsets
-
-def generate_result_dataframe(detected_ORFs_dict, gene_dict_tis, gene_dict_tts, gene_dict_ribo, genome, read_count_dict, \
-                            total_mapped_list, wildcards, method, headers):
+def generate_result_dataframe(detected_orfs_dict, gene_tis_dict, gene_tts_dict, gene_ribo_dict, genome, read_count_dict, \
+                            accepted_read_list, wildcards, method, headers):
     """
     Generate the final dataframe to be written to file.
     This contains RPKM, TE, nucleotide and aminoacid sequences and more.
@@ -400,10 +317,9 @@ def generate_result_dataframe(detected_ORFs_dict, gene_dict_tis, gene_dict_tts, 
     tis_header, tts_header, ribo_header = headers
 
     te_header = expr.get_te_header(wildcards)
+
     header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count", \
               tis_header + "_peak_height", tts_header + "_peak_height", ribo_header + "_peak_height", \
-              tis_header + "_peak_height_max", tts_header + "_peak_height_max", ribo_header + "_peak_height_max", \
-              tis_header + "_offsets", tts_header + "_offsets", ribo_header + "_offsets", \
               "Start_codon", "Stop_codon", "15nt_window", "Nucleotide_Seq", "Amino_Acid_Seq", \
               tis_header + "_relative_density", tts_header + "_relative_density", ribo_header + "_relative_density", \
               "5'-distance", "3'-distance"] + [card + "_rpkm" for card in wildcards] +\
@@ -412,22 +328,17 @@ def generate_result_dataframe(detected_ORFs_dict, gene_dict_tis, gene_dict_tts, 
     nTuple = collections.namedtuple('Pandas', name_list)
 
     result_rows = []
-    for (chrom, strand) in detected_ORFs_dict.keys():
-        for (start, stop) in detected_ORFs_dict[(chrom, strand)].keys():
-            rpm_start_list, rpm_stop_list, rpm_ribo_list, offset_start_list, offset_stop_list, offset_ribo_list = detected_ORFs_dict[(chrom, strand)][(start, stop)]
+    for (chrom, strand) in detected_orfs_dict.keys():
+        for (start, stop) in detected_orfs_dict[(chrom, strand)].keys():
+            rpm_tis, rpm_tts, rpm_ribo = detected_orfs_dict[(chrom, strand)][(start, stop)]
 
-            # sort both lists
-            if rpm_start_list != []:
-                rpm_start_list, offset_start_list = [list(t) for t in zip(*sorted(zip(rpm_start_list, offset_start_list), key=lambda x: x[1]))]
-            if rpm_stop_list != []:
-                rpm_stop_list, offset_stop_list = [list(t) for t in zip(*sorted(zip(rpm_stop_list, offset_stop_list), key=lambda x: x[1]))]
-            if rpm_ribo_list != []:
-                rpm_ribo_list, offset_ribo_list = [list(t) for t in zip(*sorted(zip(rpm_ribo_list, offset_ribo_list), key=lambda x: x[1]))]
+            if np.isnan(rpm_tis) and np.isnan(rpm_tts):
+                continue
 
-            if gene_dict_tis != {}:
-                gene_type, gene_name = get_gene_information(chrom, start, stop, strand, gene_dict_tis)
+            if gene_tis_dict != {}:
+                gene_type, gene_name = get_gene_information(chrom, start, stop, strand, gene_tis_dict)
             else:
-                gene_type, gene_name = get_gene_information(chrom, start, stop, strand, gene_dict_tts)
+                gene_type, gene_name = get_gene_information(chrom, start, stop, strand, gene_tts_dict)
             nt_seq, aa_seq, nt_window, start_codon, stop_codon = get_genome_information(start, stop, strand, genome[chrom], method)
 
             if aa_seq.count("*") > 1:
@@ -436,33 +347,27 @@ def generate_result_dataframe(detected_ORFs_dict, gene_dict_tis, gene_dict_tts, 
             te_list = []
             if read_count_dict != {}:
                 for idx, val in enumerate(read_count_dict[(chrom, start, stop, strand)]):
-                    rpkm_list.append(expr.calculate_rpkm(total_mapped_list[idx][chrom], val, len(nt_seq)))
+                    rpkm_list.append(expr.calculate_rpkm(accepted_read_list[idx][chrom], val, len(nt_seq)))
 
                 te_list = expr.calculate_te(rpkm_list, wildcards)
 
             identifier = "%s:%s-%s:%s" % (chrom, start+1, stop+1, strand)
             codon_count = int(len(nt_seq)/3)
 
-            if gene_dict_tis != {}:
-                fiveprime_dist, threeprime_dist = calculate_utr_distance(start, stop, gene_name, gene_dict_tis, method)
-                relative_density_start = calculate_relative_density(rpm_start_list, gene_name, gene_type, gene_dict_tis)
-                relative_density_stop = calculate_relative_density(rpm_stop_list, gene_name, gene_type, gene_dict_tts)
-                relative_density_ribo = calculate_relative_density(rpm_ribo_list, gene_name, gene_type, gene_dict_ribo)
+            if gene_tis_dict != {}:
+                fiveprime_dist, threeprime_dist = calculate_utr_distance(start, stop, gene_name, gene_tis_dict, method)
+                relative_density_tis = calculate_relative_density(rpm_tis, gene_name, gene_type, gene_tis_dict)
+                relative_density_tts = calculate_relative_density(rpm_tts, gene_name, gene_type, gene_tts_dict)
+                relative_density_ribo = calculate_relative_density(rpm_ribo, gene_name, gene_type, gene_ribo_dict)
             else:
-                fiveprime_dist, threeprime_dist = calculate_utr_distance(start, stop, gene_name, gene_dict_tts, method)
-                relative_density_start = calculate_relative_density(rpm_start_list, gene_name, gene_type, gene_dict_tis)
-                relative_density_stop = calculate_relative_density(rpm_stop_list, gene_name, gene_type, gene_dict_tts)
-                relative_density_ribo = calculate_relative_density(rpm_ribo_list, gene_name, gene_type, gene_dict_ribo)
-
-
-            rpm_start, rpm_start_max, offsets_start = prepare_output_lists(rpm_start_list, offset_start_list)
-            rpm_stop, rpm_stop_max, offsets_stop = prepare_output_lists(rpm_stop_list, offset_stop_list)
-            rpm_ribo, rpm_ribo_max, offsets_ribo = prepare_output_lists(rpm_ribo_list, offset_ribo_list)
+                fiveprime_dist, threeprime_dist = calculate_utr_distance(start, stop, gene_name, gene_tts_dict, method)
+                relative_density_tis = calculate_relative_density(rpm_tis, gene_name, gene_type, gene_tis_dict)
+                relative_density_tts = calculate_relative_density(rpm_tts, gene_name, gene_type, gene_tts_dict)
+                relative_density_ribo = calculate_relative_density(rpm_ribo, gene_name, gene_type, gene_ribo_dict)
 
             result = [gene_type, identifier, chrom, start+1, stop+1, strand, gene_name, codon_count, \
-                      rpm_start, rpm_stop, rpm_ribo, rpm_start_max, rpm_stop_max, rpm_ribo_max, \
-                      offsets_start, offsets_stop, offsets_ribo, start_codon, stop_codon, \
-                      nt_window, nt_seq, aa_seq, relative_density_start, relative_density_stop, relative_density_ribo, \
+                      rpm_tis, rpm_tts, rpm_ribo, start_codon, stop_codon, \
+                      nt_window, nt_seq, aa_seq, relative_density_tis, relative_density_tts, relative_density_ribo, \
                       fiveprime_dist, threeprime_dist] + rpkm_list + te_list
 
             result_rows.append(nTuple(*result))
@@ -501,73 +406,3 @@ def base_mapping(mapping):
         return "global"
     elif "centered" in mapping:
         return "centered"
-
-def build_offset_dictionary(offset_file, genome, mapping_tis, mapping_tts):
-    """
-    TODO fix for HRIBO output
-    read a json offset file and process
-    """
-    with open(offset_file, "r") as f:
-        offset_data = json.load(f)
-    print(offset_data)
-    print(dictionary_depth(offset_data))
-    if dictionary_depth(offset_data) == 2:
-        return offset_data
-
-    else:
-        new_dict = {}
-        chromosome_name = ""
-        cur_length = 0
-        for key, val in io.generate_genome_dict(genome).items():
-            if len(val) > cur_length:
-                chromosome_name = key
-                cur_length = len(val)
-
-        mapping_tis = base_mapping(os.path.basename(mapping_tis))
-        mapping_tts = base_mapping(os.path.basename(mapping_tts))
-
-        for method, norm_dict in offset_data.items():
-            if method.lower() not in ["tis", "tts"]:
-                continue
-
-            total_offset = 0
-            total_count = 0
-            for norm, sample_dict in norm_dict.items():
-                if norm.lower() != "raw":
-                    continue
-
-                for mapping, readlength_dict in sample_dict.items():
-                    cur_chrom, cur_mapping = mapping.split("_")
-                    if cur_mapping in [mapping_tis, mapping_tts] and chromsome == cur_chrom:
-                        if "raw" in readlength_dict:
-                            offset = int(read_dict["raw"].split(",")[0])
-
-                        elif "mean" in readlength_dict:
-                            offset = int(read_dict["mean"].split(",")[0])
-
-                        elif len(readlength_dict) != 0:
-                            counter = 0
-                            offset = 0
-                            for readlength, value in readlength_dict.items():
-
-                                if readlength.lower() in ["raw", "mean"]:
-                                    continue
-                                counter += 1
-                                offset += int(value.split(","))
-                            offset = int(offset / counter)
-                        else:
-                            msg.error("Error: empty readlength data in JSON file")
-
-                    else:
-                        continue
-
-                    if method in new_dict:
-                        new_dict[method][sample] = offset
-                    else:
-                        new_dict[method] = {sample : offset}
-
-                    total_count += 1
-                    total_offset = offset
-            new_dict[method]["default"] = int(total_offset / total_count)
-
-    return new_dict
