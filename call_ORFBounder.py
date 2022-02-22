@@ -71,6 +71,7 @@ def check_config_sheet(config_sheet):
         rpkm_read_usage = getattr(row, "rpkm_read_usage")
         gff_output_mode = getattr(row, "gff_output_mode")
 
+        msg.message(f"Checking config file for: {experiment}")
 
         # TIS / TTS / RIBO check
         with_tis = True
