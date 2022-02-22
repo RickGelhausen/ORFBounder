@@ -18,10 +18,8 @@ def is_empty(entry):
     """
 
     if type(entry) == str and entry == "":
-        print("str")
         return True
     elif type(entry) == float and math.isnan(entry):
-        print("float")
         return True
     else:
         return False
@@ -258,7 +256,7 @@ def call_ORFBounder(config_df, result_path):
         min_peak_height = getattr(row, "min_peak_height")
         peak_height_operator = getattr(row, "peak_height_operator")
         tts_start_selection = getattr(row, "tts_start_selection")
-        log_fold_contrasts = getattr(row, "log_fold_contrasts")
+        log_fold_contrasts = getattr(row, "log_fold_contrasts").split(",")
         max_orf_length = getattr(row, "max_ORF_length")
         rpkm_read_usage = getattr(row, "rpkm_read_usage")
         gff_output_mode = getattr(row, "gff_output_mode")
@@ -269,6 +267,11 @@ def call_ORFBounder(config_df, result_path):
             max_orf_length = 150
         else:
             max_orf_length = int(max_orf_length)
+
+        if is_empty(min_peak_height):
+            min_peak_height = 5
+        else:
+            min_peak_height = int(min_peak_height)
 
         if is_empty(peak_height_operator):
             peak_height_operator = "max"
@@ -347,7 +350,7 @@ def main():
     args = parser.parse_args()
 
     config_df = check_config_sheet(args.config_sheet)
-    call_ORFBounder(config_df, args.tts_start_selection, args.min_peak_height, args.peak_height_operator, args.max_ORF_length, args.split_gff, args.result_path, args.log_fold_contrasts, args.all_reads_rpkm)
+    call_ORFBounder(config_df, args.result_path)
 
 
 if __name__ == '__main__':
