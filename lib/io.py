@@ -1,12 +1,10 @@
 #!/usr/bin/env python
 
 import os
-import re
 import csv
 import json
 import collections
 import pandas as pd
-import numpy as np
 
 from pathlib import Path
 

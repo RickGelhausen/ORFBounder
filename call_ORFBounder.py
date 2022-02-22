@@ -26,13 +26,22 @@ def is_empty(entry):
     else:
         return False
 
+
+
 def check_config_sheet(config_sheet):
     """
     Check whether the config sheet is correctly formatted
     """
 
     config_df = pd.read_csv(config_sheet, sep="\t")
-    expected_columns = ["Annotation", "Bam_folder", "Experiment", "Filepath_RIBO", "Filepath_TIS", "Filepath_TTS", "Genome", "Normalization", "Offset_JSON", "Read_lengths", "Start_codons", "Stop_codons"]
+    expected_columns = ["experiment_name",\
+                        "annotation_file_path", "genome_file_path", "alignment_folder_path",\
+                        "RIBO_file_path", "TIS_file_path", "TTS_file_path",\
+                        "normalization_method", "mapping_method", "offset_file_path", "read_lengths",\
+                        "min_peak_height", "peak_height_operator", "tts_start_selection",\
+                        "log_fold_contrasts", "max_ORF_length", "rpkm_read_usage",\
+                        "gff_output_mode", "start_codons", "stop_codons"]
+
     input_columns = config_df.columns
 
     if list(set(expected_columns) - set(input_columns)) != []:
@@ -43,64 +52,132 @@ def check_config_sheet(config_sheet):
                        input_columns)
 
     for row in config_df.itertuples(index=False, name="Pandas"):
-        experiment = getattr(row, "Experiment")
-        annotation = getattr(row, "Annotation")
-        genome = getattr(row, "Genome")
-        file_path_tis = getattr(row, "Filepath_TIS")
-        file_path_tts = getattr(row, "Filepath_TTS")
-        file_path_ribo = getattr(row, "Filepath_RIBO")
-        read_lengths = getattr(row, "Read_lengths")
-        mapping_method = getattr(row, "Mapping_method")
-        normalization = getattr(row, "Normalization")
-        offset_json = getattr(row, "Offset_JSON")
-        bam_folder = getattr(row, "Bam_folder")
+        # Required
+        experiment = getattr(row, "experiment_name")
+        annotation = getattr(row, "annotation_file_path")
+        genome = getattr(row, "genome_file_path")
+        file_path_tis = getattr(row, "TIS_file_path")
+        file_path_tts = getattr(row, "TTS_file_path")
+        file_path_ribo = getattr(row, "RIBO_file_path")
+        mapping_method = getattr(row, "mapping_method")
+        normalization = getattr(row, "normalization_method")
+        offset_json = getattr(row, "offset_file_path")
 
+        # Optional
+        read_lengths = getattr(row, "read_lengths")
+        bam_folder = getattr(row, "alignment_folder_path")
+        min_peak_height = getattr(row, "min_peak_height")
+        peak_height_operator = getattr(row, "peak_height_operator")
+        tts_start_selection = getattr(row, "tts_start_selection")
+        log_fold_contrasts = getattr(row, "log_fold_contrasts")
+        max_ORF_length = getattr(row, "max_ORF_length")
+        rpkm_read_usage = getattr(row, "rpkm_read_usage")
+        gff_output_mode = getattr(row, "gff_output_mode")
+
+
+        # TIS / TTS / RIBO check
         with_tis = True
         with_tts = True
         with_ribo = True
-        if is_empty(experiment):
-            msg.error("Empty entry found: Missing Experiment!")
-        if is_empty(annotation):
-            msg.error("Empty entry found: Missing Annotation!")
-        if is_empty(genome):
-            msg.error("Empty entry found: Missing Genome!")
         if is_empty(file_path_tis):
             with_tis = False
         if is_empty(file_path_tts):
             with_tts = False
         if is_empty(file_path_ribo):
             with_ribo = False
-        if is_empty(mapping_method):
-            msg.error("Empty entry found: Missing Mapping_method!")
-        if is_empty(normalization):
-            msg.error("Empty entry found: Missing Normalization!")
-        if is_empty(offset_json):
-            msg.error("Empty entry found: Missing Offset_JSON!")
-        if is_empty(read_lengths):
-            msg.error("Empty entry found: Missing Read_lengths!")
-
         if not with_tis and not with_tts:
             msg.error("No TIS or TTS path given! Specify atleast one.")
-
-        if not Path(annotation).is_file():
-            msg.error("Annotation file is not valid! Ensure to enter a correct file path!\n%s" % annotation)
-        if not Path(genome).is_file():
-            msg.error("Genome file is not valid! Ensure to enter a correct file path!\n%s" % genome)
         if with_tis and not Path(file_path_tis).is_dir():
-            msg.error("Mapping TIS directory is not valid! Ensure to enter a correct path!\n%s" % file_path_tis)
+            msg.error(f"Mapping TIS directory is not valid! Ensure to enter a correct path!\n{file_path_tis}")
         if with_tts and not Path(file_path_tts).is_dir():
-            msg.error("Mapping TTS directory is not valid! Ensure to enter a correct path!\n%s" % file_path_tts)
+            msg.error(f"Mapping TTS directory is not valid! Ensure to enter a correct path!\n{file_path_tts}")
         if with_ribo and not Path(file_path_ribo).is_dir():
-            msg.error("Mapping RIBO directory is not valid! Ensure to enter a correct path!\n%s" % file_path_ribo)
-        if not Path(offset_json).is_file():
-            msg.error("Offsets file is not valid! Ensure to enter a correct file path!\n%s" % offset_json)
-        if bam_folder != "" and isinstance(bam_folder, str):
-            if not Path(bam_folder).is_dir():
-                msg.error("Given bam_folder is non-existant, either provide no bamfolder or an existing one!\n%s" % bamfolder)
+            msg.error(f"Mapping RIBO directory is not valid! Ensure to enter a correct path!\n{file_path_ribo}")
 
+        # Required parameter check
+        if is_empty(experiment):
+            msg.error("Empty entry found: Missing experiment_name!")
+
+        if is_empty(annotation):
+            msg.error("Empty entry found: Missing annotation_file_path!")
+        if not Path(annotation).is_file():
+            msg.error(f"Annotation file is not valid! Ensure to enter a correct file path!\n{annotation}")
+
+        if is_empty(genome):
+            msg.error("Empty entry found: Missing genome_file_path!")
+        if not Path(genome).is_file():
+            msg.error(f"Genome file is not valid! Ensure to enter a correct file path!\n{genome}")
+
+        if is_empty(normalization):
+            msg.error("Empty entry found: Missing normalization_method!")
         for norm in normalization.split(","):
             if norm not in ["raw", "mil", "min"]:
-                msg.error("Given normalization method is not allowed: %s.\n Choose from {raw, mil, min}." % norm)
+                msg.error(f"Given normalization method is not allowed: {norm}.\n Choose from [raw, mil, min].")
+
+        if is_empty(mapping_method):
+            msg.error("Empty entry found: Missing mapping_method!")
+        for mapping in mapping_method.split(","):
+            if mapping not in ["threeprime", "fiveprime", "centered", "global"]:
+                msg.error(f"Given mapping method is not allowed: {mapping}.\n Choose from [fiveprime, threeprime, centered, global].")
+
+        if is_empty(offset_json):
+            msg.error("Empty entry found: Missing offset_file_path!")
+        if not Path(offset_json).is_file():
+            msg.error(f"Offsets file is not valid! Ensure to enter a correct file path!\n{offset_json}")
+
+
+        # Optional parameters
+        if is_empty(read_lengths):
+            msg.warning("No read lengths specified, using default: -1 (all read lengths).")
+
+        if bam_folder != "" and isinstance(bam_folder, str):
+            if not Path(bam_folder).is_dir():
+                msg.error(f"Error: Given alignment_folder_path does not exist, either provide no bamfolder or an existing one!\n{bam_folder}")
+
+        if is_empty(min_peak_height):
+            msg.warning("No minimum peak length specfied, using default: 5.")
+        else:
+            if not str(min_peak_height).isnumeric() or "." in str(min_peak_height):
+                msg.error("Error: Non-numerical or float value given for min_peak_length!")
+            else:
+                if int(min_peak_height) < 0:
+                    msg.error("Error: Negative min_peak_heigth given.")
+
+        if is_empty(peak_height_operator):
+            msg.warning("No peak_height_operator specified, using default: max.")
+        else:
+            if peak_height_operator not in ["sum", "max"]:
+                msg.error(f"Error: Given peak_height_operator does not exist: {peak_height_operator}. Use [sum, max]")
+
+        if is_empty(tts_start_selection):
+            msg.warning("No tts_start_selection specified, using default: furthest_inframe.")
+        else:
+            if tts_start_selection not in ["furthest_inframe", "next_inframe"]:
+                msg.error(f"Error: Given tts_start_selection does not exist {tts_start_selection}. Use [furthest_inframe, next_inframe]")
+
+        if is_empty(rpkm_read_usage):
+            msg.warning("No rpkm_read_usage specified, using default: all.")
+        else:
+            if rpkm_read_usage not in ["all", "specific"]:
+                msg.error(f"Error: Given rpkm_read_usage does not exist {rpkm_read_usage}. Use [all, specific]")
+
+        if is_empty(gff_output_mode):
+            msg.warning("No gff_output_mode specified, using default: combined.")
+        else:
+            if gff_output_mode not in ["combined", "split"]:
+                msg.error(f"Error: Given gff_output_mode does not exist {gff_output_mode}. Use [combined, split]")
+
+        if is_empty(log_fold_contrasts):
+            msg.warning("No log_fold_contrasts given, skipping!")
+
+        if is_empty(max_ORF_length):
+            msg.warning("No max_ORF_length specfied, using default: 150.")
+        else:
+            if not str(max_ORF_length).isnumeric() or "." in str(max_ORF_length):
+                msg.error("Error: Non-numerical or float value given for max_ORF_length!")
+            else:
+                if int(max_ORF_length) < 0:
+                    msg.error("Error: Negative max_ORF_length given.")
 
     return config_df
 
@@ -158,37 +235,69 @@ def retrieve_bam_input_information(file_path_tis, file_path_tts, file_path_ribo)
 
     return bam_input_list
 
-def call_ORFBounder(config_df, tts_start_selection, min_peak_height, peak_height_operator, max_orf_length, split_gff, result_path, contrasts, all_reads_rpkm):
+def call_ORFBounder(config_df, result_path):
     """
     Run the ORFBounder experiments specified in the config sheet.
     """
 
     for row in config_df.itertuples(index=False, name="Pandas"):
-        experiment = getattr(row, "Experiment")
-        annotation = getattr(row, "Annotation")
-        genome = getattr(row, "Genome")
-        file_path_tis = getattr(row, "Filepath_TIS")
-        file_path_tts = getattr(row, "Filepath_TTS")
-        file_path_ribo = getattr(row, "Filepath_RIBO")
-        read_lengths = getattr(row, "Read_lengths")
-        mapping_method = getattr(row, "Mapping_method").split(",")
-        normalization = getattr(row, "Normalization").split(",")
-        offset_json = getattr(row, "Offset_JSON")
-        start_codons = getattr(row, "Start_codons")
-        stop_codons = getattr(row, "Stop_codons")
-        bam_folder = getattr(row, "Bam_folder")
+        # Required
+        experiment = getattr(row, "experiment_name")
+        annotation = getattr(row, "annotation_file_path")
+        genome = getattr(row, "genome_file_path")
+        file_path_tis = getattr(row, "TIS_file_path")
+        file_path_tts = getattr(row, "TTS_file_path")
+        file_path_ribo = getattr(row, "RIBO_file_path")
+        read_lengths = getattr(row, "read_lengths")
+        mapping_method = getattr(row, "mapping_method").split(",")
+        normalization = getattr(row, "normalization_method").split(",")
+        offset_json = getattr(row, "offset_file_path")
+        # Optional
+        read_lengths = getattr(row, "read_lengths")
+        bam_folder = getattr(row, "alignment_folder_path")
+        min_peak_height = getattr(row, "min_peak_height")
+        peak_height_operator = getattr(row, "peak_height_operator")
+        tts_start_selection = getattr(row, "tts_start_selection")
+        log_fold_contrasts = getattr(row, "log_fold_contrasts")
+        max_orf_length = getattr(row, "max_ORF_length")
+        rpkm_read_usage = getattr(row, "rpkm_read_usage")
+        gff_output_mode = getattr(row, "gff_output_mode")
+        start_codons = getattr(row, "start_codons")
+        stop_codons = getattr(row, "stop_codons")
 
-        if max_orf_length == "" or math.isnan(max_orf_length):
+        if is_empty(max_orf_length):
             max_orf_length = 150
         else:
             max_orf_length = int(max_orf_length)
 
-        if start_codons == "" or type(start_codons) != str:
+        if is_empty(peak_height_operator):
+            peak_height_operator = "max"
+
+        if is_empty(tts_start_selection):
+            tts_start_selection = "furthest_inframe"
+
+        if is_empty(rpkm_read_usage):
+            all_reads_rpkm = True
+        else:
+            if rpkm_read_usage == "specific":
+                all_reads_rpkm = False
+            else:
+                all_reads_rpkm = True
+
+        if is_empty(gff_output_mode):
+            split_gff = False
+        else:
+            if gff_output_mode == "split":
+                split_gff = True
+            else:
+                split_gff = False
+
+        if is_empty(start_codons):
             start_codons = ["ATG", "GTG", "TTG"]
         else:
             start_codons = [codon.strip(" ") for codon in start_codons.split(",")]
 
-        if stop_codons == "" or type(stop_codons) != str:
+        if is_empty(stop_codons):
             stop_codons = ["TAG", "TAA", "TGA"]
         else:
             stop_codons = [codon.strip(" ") for codon in stop_codons.split(",")]
@@ -223,34 +332,18 @@ def call_ORFBounder(config_df, tts_start_selection, min_peak_height, peak_height
                         combined_meta_dict, combined_dynamic_dict = mg.extend_combined_dictionary(combined_res_df, combined_meta_dict, combined_dynamic_dict)
 
                 if meta_dict:
-                    mg.write_merged_table(meta_dict, dynamic_dict, os.path.join(res_path, "%s_final.xlsx" % experiment), contrasts)
+                    mg.write_merged_table(meta_dict, dynamic_dict, os.path.join(res_path, "%s_final.xlsx" % experiment), log_fold_contrasts)
                     mg.write_merged_gff(meta_dict, os.path.join(res_path, "%s_final.xlsx" % experiment))
                 if combined_meta_dict:
-                    mg.write_merged_table(combined_meta_dict, combined_dynamic_dict, os.path.join(res_path, "%s_combined_final.xlsx" % experiment), contrasts)
+                    mg.write_merged_table(combined_meta_dict, combined_dynamic_dict, os.path.join(res_path, "%s_combined_final.xlsx" % experiment), log_fold_contrasts)
 
 def main():
     # store commandline args
     parser = argparse.ArgumentParser(description="Wrapper for the ORFBounder.py, when running ORFBounder for multiple experiments.", formatter_class=argparse.RawTextHelpFormatter)
 
     parser.add_argument("-c","--config_sheet", action="store", dest="config_sheet", required=True, help="Config sheet containing information on experiments to be run.")
-    parser.add_argument("--split_gff", action="store_true", dest="split_gff", help="Split gff into one for each gene_type.")
-    parser.add_argument("--peak_height_operator", action="store", dest="peak_height_operator", default="max"
-                                                , help="{max,sum}:\n"\
-                                                      +"'max': within the codon interval select the highest value (> min_peak_height)\n"\
-                                                      +"'sum': within the codon interval sum up all values (> min_peak_height)")
-    parser.add_argument("--tts_start_selection", action="store", dest="tts_start_selection", default="furthest_inframe"\
-                                               , help="{furthest_inframe, next_inframe}\n"\
-                                                      "'furthest_inframe': select the furthest inframe start codon that, without overstepping the next inframe stop codon.\n"\
-                                                      "'next_inframe': select the closest inframe start codon.")
-    parser.add_argument("--min_peak_height", action="store", dest="min_peak_height", default=5, type=int\
-                                           , help="Minimum height value to be considered a peak. (max option)\n"\
-                                                 +"Minimum height value to be added to the total peak value (sum option)")
-    parser.add_argument("--max_ORF_length", action="store", dest="max_ORF_length", type=int, default=100, help="The max length to take into account when using the combination method for TIS+TTS.")
-    parser.add_argument("--all_reads_rpkm", action="store_true", dest="all_reads_rpkm", help="If set, all mapped reads will be used for the calculation of RPKM values.\n"\
-                                                                                            +"By default only mapped reads of the specified lengths will be used")
-
-    parser.add_argument("--log_fold_contrasts", nargs="+", default=[], help="List of contrasts for which log2fold change will be calculated. (e.g. TIS-A-1_RIBO-A-1")
     parser.add_argument("-r","--result_path", action="store", dest="result_path", required=True, help="Path of the result folder.")
+
     args = parser.parse_args()
 
     config_df = check_config_sheet(args.config_sheet)

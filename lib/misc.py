@@ -3,7 +3,7 @@ import re
 import collections
 import numpy as np
 import pandas as pd
-import json
+
 from collections import deque
 
 from Bio.Seq import Seq
@@ -32,7 +32,7 @@ def generate_annotation_dict(annotation_path):
         stop = getattr(row, "_4")
         strand = getattr(row, "_6")
         attributes = getattr(row, "_8")
-        read_list = [getattr(row, "_%s" %x) for x in range(9,len(row))]
+        read_list = [getattr(row, "_%s" %x) for x in range(9, len(row))]
 
         attribute_list = [x.strip(" ") for x in re.split('[;=]', attributes) if x != ""]
 

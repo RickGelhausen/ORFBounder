@@ -1,8 +1,5 @@
 import pysam
-import collections
-import pandas as pd
 import numpy as np
-import itertools as iter
 
 from interlap import InterLap
 from collections import Counter, OrderedDict
@@ -19,7 +16,7 @@ def header_to_dictionary(method, condition, replicate, wildcards, cur_dict):
     """
     Add a header value to the correct sample in the given dictionary
     """
-    if "%s-%s-%s" %(RNAMAP[method], condition, replicate) in wildcards:
+    if f"{RNAMAP[method]}-{condition}-{replicate}" in wildcards:
         if (method, condition) in  cur_dict:
             cur_dict[(method, condition)].append(replicate)
         else:
@@ -40,7 +37,7 @@ def get_te_header(wildcards):
         header_to_dictionary(method, condition, replicate, wildcards, te_header_dict)
 
     for key, val in te_header_dict.items():
-        te_header.extend(["%s-%s-%s" % (key[0], key[1], x) for x in val])
+        te_header.extend([f"{key[0]}-{key[1]}-{x}" % (key[0], key[1], x) for x in val])
 
     return te_header
 
@@ -56,7 +53,7 @@ def calculate_rpkm(total_mapped, read_count, read_length):
         msg.warning("Warning: total_mapped: 0 detected! Setting RPKM to 0!")
         return 0
 
-    return float("%.2f" % ((read_count * 1000000000) / (total_mapped * read_length)))
+    return float(f"{(read_count * 1000000000) / (total_mapped * read_length):.2f}")
 
 def TE(ribo_count, rna_count):
     """
@@ -167,7 +164,7 @@ def create_interlap_dict(bam_file):
     create a dictionary with interlap objects for the current bam file.
     """
 
-    print("Reading: %s" % bam_file)
+    print(f"Reading: {bam_file}")
     interlap_dict = {}
     total_mapped_reads = {}
     tmp_dict = {}
