@@ -37,7 +37,7 @@ def get_te_header(wildcards):
         header_to_dictionary(method, condition, replicate, wildcards, te_header_dict)
 
     for key, val in te_header_dict.items():
-        te_header.extend([f"{key[0]}-{key[1]}-{x}" % (key[0], key[1], x) for x in val])
+        te_header.extend([f"{key[0]}-{key[1]}-{x}" for x in val])
 
     return te_header
 
