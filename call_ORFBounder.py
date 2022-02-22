@@ -25,7 +25,6 @@ def is_empty(entry):
         return False
 
 
-
 def check_config_sheet(config_sheet):
     """
     Check whether the config sheet is correctly formatted
@@ -228,7 +227,6 @@ def retrieve_bam_input_information(file_path_tis, file_path_tts, file_path_ribo)
     bam_input_list = []
     for key, val in sample_dict.items():
         if val[0] != "" or val[1] != "" or  val[2] != "":
-
             bam_input_list.append((val, "%s-%s" % key))
 
     return bam_input_list
@@ -250,18 +248,24 @@ def call_ORFBounder(config_df, result_path):
         mapping_method = getattr(row, "mapping_method").split(",")
         normalization = getattr(row, "normalization_method").split(",")
         offset_json = getattr(row, "offset_file_path")
+
         # Optional
         read_lengths = getattr(row, "read_lengths")
         bam_folder = getattr(row, "alignment_folder_path")
         min_peak_height = getattr(row, "min_peak_height")
         peak_height_operator = getattr(row, "peak_height_operator")
         tts_start_selection = getattr(row, "tts_start_selection")
-        log_fold_contrasts = getattr(row, "log_fold_contrasts").split(",")
+        log_fold_contrasts = getattr(row, "log_fold_contrasts")
         max_orf_length = getattr(row, "max_ORF_length")
         rpkm_read_usage = getattr(row, "rpkm_read_usage")
         gff_output_mode = getattr(row, "gff_output_mode")
         start_codons = getattr(row, "start_codons")
         stop_codons = getattr(row, "stop_codons")
+
+        if is_empty(log_fold_contrasts):
+            log_fold_contrasts = []
+        else:
+            log_fold_contrasts = log_fold_contrasts.split(",")
 
         if is_empty(max_orf_length):
             max_orf_length = 150
