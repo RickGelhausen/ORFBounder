@@ -27,6 +27,11 @@ conda env create -f environment.yml
 conda activate orfbounder_env
 ```
 
+---
+:warning: This tool was developed and tested on a linux system. It should not contain linux specific commands, but it was never tested on Windows or iOS.
+
+---
+
 ## Required files
 
 | File              | Description                                    |
@@ -35,10 +40,13 @@ conda activate orfbounder_env
 | `annotation.gff` | an annotation file in .gff3 format for the analysed organism. (Tested using annotation files from NCBI)
 | `alignment.(sam\|bam)` | alignment files in `.sam` or `.bam` format.
 
+---
 :warning: **IMPORTANT:** The scripts are written to be compatible with the [HRIBO workflow](https://github.com/RickGelhausen/HRIBO), all samples (`.sam|.bam`) must be in the form `|method|-|condition|-|replicate|.(sam|bam)`.
 * `|method|` is either `RIBO`, `RNA`, `TIS`, `RNATIS`, `TTS`, `RNATTS`.
 * `|condition|` can be any string, avoid using special characters. (e.g. A, B, C, pH4, xyz123, ...)
 * `|replicate|` can be any integer. (e.g. 1, 2, 3, 4, ...)
+
+---
 
 # Analysis
 
@@ -50,7 +58,10 @@ Analyzing data using ORFBounder is done in two steps:
 
 2. Running either `ORFBounder.py` directly or running `call_ORFBounder.py`, which allows you to run multiple experiments at the same time.
 
+---
 :bulb: We highly recommend to always use `call_ORFBounder.py`, as it also works if only running one experiment and makes the analysis easier to reproduce later.
+
+---
 
 # Running ORFBounder
 
@@ -58,11 +69,115 @@ In the following, the usage of ORFBounder is described in detail.
 
 ## Using call_ORFBounder.py
 
-This is the recommended script to use when running ORFBounder. It allows running ORFBounder on multiple experiments and with multiple parameterizations at the same time. It requires both an `offset JSON` and an `experiment spreadsheet`. Using these files the amount of input parameters used is reduced and they make it easier to reproduce the results later.
+This is the recommended script to use when running ORFBounder. It allows running ORFBounder on multiple experiments and with multiple parameterizations at the same time. It requires both an `offset JSON` and an `config spreadsheet`. Using these files the amount of input parameters used is reduced and they make it easier to reproduce the results later.
+
+:construction:Templates for both files can be found in the [templates]() folder.:construction:
 
 ### Offset JSON
 
-### Experiment Spreadsheet
+In order to work, ORFBounder requires a set of offsets for each input file (TIS, TTS or RIBO). These offsets can be determined using any metagene-profiling tool.
+
+ORFBounder allows different offsets for different samples and per read-length. To allow this, the offsets should be given in JSON format.
+
+:construction:
+A template file with the following example can be found in the [templates folder].
+:construction:
+
+
+```
+{
+	"TIS-A-1": {
+		"33": 12,
+		"30": 6,
+		"default": 10
+  	},
+	"RIBO-A-1": {
+		"28": 5,
+		"30": 6,
+		"default": 10
+  	},
+	"TIS-B-4": {
+		"24": 6,
+		"30": 6,
+		"40": -10,
+		"default": 10
+  	},
+	"default": {
+		"31": 10,
+		"32": 10,
+		"default": 10
+  	}
+}
+```
+This file allows us to set specific offsets for each file and each read length within the file.
+
+---
+:warning: Please note that in the offset file the prefixes of the alignment files shold be used in format: |method|-|condition|-|replicate|
+
+:warning: If a value is not specified in the offset JSON file. The default value will be used. Make sure that default values are set.
+Thus the minimal JSON file would be:
+
+```
+{
+	"default": {
+		"default": 10
+  	}
+}
+```
+In this case, the offset for all files and all read lengths is set to 10.
+
+:bulb: Negative offsets are supported and are common for certain organisms and mapping methods.
+
+:no_entry: Multiple offsets for the same read-length (within the same file) are currently not supported.
+
+---
+
+### Config Spreadsheet
+
+The config spreadsheet is a tab-seperated table that contains all the input parameters for ORFBounder.
+
+- Columns in the config file describe the different parameters. Some are required and some are optional.
+- Rows in the config file describe different independant experiments.
+
+
+#### Required parameters:
+
+
+| Column               | Description                                    |
+|----------------------|------------------------------------------------|
+| experiment_name      |
+| annotation_file_path |
+| genome_file_path     |
+| TIS_file_path        |
+| TTS_file_path        |
+| RIBO_file_path       |
+| normalization_method |
+| mapping_method       |
+| offset_file_path     |
+
+#### Optional parameters:
+
+
+| Column                | Description                                    |
+|-----------------------|------------------------------------------------|
+| read_lengths          |
+| start_codons          |
+| stop_codons           |
+| alignment_folder_path |
+| min_peak_height       |
+| peak_height_operator  |
+| tts_start_selection   |
+| log_fold_contrasts    |
+| max_ORF_length        |
+| rpkm_read_usage       |
+| gff_output_mode       |
+
+---
+:warning: Even though these parameters are optional, the columns headers are not. ORFBounder will tell you which headers are missing. The values are optional and default values will be used.
+
+:warning: Ensure that the file is tab-seperated, you can modify the template file with any spreadsheet viewer.
+
+---
 
 ## Using ORFBounder.py
 
@@ -235,8 +350,3 @@ In addition, it also requires some scripts from `HRIBO` in order to do the mappi
 Gelhausen, R. (2020).
 HRIBO - High-throughput analysis of bacterial ribosome profiling data
 ([BioRxiv](https://www.biorxiv.org/content/10.1101/2020.04.27.046219v1))
-
-<a id="2">[2]</a>
-Tange, O. (2011).
-[GNU Parallel](http://www.gnu.org/software/parallel/) - The Command-Line Power Tool
-[http://dx.doi.org/10.5281/zenodo.16303](http://dx.doi.org/10.5281/zenodo.16303)
