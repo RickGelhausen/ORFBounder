@@ -5,6 +5,35 @@ Detection of potential start/stop codons based on Translation Initiation Site (T
 These scripts were created to be used with the metagene-profiling and alignment files created by the [HRIBO workflow](https://github.com/RickGelhausen/HRIBO) [[1]](#1).
 Nevertheless, `ORFBounder` can also be used with other standard alignment files and metagene-profiling tools.
 
+- [ORFBounder](#orfbounder)
+  - [What is ORFBounder?](#what-is-orfbounder)
+- [Requirements](#requirements)
+  - [Required packages](#required-packages)
+  - [Required files](#required-files)
+- [Analysis](#analysis)
+- [Running ORFBounder](#running-orfbounder)
+    - [Offset JSON](#offset-json)
+    - [Config Spreadsheet](#config-spreadsheet)
+      - [Required parameters](#required-parameters)
+      - [Optional parameters](#optional-parameters)
+  - [Running call_ORFBounder.py](#running-call_orfbounderpy)
+- [Output files](#output-files)
+- [Additional information](#additional-information)
+  - [Normalization methods](#normalization-methods)
+  - [Mapping methods](#mapping-methods)
+- [References](#references)
+
+
+## What is ORFBounder?
+
+ORFBounder is a tool that aids in the detection of potential OpenReadingFrames using TIS, TTS and RIBOseq data, based on previously determined offsets.
+
+ORFBounder can be run using only TIS or only TTS data. In these cases, the start codons with a strong TIS peak or the stop codons with a strong TTS peak will be detected and an ORF will be created using the next inframe stop for TIS. For TTS either the closest inframe start codon or the furthest inframe start codon (that does not overlap with another inframe stop codon) will be used to create an ORF.
+
+ORFBounder can also be used with a combination of TIS and TTS data. This will run the original analysis for both TIS and TTS individually. Additionally an experimental approach that combines the start codons detected by TIS and the stop codons detected by TTS to form high confidence ORFs.
+
+Ribo-seq data is used as a control and to calculate fold-changes in order to determine ORFs with high confidence.
+
 # Requirements
 ## Required packages
 The scripts used in the analysis exclusively require python3 (>3.6).
@@ -50,26 +79,17 @@ conda activate orfbounder_env
 
 # Analysis
 
-For details on the analysis itself please refer to our publication (in progress).
+For details on the analysis itself please refer to our publication (in progress). :construction:
 
 Analyzing data using ORFBounder is done in two steps:
 
 1. First, using the metagene profiling output, the best mapping and offset combinations are determined before running the scripts. This step is currently still manual work and requires the user to determine the best mapping/offset and eventually read lengths to be used by `ORFBounder`.
 
-2. Running either `ORFBounder.py` directly or running `call_ORFBounder.py`, which allows you to run multiple experiments at the same time.
-
----
-:bulb: We highly recommend to always use `call_ORFBounder.py`, as it also works if only running one experiment and makes the analysis easier to reproduce later.
-
----
+2. Running `call_ORFBounder.py`, which allows you to run single experiments or multiple experiments at the same time.
 
 # Running ORFBounder
 
-In the following, the usage of ORFBounder is described in detail.
-
-## Using call_ORFBounder.py
-
-This is the recommended script to use when running ORFBounder. It allows running ORFBounder on multiple experiments and with multiple parameterizations at the same time. It requires both an `offset JSON` and an `config spreadsheet`. Using these files the amount of input parameters used is reduced and they make it easier to reproduce the results later.
+We recommend using the `call_ORFBounder.py` script. It allows running ORFBounder on multiple experiments and with multiple parameterizations at the same time. It requires both an `offset JSON` and an `config spreadsheet`. Using these files the amount of input parameters used is reduced and they make it easier to reproduce the results later.
 
 :construction:Templates for both files can be found in the [templates]() folder.:construction:
 
@@ -140,7 +160,7 @@ The config spreadsheet is a tab-seperated table that contains all the input para
 - Rows in the config file describe different independant experiments.
 
 
-#### Required parameters:
+#### Required parameters
 
 
 | Column               | Description                                    |
@@ -163,197 +183,50 @@ This is only split into different parameters, should the different file types be
 
 ---
 
-#### Optional parameters:
+#### Optional parameters
 
 
-| Column                | Default value    | Description                    |
-|-----------------------|------------------|--------------------------------|
-| read_lengths          | -1 (all lengths) | Read lengths that are used in the analysis. These can be given as intervals and/or single values. (e.g. 24,25,26,28 or 24-26,28) |
-| start_codons          | ATG,TTG,GTG      | Start codons used in the analysis |
-| stop_codons           | TAG,TAA,TGA      | Stop codons used in the analysis |
-| alignment_folder_path | No TE/RPKM       | Path to a folder containing RIBO and/or RNA alignment files. These will be used to calculate RPKM and TE values for every detected ORF. If no path is given this analysis step is skipped. |
-| min_peak_height       | 5                | The minimum height of a TIS/TTS or RIBO peak required to be considered an ORF. |
-| peak_height_operator  | max              |
-| tts_start_selection   | furthest_inframe |
-| log_fold_contrasts    | No Fold Change   |
-| max_ORF_length        | 150              |
-| rpkm_read_usage       | all              |
-| gff_output_mode       | combined         |
+| Column                | Default value    | Options | Description                    |
+|-----------------------|------------------|---------|--------------------------------|
+| read_lengths          | -1 (all lengths) | 24,25,26,28<br> or <br> 24-26,28        | Read lengths that are used in the analysis. These can be given as intervals and/or single values. |
+| start_codons          | ATG,TTG,GTG      | any list of codons | Start codons used in the analysis. |
+| stop_codons           | TAG,TAA,TGA      | any list of codons | Stop codons used in the analysis. |
+| alignment_folder_path | No TE/RPKM       | path to alignment files <br> or <br> nothing | Path to a folder containing RIBO and/or RNA alignment files. These will be used to calculate RPKM and TE values for every detected ORF. If no path is given this analysis step is skipped. |
+| min_peak_height       | 5                | any positive integer | The minimum height of a TIS/TTS or RIBO peak required to be considered a valid start/stop codon. |
+| peak_height_operator  | max              | max \| sum        | The peaks are searched in a 5nt interval around the start/stop codon. This specifies whether the maximum value or the sum of values within the interval are used. |
+| tts_start_selection   | furthest_inframe | furthest_inframe <br> or <br> next_inframe | When constructing an ORF based on a stop codon detected using TTS data, either use the next or the furthest inframe start codon, without overlapping with another stop codon. |
+| log_fold_contrasts    | No Fold Change   | List of contrasts <br> RIBO-A-1_TIS-A-1, RIBO-A-2_TIS-A-2, ...)  | Fold changes for any samples present in the experiment can be requested using this parameter. |
+| max_ORF_length        | 150              | any positive integer         | When both TIS and TTS data is used, the data is combined to form ORFs up to a length of max_ORF_length. |
+| rpkm_read_usage       | all              | all \| specific     | When calculating RPKM and TE values, eiter all reads can be used or the specifc read lengths given by the read-lengths parameter. |
+| gff_output_mode       | combined         | combined \| split      | Output a single combined gff file or a gff file for each orf type. |
 
 ---
-:warning: Even though these parameters are optional, the columns headers are not. ORFBounder will tell you which headers are missing. The values are optional and default values will be used.
+:warning: Even though these parameters are optional, the column headers are not. ORFBounder will tell you which headers are missing. The values are optional and default values will be used.
 
 :warning: Ensure that the file is tab-seperated, you can modify the template file with any spreadsheet viewer.
 
 ---
 
-## Using ORFBounder.py
+## Running call_ORFBounder.py
 
-The analysis is made up of multiple python3 and bash scripts. If all data is collected as described in the [required files section](#Required-files), running the script will be straight-forward.
-Simply run either `ORFBounder_analysis_TTS.sh` or `ORFBounder_analysis_TIS.sh` depending on the site that is to be analysed.
+After creating both input files, running ORFBounder is easy.
 
-The following commandline arguments are required:
-| Name                | Command Line Argument | Description                                                                                                           |
-|---------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------|
-| path                | -p                    | Path where the result folder will be placed.                                                                          |
-| coveragepath        | -w                    | Path to the folder containing the experiments that will be analysed                                                   |
-| scriptpath          | -s                    | Path to the TTS_analysis folder, in which all scripts necessary for computation are located.                          |
-| annotationpath      | -a                    | The annotation file for the organism that is analysed (`.gff3` format)                                                |
-| genomepath          | -g                    | The genome file for the organism that is analysed (`.fasta` format)                                                   |
-| experiments         | -e                    | The experiment to be analysed (if more than one, use this option multiple times e.g `-e exp1 -e exp2 ...`)            |
-| mappings            | -m                    | The mappings to be used for analysis (e.g threeprime, fiveprime, etc...) ( any subfolder under experiment). If more than one, use this option multiple times (e.g. `-m threeprime -m threeprime30 -m fiveprime ...`)       |
-| offsets             | -o                    | The p-site offset used for each of the mappings. If you use multiple mappings, ensure that you use the same amount of offsets. (e.g. `-m threeprime -m fiveprime`, `-o 8 -o 10` means that the 3' files have an offset of 8 and the 5' files have an offset of 10).                          |
-| normalizations      | -n                    | The normalizations to be used (e.g. raw, mil, min) (any subfolder under mapping).                                     |
-| contrasts           | -c                    | The contrasts used for the experiment. If you want log2FC for certain peak-heights in a table you can use this option to indicate which samples should be compared (e.g. RIBO-A-1_TIS-A-1)                                                                                                       |
-| bamfolder           | -b                    | The path to the bamfiles, ensure that each bamfile has an according index file. If not, use `samtools index |bamfile|` for all files missing the index. If installed you can also use `parallel`[[2]](#2),  `parallel  samtools index ::: *.bam` to run it on all bam files.              |
-| tmpfolder           | -t                    | The folder where temporary files will be stored. This can be deleted after the analysis.                              |
-| readcountthreshold  | -r                    | The readcount threshold used in the analysis, if a position has less than this amount of reads it is ignored (>0)     |
-| start_codons        | -x                    | A list of start_codons. (Default: ATG, GTG, TTG) (e.g `-x ATG -x GTG -x TTG ...`)                                     |
-| stop_codons         | -y                    | A list of stop_codons. (Default: TAG, TAA, TGA) (e.g `-y TAG -y TAA -y TGA ...`)                                      |
-| postfilering        | -f                    | If this option is set, create 3 postfiltering files.                                                                  |
-
-##Examples:
+Simply run the `call_ORFBounder.py` by specifing the config spreadsheet to be used and the path to the output folder.
 
 ```
-bash ORFBounder_analysis_TIS.sh -p <path/to/analysis/output> -w <path/to/the/experiment/folder> -s bin(default) -a <path/to/annotation> -g <path/to/genome> -e <path/to/folder/containing/experiment/data> -m threeprime32 -m fiveprime -n raw -n mil -n min -o 17 -o -15 -b <path/to/bam/folder> -c RIBO-A-1_TIS-A-1 -c RIBO-A-2_TIS-A-2 -c TIS-A-1_TIS-A-2 -t <path/to/temporary/files> -r 5(default) -f (postfiltering activated)  -x ATG -x TTG (default ATG,GTG,TTG) -y TAG (default TAG,TAA,TGA)
+python3 call_ORFBounder.py -c <path/to/config_spreadsheet> -o <path/to/output/folder>
 ```
 
-If you have your own data, you can run the scripts individually, each of them is described in the [scripts section](#Scripts) below.
 
-# Scripts
-This section contains short descriptions of each of the scripts (in execution order) and the commandline parameters. The scripts can be found in the bin folder.
-
-* **ORFBounder.py:** is the main script which uses annotation, genome and wig files to detect potential ORFs using TIS or TTS read coverage peaks.
-
-| Name                 | Command Line Argument | Description                                                                                                           |
-|----------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------|
-| fwd_file             | -f                    | The forward wig file used for the analysis.                                                                           |
-| rev_file             | -r                    | The reverse wig file used for the analysis, complementary to the forward wig file.                                    |
-| annotation_file      | -a                    | The annotation file for the organism that is analysed (`.gff3` format)                                                |
-| genome_file          | -g                    | The genome file for the organism that is analysed (`.fasta` format)                                                   |
-| start_codons         | --start_codons        | A space-seperated list of start_codons. (Default: ATG, GTG, TTG)                                                      |
-| stop_codons          | --stop_codons         | A space-seperated list of stop_codons. (Default: TAG, TAA, TGA)                                                       |
-| offset               | --offset              | The offset to be used for the current wig files.                                                               |
-| output_gff           | --output_gff          | The output folder for the .gff files for genome browser inspection of the result.                                     |
-| target_site          | --target_site         | The site you are interested in (TIS / TTS)                                                                            |
-| read_count_threshold | -c                    | The readcount threshold used in the analysis, if a position has less than this amount of reads it is ignored (>0)     |
-| codon_interval_out   | -codon_interval_out   | The output .gff file for the codon intervals which are used to test overlap with a potential codon.                   |
-| output_file          | -o                    | The output .csv file for further processing in the other included scripts.                                            |
-
-* **merge_TTS.py:** merges the .csv files resulting from the `ORFBounder.py` script, for different samples (RIBO-A-1, RIBO-A-2, TIS-A-1, etc...). The merged results are infused with additional information including log2 fold-changes for the different desired contrasts, nucleotide and amino-acid sequences. The resulting information is then written to an excel output file (.xlsx).
-
-| Name                 | Command Line Argument | Description                                                                                                   |
-|----------------------|-----------------------|---------------------------------------------------------------------------------------------------------------|
-| tables               | -t/--tables           | A list of .csv tables resulting from `ORFBounder.py` that will be merged                                      |
-| contrasts            | --contrasts           | The contrasts used for the experiment. If you want log2FC for certain peak-heights in the table you can use this option to indicate which samples should be compared (e.g. RIBO-A-1_TIS-A-1)|
-| xlsx                 | -x                    | The output excel file                                                                                         |
-
-* **detect_longest_potential_ORFs.py:** (optional) is a script only useful for TTS predictions, it detects the longest ORF in addition to the shortest ORF. This means that for a given predicted stop, the next upstream start codon is chosen (shortest ORF) and farthest upstream start codon is chosen, that still ensures that no additional in-frame stop-codon is between the start codon and the predicted stop codon.
-
-| Name                 | Command Line Argument | Description                                                                                                   |
-|----------------------|-----------------------|---------------------------------------------------------------------------------------------------------------|
-| input_xlsx           | -i                    | An input xlsx file resulting from the `merge_TTS.py` script                                                   |
-| genome_file          | -g                    | The genome file for the organism that is analysed (`.fasta` format)                                           |
-| output_xlsx          | -o                    | The output excel file                                                                                         |
-| start_codons         | --start_codons        | A space-seperated list of start_codons. (Default: ATG, GTG, TTG)                                              |
-| stop_codons          | --stop_codons         | A space-seperated list of stop_codons. (Default: TAG, TAA, TGA)                                               |
-
-* **xlsx_to_gff.py:** creates simple .gff files from an .xlsx table to be used to run featureCounts. This will add read counts for each entry in the .gff file for each sample.
-
-| Name                 | Command Line Argument | Description                                                                                                   |
-|----------------------|-----------------------|---------------------------------------------------------------------------------------------------------------|
-| input_xlsx           | -i                    | An input excel file                                                                                           |
-| output_gff           | -o                    | The output annotation file (.gff)                                                                             |
+# Output files
 
 
-* **get_readcount_gff.sh:** creates the .gff files containing readcounts for all samples. This bash script uses the additional scripts `call_featurecounts.py`, `total_mapped_reads.py` and `map_read_to_annotation.py`.
 
-| Name                 | Command Line Argument | Description                                                                                                   |
-|----------------------|-----------------------|---------------------------------------------------------------------------------------------------------------|
-| bam_path             | -b                    | Path to the bam file folder. Bam files for the samples used in the analysis.                                  |
-| input_annotation     | -i                    | The input annotation created by `xlsx_to_gff.py`                                                              |
-| output_rawreads      | -r                    | The output file for the raw files (temporary file)                                                            |
-| output_mapped        | -m                    | The output file for the total mapped reads for each plasmid/chromosome.                                       |
-| output_length        | -l                    | The output file for the average read lengths for each plasmid/chromosome. (currently not required.)           |
-| output_annotation    | -o                    | The output annotation containing the read counts for each entry.                                              |
+# Additional information
+## Normalization methods
+## Mapping methods
 
-* **calculate_expression.py:** calculates expression values (TE and RPKM) for each sample used and adds them to the final table. For TTS predictions, it uses both the short and the long ORF.
-
-| Name                 | Command Line Argument | Description                                                                                                   |
-|----------------------|-----------------------|---------------------------------------------------------------------------------------------------------------|
-| input_xlsx           | -i                    | An input excel file that will be expended by adding translational efficiency and RPKM values.                 |
-| mapped_reads         | -m                    | A file containing the total number of mapped reads for each sample and chromosome/plasmid, created by `get_readcount_gff.sh` |
-| read_counts          | -r                    | A file containing all read counts for each ORF and each sample, created by `get_readcount_gff.sh`             |
-| output_xlsx          | -o                    | The filtered output excel file                                                                                |
-
-* **post_filter_tts.py:** does an additional post-filtering step on the final .xlsx file, ensuring that no annotated start/stop codons are close to the predicted ORF boundaries. This might help narrowing down results to find good candidates for closer experimental inspection.
-
-| Name                 | Command Line Argument | Description                                                                                                   |
-|----------------------|-----------------------|---------------------------------------------------------------------------------------------------------------|
-| input_xlsx           | -i                    | An input xlsx file to be filtered                                                                             |
-| annotation_gff       | -a                    | The annotation file for the organism that is analysed (`.gff3` format)                                        |
-| target_site          | --target_site         | The site that is currently analysed (TIS / TTS)                                                               |
-| direction            | --direction           | The direction from the (start/stop) that will be filtered. (up/down/both)                                     |
-| size                 | --size                | The size of the interval used for filtering in the current direction (if both is selected the interval spans over 2xsize |
-| output_xlsx          | -o                    | The filtered output excel file                                                                                |
-
-## Additional scripts
-* **excel_utils.py:** is a python library script used for the `calculate_expression.py` script.
-* **call_featurecounts.py:** calls `subread featureCount` to count the number of reads overlapping with a certain entry of an annotation file for a given sample.
-
-| Name                 | Command Line Argument | Description                                                                                                           |
-|----------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------|
-| bamfiles             | -b                    | Bam files of the samples used in the analysis, used for read-counting.                                                |
-| strandness           | -s                    | Whether strandedness should be considered (Default: 1 stranded)                                                       |
-| with_O               | --with_O              | Activate `subread featureCount` command O. (Assign reads to all overlapping meta-features.)                           |
-| with_M               | --with_M              | Activate `subread featureCount` command M. (Multi-mapping reads will be counted)                                      |
-| fraction             | --fraction            | Assign fractional counts to features.                                                                                 |
-| annotation           | -a                    | The annotation file that will be processed with `subread featureCount`.                                               |
-| threads              | -t                    | Number of threads used by `subread featureCount`.                                                                     |
-| output               | -o                    | The output annotation file with the read counts.                                                                      |
-| for_diff_expr        | --for_diff_expr       | not required                                                                                                          |
-
-* **map_reads_to_annotation.py:** map the read-counts calculated by `subread featureCount` back to the original annotation file.
-
-| Name                 | Command Line Argument | Description                                                                                                           |
-|----------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------|
-| input                | -i                    | The raw file output by `subread featureCount`.                                                                        |
-| annotation           | -a                    | Original annotation used for `subread featureCount`.                                                                  |
-| output               | -o                    | The output gff file with read counts.                                                                                 |
-
-* **total_mapped_reads.py:** counts the total number of mapped reads for a list of bam files. Additionally, determine the average read length.
-
-| Name                 | Command Line Argument | Description                                                                                                           |
-|----------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------|
-| bamfiles             | -b                    | Bam files of the samples used in the analysis, used for counting the total number of mapped reads.                    |
-| out_mapped           | -m                    | The output file with total number of mapped reads.                                                                    |
-| out_length           | -l                    | The output file with the average read length.                                                                         |
-
-## Extramapping script
-
-If you want to analyse specific read-lengths, you will require both filtered wig and bam files.
-To facilitate the creation of these files, we added the bash script `extramapping.sh`, which automatically generates the required files.
-
-This is a script that is seperate from the analysis and requires different dependencies.
-All required packages are easily retrievable via conda.
-
-```
-conda create -n "extramapping" -c bioconda -c conda-forge pandas samtools ucsc-wigtobigwig
-conda activate extramapping
-```
-
-In addition, it also requires some scripts from `HRIBO` in order to do the mapping. If you do not have an `HRIBO` installation, you can simply download the `mapping.py` script from [GitHub repository](https://github.com/RickGelhausen/HRIBO/blob/master/scripts/mapping.py). (You will also need the `total_mapped_reads.py` script, but this is present in the ORFBounder folder too. Ensure that both scripts are in the same folder.)
-
-| Name                 | Command Line Argument | Description                                                                                                           |
-|----------------------|-----------------------|-----------------------------------------------------------------------------------------------------------------------|
-| bamfolder            | -b                    | Bam files of the samples used in the analysis, used for counting the total number of mapped reads.                    |
-| readlengths          | -r                    | A list of read length for which you want new bam/wig files (intervals are allowed) (e.g. `-r 32 -r 29-31` etc... an interval will create one bam files containing only reads from 29 to 31 in length.                                                                                               |
-| outputfolder         | -o                    | The output folder containing all .bam and .wig files.                                                                 |
-| hriboscriptpath      | -s                    | The path to the `HRIBO scripts` folder. Must contain `total_mapped_reads.py` and  `mapping.py`.                       |
-| genomesizes          | -g                    | A file with the genome sizes. This can be created using samtools: `samtools faidx genome.fa; cut -f1,2 {input[0]} > genomes/sizes.genome;`                                                                                                                                                 |
-
-
-## References
+# References
 <a id="1">[1]</a>
 Gelhausen, R. (2020).
 HRIBO - High-throughput analysis of bacterial ribosome profiling data

@@ -22,8 +22,6 @@ def extend_combined_dictionary(xlsx_df, meta_dict, dynamic_dict):
     { chrom:start-stop:strand : metadata }
     """
     peak_height_map = {}
-    peak_height_max_map = {}
-    offsets_map = {}
     relative_density_map = {}
     rpkm_map = {}
     te_map = {}
@@ -88,7 +86,7 @@ def build_merged_dataframe(meta_dict, dynamic_dict, contrasts):
            + [card + "_relative_density" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card.split("-")[0]] \
            + [card + "_rpkm" for card in wildcards] \
            + [card + "_TE" for card in expr.get_te_header(wildcards)]
-    name_list = ["s%s" % str(x) for x in range(len(header))]
+    name_list = [f"s{x}" for x in range(len(header))]
     nTuple = collections.namedtuple('Pandas', name_list)
 
     result_rows = []
@@ -137,8 +135,8 @@ def build_merged_dataframe(meta_dict, dynamic_dict, contrasts):
 
         for contrast in contrasts:
             con1, con2 = contrast
-            result_df["%s_%s_log2FC" % (con1, con2) ] = result_df.apply(lambda row: calculate_fold_changes(row, con1, con2), axis=1)
-            contrast_header.append("%s_%s_log2FC" % (con1, con2))
+            result_df[f"{con1}_{con2}_log2FC"] = result_df.apply(lambda row: calculate_fold_changes(row, con1, con2), axis=1)
+            contrast_header.append(f"{con1}_{con2}_log2FC")
 
 
         new_header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count"] \
@@ -169,30 +167,13 @@ def calculate_fold_changes(row, con1, con2):
 
     fold_change = np.nan
 
-    con1_heights = str(row[con1 + "_peak_height"]).split("|")
-    con2_heights = str(row[con2 + "_peak_height"]).split("|")
-
-    con1_offsets = str(row[con1 + "_offsets"]).split("|")
-    con2_offsets = str(row[con2 + "_offsets"]).split("|")
+    con1_heights = float(row[con1 + "_peak_height"])
+    con2_heights = float(row[con2 + "_peak_height"])
 
     if con1_heights == [] or con2_heights == []:
         return fold_change
 
-    con2_dict = {}
-    for i in range(len(con2_offsets)):
-        con2_dict[con2_offsets[i]] = float(con2_heights[i])
-
-    res_logfcs = []
-    for i in range(len(con1_offsets)):
-        if con1_offsets[i] in con2_dict:
-            res_logfcs.append(np.log2(con2_dict[con1_offsets[i]] / float(con1_heights[i])))
-
-    if res_logfcs == []:
-        return fold_change
-    else:
-        fold_change = "|".join(["%.4f" % x for x in res_logfcs])
-
-    return fold_change
+    return np.log2(con1_heights / con1_heights)
 
 
 
