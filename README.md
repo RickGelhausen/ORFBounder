@@ -145,32 +145,40 @@ The config spreadsheet is a tab-seperated table that contains all the input para
 
 | Column               | Description                                    |
 |----------------------|------------------------------------------------|
-| experiment_name      |
-| annotation_file_path |
-| genome_file_path     |
-| TIS_file_path        |
-| TTS_file_path        |
-| RIBO_file_path       |
-| normalization_method |
-| mapping_method       |
-| offset_file_path     |
+| experiment_name      | The name given to the experiment (e.g exp1, run001, ...). We suggest not using special characters. There should not be an issue with most of them though. |
+| annotation_file_path | The path to the gff3 format annotation file.   |
+| genome_file_path     | The path to the fasta format genome file.      |
+| TIS_folder_path      | The path to the folder containing the TIS alignment files in .sam\|.bam format. Can be the same as TTS or RIBO. |
+| TTS_folder_path      | The path to the folder containing the TIS alignment files in .sam\|.bam format. Can be the same as TIS or RIBO. |
+| RIBO_folder_path     | The path to the folder containing the TIS alignment files in .sam\|.bam format. Can be the same as TIS or TTS. |
+| normalization_method | The normalization method to be used, multiple methods can be given and result in multiple ORFBounder runs. (e.g. raw,mil or min or mil,min,raw ...). Detailed information can be found in the [Normalization]() section. :construction:|
+| mapping_method       | The mapping method to be used. This determines which part of reads are used in the analysis. For TIS and TTS analysis five or threeprime usually perform better, because they result in sharper peaks. (e.g. fiveprime or threeprime or centered or global). Detailed information can be found in the [Mapping]() section. :construction: |
+| offset_file_path     | The path to the custom offset file. Detailed explanations can be found in the [Offset JSON](#offset-json) section. |
+
+---
+:bulb: `TIS_folder_path`, `TTS_folder_path` and `RIBO_folder_path` (even `alignment_folder_path`) can point to the same directory. Due to the |method|-|condition|-|replicate| naming scheme, ORFBounder will collect and match the correct samples and accumulate all results in one file.
+This is only split into different parameters, should the different file types be stored in different folders.
+
+:bulb: You do not have to run ORFBounder seperately for each replicate. All replicates present in the respective folder paths (`TIS_folder_path`, `TTS_folder_path` and `RIBO_folder_path`) will be run automatically.
+
+---
 
 #### Optional parameters:
 
 
-| Column                | Description                                    |
-|-----------------------|------------------------------------------------|
-| read_lengths          |
-| start_codons          |
-| stop_codons           |
-| alignment_folder_path |
-| min_peak_height       |
-| peak_height_operator  |
-| tts_start_selection   |
-| log_fold_contrasts    |
-| max_ORF_length        |
-| rpkm_read_usage       |
-| gff_output_mode       |
+| Column                | Default value    | Description                    |
+|-----------------------|------------------|--------------------------------|
+| read_lengths          | -1 (all lengths) | Read lengths that are used in the analysis. These can be given as intervals and/or single values. (e.g. 24,25,26,28 or 24-26,28) |
+| start_codons          | ATG,TTG,GTG      | Start codons used in the analysis |
+| stop_codons           | TAG,TAA,TGA      | Stop codons used in the analysis |
+| alignment_folder_path | No TE/RPKM       | Path to a folder containing RIBO and/or RNA alignment files. These will be used to calculate RPKM and TE values for every detected ORF. If no path is given this analysis step is skipped. |
+| min_peak_height       | 5                | The minimum height of a TIS/TTS or RIBO peak required to be considered an ORF. |
+| peak_height_operator  | max              |
+| tts_start_selection   | furthest_inframe |
+| log_fold_contrasts    | No Fold Change   |
+| max_ORF_length        | 150              |
+| rpkm_read_usage       | all              |
+| gff_output_mode       | combined         |
 
 ---
 :warning: Even though these parameters are optional, the columns headers are not. ORFBounder will tell you which headers are missing. The values are optional and default values will be used.

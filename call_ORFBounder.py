@@ -33,7 +33,7 @@ def check_config_sheet(config_sheet):
     config_df = pd.read_csv(config_sheet, sep="\t")
     expected_columns = ["experiment_name",\
                         "annotation_file_path", "genome_file_path", "alignment_folder_path",\
-                        "RIBO_file_path", "TIS_file_path", "TTS_file_path",\
+                        "RIBO_folder_path", "TIS_folder_path", "TTS_folder_path",\
                         "normalization_method", "mapping_method", "offset_file_path", "read_lengths",\
                         "min_peak_height", "peak_height_operator", "tts_start_selection",\
                         "log_fold_contrasts", "max_ORF_length", "rpkm_read_usage",\
@@ -53,9 +53,9 @@ def check_config_sheet(config_sheet):
         experiment = getattr(row, "experiment_name")
         annotation = getattr(row, "annotation_file_path")
         genome = getattr(row, "genome_file_path")
-        file_path_tis = getattr(row, "TIS_file_path")
-        file_path_tts = getattr(row, "TTS_file_path")
-        file_path_ribo = getattr(row, "RIBO_file_path")
+        file_path_tis = getattr(row, "TIS_folder_path")
+        file_path_tts = getattr(row, "TTS_folder_path")
+        file_path_ribo = getattr(row, "RIBO_folder_path")
         mapping_method = getattr(row, "mapping_method")
         normalization = getattr(row, "normalization_method")
         offset_json = getattr(row, "offset_file_path")
@@ -242,9 +242,9 @@ def call_ORFBounder(config_df, result_path):
         experiment = getattr(row, "experiment_name")
         annotation = getattr(row, "annotation_file_path")
         genome = getattr(row, "genome_file_path")
-        file_path_tis = getattr(row, "TIS_file_path")
-        file_path_tts = getattr(row, "TTS_file_path")
-        file_path_ribo = getattr(row, "RIBO_file_path")
+        file_path_tis = getattr(row, "TIS_folder_path")
+        file_path_tts = getattr(row, "TTS_folder_path")
+        file_path_ribo = getattr(row, "RIBO_folder_path")
         read_lengths = getattr(row, "read_lengths")
         mapping_method = getattr(row, "mapping_method").split(",")
         normalization = getattr(row, "normalization_method").split(",")
