@@ -44,12 +44,46 @@ def parse_read_lengths(read_lengths):
             else:
                 i1, i2 = interval[1], interval[0]
 
-            for i in range(i1,i2+1):
+            for i in range(i1, i2+1):
                 read_lengths.add(i)
         else:
             read_lengths.add(part)
 
     return [str(i) for i in sorted(list(read_lengths))]
+
+def parse_total_reads(total_read_file_path, normalization_method):
+    """
+    Takes a tab seperated file of total read counts and determines the minimum for each chromosome
+    Format:  sample chromosome total_reads
+    """
+
+    min_read_count_dict = {}
+    if normalization_method == "min":
+        error_msg = "Error: min normalization method chosen but no total_read_file_path given!\n"\
+                    "Either use a different normalization method or provide a file containing total read counts for each sample and each chromosome.\n"\
+                    "Consider using our helper script to create the required files."
+
+        if type(total_read_file_path) is not str:
+            msg.error(error_msg)
+        elif not Path(total_read_file_path).is_file():
+            msg.error(error_msg)
+        else:
+            with open(total_read_file_path, "r") as f:
+                lines = list(filter(None, [line.strip() for line in f.readlines()]))
+
+            for line in lines:
+                sample, chrom, cur_count = line.split("\t")
+
+                if chrom in min_read_count_dict:
+                    if min_read_count_dict[chrom] > cur_count:
+                        min_read_count_dict[chrom] = cur_count
+                else:
+                    min_read_count_dict[chrom] = cur_count
+
+    else:
+        return None
+
+    return min_read_count_dict
 
 def parse_alignment_input(alignment_file_tis, alignment_file_tts):
     """

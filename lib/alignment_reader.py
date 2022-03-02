@@ -120,7 +120,7 @@ class PositionReader:
         except ValueError:
             sys.exit("Error: Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.")
 
-    def normalize_read_counts(self, normalization, min_read_count):
+    def normalize_read_counts(self, normalization, min_read_count_dict):
         """
         Normalize all read counts for all positions
         """
@@ -130,14 +130,20 @@ class PositionReader:
                 for position in self.reads_position_dict[(chrom, strand)]:
 
                     if normalization == "min":
-                        if min_read_count > 0:
-                            self.reads_position_dict[(chrom, strand)][position] *= (min_read_count / self.no_accepted_reads_dict[(chrom, strand)])
+
+                        if chrom not in min_read_count_dict:
+                            msg.warning(f"No minimum read count found for {chrom}. Skipping normalization.")
+
                         else:
-                            msg.error("Error: You chose min as normalization factor, but the provided minimal read count is not valid: %s!" % min_read_count)
+                            min_read_count = min_read_count_dict[chrom]
+                            if  min_read_count > 0:
+                                self.reads_position_dict[(chrom, strand)][position] *= (min_read_count / self.no_accepted_reads_dict[(chrom, strand)])
+                            else:
+                                msg.error(f"Error: You chose min as normalization factor, but the provided minimal read count is not valid: {min_read_count}!")
                     elif normalization == "mil":
                         self.reads_position_dict[(chrom, strand)][position] *= (1000000 / self.no_accepted_reads_dict[(chrom, strand)])
                     else:
-                        msg.error("Error: Given normalization method is not supported: %s. Supported methods: {raw, min, mil}" % normalization)
+                        msg.error(f"Error: Given normalization method is not supported: {normalization}. Supported methods: (raw, min, mil)")
         else:
             msg.message("Skipping normalization!")
 
@@ -148,13 +154,13 @@ class PositionReader:
 
         for (chrom, strand) in self.reads_position_dict.keys():
             s = "reverse" if strand == "-" else "forward"
-            cur_file = "%s_%s_%s.wig" % (os.path.splitext(file_path)[0], chrom, s)
+            cur_file = f"{os.path.splitext(file_path)[0]}_{chrom}_{s}.wig"
             with open(cur_file, "w") as f:
-                f.write("track type=wiggle_0 name=%s\nvariableStep chrom=%s span=1\n" % (cur_file, chrom))
+                f.write(f"track type=wiggle_0 name={cur_file}\nvariableStep chrom={chrom} span=1\n")
 
                 for position in sorted(self.reads_position_dict[(chrom,strand)].keys()):
                     value = self.reads_position_dict[(chrom,strand)][position]
-                    f.write("%s %s\n" % (int(position)+1, float(value)))
+                    f.write(f"{int(position)+1} {float(value)}\n")
 
 
     def output(self):

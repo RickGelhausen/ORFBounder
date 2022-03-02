@@ -71,7 +71,50 @@ def extend_combined_dictionary(xlsx_df, meta_dict, dynamic_dict):
 
     return meta_dict, dynamic_dict
 
-def build_merged_dataframe(meta_dict, dynamic_dict, contrasts):
+def get_log_fc_contrast(wildcards):
+    """
+    Create log fold change contrast list
+    """
+
+    contrasts = []
+
+    wildcard_dict = {}
+    for card in wildcards:
+        if "-" not in card:
+            continue
+
+        method, condition, replicate = card.split("-")
+        if "ribo" in method.lower():
+            wildcard_dict[f"{condition}-{replicate}"] = []
+
+    for card in wildcards:
+        if "-" not in card:
+            continue
+
+        method, condition, replicate = card.split("-")
+        if method.lower() in ["tts","tis"] and f"{condition}-{replicate}" in wildcard_dict:
+            wildcard_dict[f"{condition}-{replicate}"].append(card)
+
+    for ribo, tt_list in wildcard_dict.items():
+        for val in tt_list:
+            contrasts.append((f"RIBO-{ribo}", val))
+
+    return contrasts
+
+def calculate_fold_changes(row, con1, con2):
+    """
+    Calculate the contrast between two columns
+    """
+
+    con1_heights = float(row[con1 + "_peak_height"])
+    con2_heights = float(row[con2 + "_peak_height"])
+
+    if np.nan in [con1_heights, con2_heights]:
+        return np.nan
+
+    return np.log2(con2_heights / con1_heights)
+
+def build_merged_dataframe(meta_dict, dynamic_dict):
     """
     Given the input data of all tables build a new dataframe with sorted wildcards
     """
@@ -126,10 +169,10 @@ def build_merged_dataframe(meta_dict, dynamic_dict, contrasts):
         result_rows.append(nTuple(*result))
 
     result_df = pd.DataFrame.from_records(result_rows, columns=header)
+    contrasts = get_log_fc_contrast(wildcards)
 
     contrast_header = []
     if contrasts != []:
-        contrasts = [contrast.split("_") for contrast in contrasts]
         tis_columns = [x for x in result_df.columns if ("TIS" in x.split("_")[0] and not "RNA" in x.split("_")[0]) ]
         result_df = result_df[result_df[tis_columns].any(axis="columns")]
 
@@ -151,31 +194,6 @@ def build_merged_dataframe(meta_dict, dynamic_dict, contrasts):
 
     return result_df, wildcards
 
-def get_max(row, column):
-    """
-    Get the maximum value from a given column seperated by |
-    """
-
-    entries = [float(x) for x in str(row[column]).split("|")]
-    return max(entries)
-
-
-def calculate_fold_changes(row, con1, con2):
-    """
-    Calculate the contrast between two columns
-    """
-
-    fold_change = np.nan
-
-    con1_heights = float(row[con1 + "_peak_height"])
-    con2_heights = float(row[con2 + "_peak_height"])
-
-    if con1_heights == [] or con2_heights == []:
-        return fold_change
-
-    return np.log2(con1_heights / con1_heights)
-
-
 
 def screen_input_tables(table_list):
     """
@@ -190,14 +208,12 @@ def screen_input_tables(table_list):
 
     return meta_dict, dynamic_dict
 
-def write_merged_table(meta_dict, dynamic_dict, output_path, contrasts):
+def write_merged_table(meta_dict, dynamic_dict, output_path):
     """
     create final merged table and write it to xlsx/csv file
     """
-    df_res, _ = build_merged_dataframe(meta_dict, dynamic_dict, contrasts)
+    df_res, _ = build_merged_dataframe(meta_dict, dynamic_dict)
 
-    #-empty_cols = [col for col in df_results.columns if list(df_results[col].unique()) == (["", nan])]
-    #df_results.drop(empty_cols, axis=1, inplace=True)
     df_res.dropna(how="all", axis=1, inplace=True)
     df_res = df_res.sort_values(by=["Genome", "Start", "Stop", "Strand"])
     Path(os.path.dirname(output_path)).mkdir(parents=True, exist_ok=True)

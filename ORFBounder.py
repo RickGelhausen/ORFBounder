@@ -16,7 +16,7 @@ import lib.messaging as msg
 def prediction_call(annotation_file, genome_dict, read_lengths, normalization, mapping_mode, \
                     start_codons, stop_codons, alignment_file, output_path, output_basename, \
                     offset_dict, method, longest_potential_orf, detected_orfs_dict, min_peak_height, \
-                    peak_height_operator):
+                    peak_height_operator, min_read_count_dict):
     """
     execute the script for either TIS or TTS
     """
@@ -64,7 +64,7 @@ def prediction_call(annotation_file, genome_dict, read_lengths, normalization, m
 def run_orfbounder(alignment_file_tis, alignment_file_tts, alignment_file_ribo, read_lengths, normalization, mapping, \
                 annotation_file, genome_file, start_codons, stop_codons, output_path, output_basename, \
                 offset_json, tts_start_selection, min_peak_height, max_ORF_length, \
-                peak_height_operator, all_reads_rpkm, alignment_file_path):
+                peak_height_operator, all_reads_rpkm, alignment_file_path, total_read_file_path):
     """
     run functions necessary to generate the final output of ORFBounder
     """
@@ -72,6 +72,7 @@ def run_orfbounder(alignment_file_tis, alignment_file_tts, alignment_file_ribo, 
     method = io.parse_alignment_input(alignment_file_tis, alignment_file_tts)
     bam_files = io.check_alignment_path_input(alignment_file_path, alignment_file_tis, alignment_file_tts)
     read_lengths = io.parse_read_lengths(read_lengths)
+    min_read_count_dict = io.parse_total_reads(total_read_file_path)
 
     headers = ["TIS","TTS","RIBO"]
     if alignment_file_tis != "":
@@ -104,14 +105,14 @@ def run_orfbounder(alignment_file_tis, alignment_file_tts, alignment_file_ribo, 
                         = prediction_call(annotation_file, genome_dict, read_lengths, normalization, mapping, \
                                           start_codons, stop_codons, alignment_file_tis, output_path, \
                                           output_basename, offset_dict, "TIS", tts_start_selection, \
-                                          predictions, min_peak_height, peak_height_operator)
+                                          predictions, min_peak_height, peak_height_operator, min_read_count_dict)
 
         if alignment_file_ribo != "":
             predictions, gene_density_ribo_dict, _ \
                         = prediction_call(annotation_file, genome_dict, read_lengths, normalization, mapping, \
                                           start_codons, stop_codons, alignment_file_ribo, output_path, \
                                           output_basename, offset_dict, "RIBO", tts_start_selection, \
-                                          predictions, min_peak_height, peak_height_operator)
+                                          predictions, min_peak_height, peak_height_operator, min_read_count_dict)
         if bam_files != -1:
             read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
             read_count_dict, accepted_read_list = expr.retrieve_read_counts(read_count_dict, bam_files, read_lengths, all_reads_rpkm)
@@ -124,14 +125,14 @@ def run_orfbounder(alignment_file_tis, alignment_file_tts, alignment_file_ribo, 
                         = prediction_call(annotation_file, genome_dict, read_lengths, normalization, mapping, \
                                           start_codons, stop_codons, alignment_file_tts, output_path, \
                                           output_basename, offset_dict, "TTS", tts_start_selection, \
-                                          predictions, min_peak_height, peak_height_operator)
+                                          predictions, min_peak_height, peak_height_operator, min_read_count_dict)
 
         if alignment_file_ribo != "":
             predictions, gene_density_ribo_dict, _ \
                         = prediction_call(annotation_file, genome_dict, read_lengths, normalization, mapping, \
                                           start_codons, stop_codons, alignment_file_ribo, output_path, \
                                           output_basename, offset_dict, "RIBO", tts_start_selection, \
-                                          predictions, min_peak_height, peak_height_operator)
+                                          predictions, min_peak_height, peak_height_operator, min_read_count_dict)
         if bam_files != -1:
             read_count_dict = expr.init_read_count_dict(read_count_dict, predictions)
             read_count_dict, accepted_read_list = expr.retrieve_read_counts(read_count_dict, bam_files, read_lengths, all_reads_rpkm)
@@ -145,20 +146,20 @@ def run_orfbounder(alignment_file_tis, alignment_file_tts, alignment_file_ribo, 
                         = prediction_call(annotation_file, genome_dict, read_lengths, normalization, mapping, \
                                           start_codons, stop_codons, alignment_file_tis, output_path, \
                                           output_basename, offset_dict, "TIS", tts_start_selection, \
-                                          predictions, min_peak_height, peak_height_operator)
+                                          predictions, min_peak_height, peak_height_operator, min_read_count_dict)
 
         if alignment_file_ribo != "":
             predictions, gene_density_ribo_dict, _ \
                         = prediction_call(annotation_file, genome_dict, read_lengths, normalization, mapping, \
                                           start_codons, stop_codons, alignment_file_ribo, output_path, \
                                           output_basename, offset_dict, "RIBO", tts_start_selection, \
-                                          predictions, min_peak_height, peak_height_operator)
+                                          predictions, min_peak_height, peak_height_operator, min_read_count_dict)
 
         predictions, gene_density_tts_dict, _ \
                         = prediction_call(annotation_file, genome_dict, read_lengths, normalization, mapping, \
                                           start_codons, stop_codons, alignment_file_tts, output_path, \
                                           output_basename, offset_dict, "TTS", tts_start_selection, \
-                                          predictions, min_peak_height, peak_height_operator)
+                                          predictions, min_peak_height, peak_height_operator, min_read_count_dict)
 
         #combined_predictions = pred.combined_data_detection(codon_dict_tis, codon_dict_tts, offset_tis, offset_tts, max_ORF_length)
         if bam_files != -1:
@@ -223,6 +224,10 @@ def main():
     parser.add_argument("--min_peak_height", action="store", dest="min_peak_height", type=int, default=5\
                                            , help="Minimum height value to be considered a peak. (max option)\n"\
                                                  +"Minimum height value to be added to the total peak value (sum option)")
+    parser.add_argument("--total_read_file_path", action="store", dest="total_read_file_path", default=-1
+                                                , help="A tab seperated file containing the total read lengths for each sample.\n"\
+                                                      +"This file is only necessary when using the min nomalization method.\n"\
+                                                      +"We provide a script that creates these files for you.")
     parser.add_argument("--all_reads_rpkm", action="store_true", dest="all_reads_rpkm", type=bool
                                           , help="If set, all mapped reads will be used for the calculation of RPKM values.\n"\
                                                 +"By default only mapped reads of the specified lengths will be used")
@@ -238,7 +243,7 @@ def main():
     result_df, _ = run_orfbounder(args.alignment_file_tis, args.alignment_file_tts, args.alignment_file_ribo, args.read_lengths, \
                         args.normalization, args.mapping, args.annotation_file, args.genome_file, args.start_codons, args.stop_codons, args.output_path, \
                         args.output_basename, args.offset_json, args.tts_start_selection, args.min_peak_height, \
-                        args.max_ORF_length, args.peak_height_operator, args.all_reads_rpkm, args.alignment_file_path)
+                        args.max_ORF_length, args.peak_height_operator, args.all_reads_rpkm, args.alignment_file_path, args.total_read_file_path)
 
     io.write_results_to_gff(result_df, os.path.join(args.output_path, "result_tables"), args.output_basename, args.split_gff)
     io.write_results_to_table(result_df, os.path.join(args.output_path, "result_tables"), args.output_basename)

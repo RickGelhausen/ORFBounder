@@ -34,9 +34,9 @@ def check_config_sheet(config_sheet):
     expected_columns = ["experiment_name",\
                         "annotation_file_path", "genome_file_path", "alignment_folder_path",\
                         "RIBO_folder_path", "TIS_folder_path", "TTS_folder_path",\
-                        "normalization_method", "mapping_method", "offset_file_path", "read_lengths",\
-                        "min_peak_height", "peak_height_operator", "tts_start_selection",\
-                        "log_fold_contrasts", "max_ORF_length", "rpkm_read_usage",\
+                        "normalization_method", "total_read_file_path", "mapping_method", "offset_file_path",\
+                        "read_lengths", "min_peak_height", "peak_height_operator",\
+                        "tts_start_selection", "max_ORF_length", "rpkm_read_usage",\
                         "gff_output_mode", "start_codons", "stop_codons"]
 
     input_columns = config_df.columns
@@ -66,10 +66,10 @@ def check_config_sheet(config_sheet):
         min_peak_height = getattr(row, "min_peak_height")
         peak_height_operator = getattr(row, "peak_height_operator")
         tts_start_selection = getattr(row, "tts_start_selection")
-        log_fold_contrasts = getattr(row, "log_fold_contrasts")
         max_ORF_length = getattr(row, "max_ORF_length")
         rpkm_read_usage = getattr(row, "rpkm_read_usage")
         gff_output_mode = getattr(row, "gff_output_mode")
+        total_read_file_path = getattr(row, "total_read_file_path")
 
         msg.message(f"Checking config file for: {experiment}")
 
@@ -165,9 +165,6 @@ def check_config_sheet(config_sheet):
             if gff_output_mode not in ["combined", "split"]:
                 msg.error(f"Error: Given gff_output_mode does not exist {gff_output_mode}. Use [combined, split]")
 
-        if is_empty(log_fold_contrasts):
-            msg.warning("No log_fold_contrasts given, skipping!")
-
         if is_empty(max_ORF_length):
             msg.warning("No max_ORF_length specfied, using default: 150.")
         else:
@@ -176,6 +173,12 @@ def check_config_sheet(config_sheet):
             else:
                 if int(max_ORF_length) < 0:
                     msg.error("Error: Negative max_ORF_length given.")
+
+        if "min" in normalization.lower():
+            if is_empty(total_read_file_path):
+                msg.error("Error: min normalization given but no total_read_file_path specified.\n"\
+                          "       Please specify a file or choose a different normalization.\n"\
+                          "       You can use our helper script to create the file.")
 
     return config_df
 
@@ -256,12 +259,12 @@ def call_ORFBounder(config_df, result_path):
         min_peak_height = getattr(row, "min_peak_height")
         peak_height_operator = getattr(row, "peak_height_operator")
         tts_start_selection = getattr(row, "tts_start_selection")
-        log_fold_contrasts = getattr(row, "log_fold_contrasts")
         max_orf_length = getattr(row, "max_ORF_length")
         rpkm_read_usage = getattr(row, "rpkm_read_usage")
         gff_output_mode = getattr(row, "gff_output_mode")
         start_codons = getattr(row, "start_codons")
         stop_codons = getattr(row, "stop_codons")
+        total_read_file_path = getattr(row, "total_read_file_path")
 
         if is_empty(log_fold_contrasts):
             log_fold_contrasts = []
@@ -325,7 +328,7 @@ def call_ORFBounder(config_df, result_path):
                                                                 start_codons, stop_codons, res_path, wildcard, \
                                                                 offset_json, tts_start_selection, min_peak_height, \
                                                                 max_orf_length, peak_height_operator, \
-                                                                all_reads_rpkm, bam_folder)
+                                                                all_reads_rpkm, bam_folder, total_read_file_path)
                     except SystemExit:
                         msg.warning("Error encountered while calling ORFBounder! Moving to next run!")
                         continue
@@ -340,10 +343,10 @@ def call_ORFBounder(config_df, result_path):
                         combined_meta_dict, combined_dynamic_dict = mg.extend_combined_dictionary(combined_res_df, combined_meta_dict, combined_dynamic_dict)
 
                 if meta_dict:
-                    mg.write_merged_table(meta_dict, dynamic_dict, os.path.join(res_path, "%s_final.xlsx" % experiment), log_fold_contrasts)
+                    mg.write_merged_table(meta_dict, dynamic_dict, os.path.join(res_path, "%s_final.xlsx" % experiment))
                     mg.write_merged_gff(meta_dict, os.path.join(res_path, "%s_final.xlsx" % experiment))
                 if combined_meta_dict:
-                    mg.write_merged_table(combined_meta_dict, combined_dynamic_dict, os.path.join(res_path, "%s_combined_final.xlsx" % experiment), log_fold_contrasts)
+                    mg.write_merged_table(combined_meta_dict, combined_dynamic_dict, os.path.join(res_path, "%s_combined_final.xlsx" % experiment))
 
 def main():
     # store commandline args
