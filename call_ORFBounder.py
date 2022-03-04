@@ -34,7 +34,7 @@ def check_config_sheet(config_sheet):
     expected_columns = ["experiment_name",\
                         "annotation_file_path", "genome_file_path", "alignment_folder_path",\
                         "RIBO_folder_path", "TIS_folder_path", "TTS_folder_path",\
-                        "normalization_method", "total_read_file_path", "mapping_method", "offset_file_path",\
+                        "normalization_method", "mapped_counts_file_path", "mapping_method", "offset_file_path",\
                         "read_lengths", "min_peak_height", "peak_height_operator",\
                         "tts_start_selection", "max_ORF_length", "rpkm_read_usage",\
                         "gff_output_mode", "start_codons", "stop_codons"]
@@ -69,7 +69,7 @@ def check_config_sheet(config_sheet):
         max_ORF_length = getattr(row, "max_ORF_length")
         rpkm_read_usage = getattr(row, "rpkm_read_usage")
         gff_output_mode = getattr(row, "gff_output_mode")
-        total_read_file_path = getattr(row, "total_read_file_path")
+        mapped_counts_file_path = getattr(row, "mapped_counts_file_path")
 
         msg.message(f"Checking config file for: {experiment}")
 
@@ -175,8 +175,8 @@ def check_config_sheet(config_sheet):
                     msg.error("Error: Negative max_ORF_length given.")
 
         if "min" in normalization.lower():
-            if is_empty(total_read_file_path):
-                msg.error("Error: min normalization given but no total_read_file_path specified.\n"\
+            if is_empty(mapped_counts_file_path):
+                msg.error("Error: min normalization given but no mapped_counts_file_path specified.\n"\
                           "       Please specify a file or choose a different normalization.\n"\
                           "       You can use our helper script to create the file.")
 
@@ -264,12 +264,7 @@ def call_ORFBounder(config_df, result_path):
         gff_output_mode = getattr(row, "gff_output_mode")
         start_codons = getattr(row, "start_codons")
         stop_codons = getattr(row, "stop_codons")
-        total_read_file_path = getattr(row, "total_read_file_path")
-
-        if is_empty(log_fold_contrasts):
-            log_fold_contrasts = []
-        else:
-            log_fold_contrasts = log_fold_contrasts.split(",")
+        mapped_counts_file_path = getattr(row, "mapped_counts_file_path")
 
         if is_empty(max_orf_length):
             max_orf_length = 150
@@ -328,7 +323,7 @@ def call_ORFBounder(config_df, result_path):
                                                                 start_codons, stop_codons, res_path, wildcard, \
                                                                 offset_json, tts_start_selection, min_peak_height, \
                                                                 max_orf_length, peak_height_operator, \
-                                                                all_reads_rpkm, bam_folder, total_read_file_path)
+                                                                all_reads_rpkm, bam_folder, mapped_counts_file_path)
                     except SystemExit:
                         msg.warning("Error encountered while calling ORFBounder! Moving to next run!")
                         continue

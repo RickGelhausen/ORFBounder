@@ -51,7 +51,7 @@ def parse_read_lengths(read_lengths):
 
     return [str(i) for i in sorted(list(read_lengths))]
 
-def parse_total_reads(total_read_file_path, normalization_method):
+def parse_total_reads(mapped_counts_file_path, normalization_method):
     """
     Takes a tab seperated file of total read counts and determines the minimum for each chromosome
     Format:  sample chromosome total_reads
@@ -59,26 +59,26 @@ def parse_total_reads(total_read_file_path, normalization_method):
 
     min_read_count_dict = {}
     if normalization_method == "min":
-        error_msg = "Error: min normalization method chosen but no total_read_file_path given!\n"\
+        error_msg = "Error: min normalization method chosen but no mapped_counts_file_path given!\n"\
                     "Either use a different normalization method or provide a file containing total read counts for each sample and each chromosome.\n"\
                     "Consider using our helper script to create the required files."
 
-        if type(total_read_file_path) is not str:
+        if type(mapped_counts_file_path) is not str:
             msg.error(error_msg)
-        elif not Path(total_read_file_path).is_file():
+        elif not Path(mapped_counts_file_path).is_file():
             msg.error(error_msg)
         else:
-            with open(total_read_file_path, "r") as f:
+            with open(mapped_counts_file_path, "r") as f:
                 lines = list(filter(None, [line.strip() for line in f.readlines()]))
 
             for line in lines:
                 sample, chrom, cur_count = line.split("\t")
 
                 if chrom in min_read_count_dict:
-                    if min_read_count_dict[chrom] > cur_count:
-                        min_read_count_dict[chrom] = cur_count
+                    if min_read_count_dict[chrom] > int(cur_count):
+                        min_read_count_dict[chrom] = int(cur_count)
                 else:
-                    min_read_count_dict[chrom] = cur_count
+                    min_read_count_dict[chrom] = int(cur_count)
 
     else:
         return None
@@ -89,7 +89,6 @@ def parse_alignment_input(alignment_file_tis, alignment_file_tts):
     """
     Check whether the input alignment files are valid and determine the execution method for ORFBounder
     """
-
 
     if alignment_file_tis != "" and alignment_file_tts != "":
         if not os.path.isfile(alignment_file_tis):

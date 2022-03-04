@@ -28,9 +28,6 @@ def prediction_call(annotation_file, genome_dict, read_lengths, normalization, m
         search_codons = stop_codons
         match_codons = start_codons
 
-    # TODO: Missing normalization pre processing for min-normalization
-    min_read_count = -1
-
     msg.message("Checking output folder...")
     if os.path.isfile(os.path.join(output_path, "result_tables", output_basename + ".csv")):
         msg.error("Error: Result table already found! Please ensure that prior output files with the same name are deleted.")
@@ -38,8 +35,10 @@ def prediction_call(annotation_file, genome_dict, read_lengths, normalization, m
     msg.success("Done.")
 
     pr_object = PositionReader(alignment_file, read_lengths, mapping_mode, offset_dict)
-    pr_object.normalize_read_counts(normalization, min_read_count)
+    pr_object.normalize_read_counts(normalization, min_read_count_dict)
     alignment_position_dict, _ = pr_object.output()
+
+    pr_object.to_wig(output_path)
 
     for chrom, genome_seq in genome_dict.items():
         msg.message("Current chromosome: %s" % chrom)
@@ -72,7 +71,7 @@ def run_orfbounder(alignment_file_tis, alignment_file_tts, alignment_file_ribo, 
     method = io.parse_alignment_input(alignment_file_tis, alignment_file_tts)
     bam_files = io.check_alignment_path_input(alignment_file_path, alignment_file_tis, alignment_file_tts)
     read_lengths = io.parse_read_lengths(read_lengths)
-    min_read_count_dict = io.parse_total_reads(total_read_file_path)
+    min_read_count_dict = io.parse_total_reads(total_read_file_path, normalization)
 
     headers = ["TIS","TTS","RIBO"]
     if alignment_file_tis != "":

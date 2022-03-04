@@ -2,6 +2,7 @@ import re
 import os, sys
 import pysam
 import interlap
+from pathlib import Path
 
 import lib.messaging as msg
 
@@ -43,7 +44,7 @@ class PositionReader:
                 if read.get_tag("NH") > 1 or read.mapping_quality < 0 or read.is_unmapped:
                     continue
 
-                start, stop = read.reference_start, read.reference_end-1
+                start, stop = read.reference_start, read.reference_end - 1
                 read_length = stop - start + 1
 
                 strand = "-" if read.is_reverse else "+"
@@ -62,7 +63,7 @@ class PositionReader:
                 elif "default" in self.offset_dict:
                     offset = self.offset_dict["default"]
                 else:
-                    msg.error("Error: Offsets and default value missing for (wildcard, readlength): %s, %s" % (self.wildcard, read_length))
+                    msg.error(f"Error: Offsets and default value missing for (wildcard, readlength): {self.wildcard}, {read_length}")
 
                 clip_length = 11
                 positions = []
@@ -76,10 +77,10 @@ class PositionReader:
                         # positions = [start+mid-1 + offset, start+mid + offset, start+mid+1 + offset]
                         center_start = start + clip_length
                         center_stop = stop - clip_length
-                        positions = [i + offset for i in range(center_start, center_stop+1, 1)]
+                        positions = [i + offset for i in range(center_start, center_stop + 1, 1)]
                         center_length = center_stop - center_start + 1
                     else:
-                        positions = [i + offset for i in range(start, stop+1, 1)]
+                        positions = [i + offset for i in range(start, stop + 1, 1)]
                 else:
                     if self.mapping_mode == "threeprime":
                         positions = [stop - offset]
@@ -90,10 +91,10 @@ class PositionReader:
                         # positions = [start+mid-1 - offset, start+mid - offset, start+mid+1 - offset]
                         center_start = start + clip_length
                         center_stop = stop - clip_length
-                        positions = [i + offset for i in range(center_start, center_stop+1, 1)]
+                        positions = [i + offset for i in range(center_start, center_stop + 1, 1)]
                         center_length = center_stop - center_start + 1
                     else:
-                        positions = [i - offset for i in range(start, stop+1, 1)]
+                        positions = [i - offset for i in range(start, stop + 1, 1)]
 
                 for pos in positions:
                     if pos < 0:
@@ -118,7 +119,7 @@ class PositionReader:
                             self.reads_position_dict[(chrom, strand)] = {pos : 1}
 
         except ValueError:
-            sys.exit("Error: Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.")
+            msg.error("Error: Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.")
 
     def normalize_read_counts(self, normalization, min_read_count_dict):
         """
@@ -136,12 +137,13 @@ class PositionReader:
 
                         else:
                             min_read_count = min_read_count_dict[chrom]
-                            if  min_read_count > 0:
-                                self.reads_position_dict[(chrom, strand)][position] *= (min_read_count / self.no_accepted_reads_dict[(chrom, strand)])
+                            print(min_read_count, self.no_accepted_reads_dict[chrom], min_read_count/self.no_accepted_reads_dict[chrom])
+                            if min_read_count > 0:
+                                self.reads_position_dict[(chrom, strand)][position] *= (min_read_count / self.no_accepted_reads_dict[chrom])
                             else:
                                 msg.error(f"Error: You chose min as normalization factor, but the provided minimal read count is not valid: {min_read_count}!")
                     elif normalization == "mil":
-                        self.reads_position_dict[(chrom, strand)][position] *= (1000000 / self.no_accepted_reads_dict[(chrom, strand)])
+                        self.reads_position_dict[(chrom, strand)][position] *= (1000000 / self.no_accepted_reads_dict[chrom])
                     else:
                         msg.error(f"Error: Given normalization method is not supported: {normalization}. Supported methods: (raw, min, mil)")
         else:
@@ -153,10 +155,11 @@ class PositionReader:
         """
 
         for (chrom, strand) in self.reads_position_dict.keys():
-            s = "reverse" if strand == "-" else "forward"
-            cur_file = f"{os.path.splitext(file_path)[0]}_{chrom}_{s}.wig"
+            orientation = "reverse" if strand == "-" else "forward"
+            cur_file = Path(file_path) / f"{Path(self.alignment_file_path).stem}_{chrom}_{orientation}.wig"
+            Path(cur_file.parent).mkdir(parents=True, exist_ok=True)
             with open(cur_file, "w") as f:
-                f.write(f"track type=wiggle_0 name={cur_file}\nvariableStep chrom={chrom} span=1\n")
+                f.write(f"track type=wiggle_0 name={Path(cur_file).name}\nvariableStep chrom={chrom} span=1\n")
 
                 for position in sorted(self.reads_position_dict[(chrom,strand)].keys()):
                     value = self.reads_position_dict[(chrom,strand)][position]
