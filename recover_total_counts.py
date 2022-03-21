@@ -82,7 +82,7 @@ def count_mapped_reads(alignment_file_path, read_count_dict, read_length_list):
     Read alignment file and count the number of mapped reads.
     """
     sample = alignment_file_path.stem
-    msg.message(f">Counting read for {sample}.")
+    msg.message(f">Counting reads for {sample}.")
 
     alignment_file = pysam.AlignmentFile(alignment_file_path)
     try:
@@ -126,6 +126,7 @@ def recover_read_information(config_df, result_path):
 
     for row in config_df.itertuples(index=False):
         experiment_name = getattr(row, "experiment_name")
+        msg.message(f"Creating read count file for experiment: {experiment_name} ...")
 
         file_path_tis = getattr(row, "TIS_folder_path")
         file_path_tts = getattr(row, "TTS_folder_path")

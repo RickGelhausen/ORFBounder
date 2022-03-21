@@ -137,7 +137,7 @@ class PositionReader:
 
                         else:
                             min_read_count = min_read_count_dict[chrom]
-                            print(min_read_count, self.no_accepted_reads_dict[chrom], min_read_count/self.no_accepted_reads_dict[chrom])
+
                             if min_read_count > 0:
                                 self.reads_position_dict[(chrom, strand)][position] *= (min_read_count / self.no_accepted_reads_dict[chrom])
                             else:

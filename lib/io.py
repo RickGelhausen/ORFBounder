@@ -249,6 +249,7 @@ def excel_writer(out_file_name, data_frames):
     for sheetname, df in data_frames.items():
         df.to_excel(writer, sheet_name=sheetname, index=False)
         worksheet = writer.sheets[sheetname]
+        worksheet.freeze_panes(1, 0)
         for idx, col in enumerate(df):
             series = df[col]
             if col in header_only:
