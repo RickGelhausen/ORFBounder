@@ -222,7 +222,7 @@ This is a script that is seperate from the analysis and requires different depen
 All required packages are easily retrievable via conda.
 
 ```
-conda create -n "extramapping" -c bioconda -c conda-forge pandas samtools ucsc-wigtobigwig
+conda create -n "extramapping" -c bioconda -c conda-forge pandas samtools ucsc-wigtobigwig pysam
 conda activate extramapping
 ```
 
