@@ -35,7 +35,7 @@ def check_config_sheet(config_sheet):
                         "annotation_file_path", "genome_file_path", "alignment_folder_path",\
                         "RIBO_folder_path", "TIS_folder_path", "TTS_folder_path",\
                         "normalization_method", "mapped_counts_file_path", "mapping_method", "offset_file_path",\
-                        "read_lengths", "min_peak_height", "peak_height_operator",\
+                        "read_length_json", "min_peak_height", "peak_height_operator",\
                         "tts_start_selection", "max_ORF_length", "rpkm_read_usage",\
                         "gff_output_mode", "start_codons", "stop_codons"]
 
@@ -61,7 +61,7 @@ def check_config_sheet(config_sheet):
         offset_json = getattr(row, "offset_file_path")
 
         # Optional
-        read_lengths = getattr(row, "read_lengths")
+        read_length_json = getattr(row, "read_length_json")
         bam_folder = getattr(row, "alignment_folder_path")
         min_peak_height = getattr(row, "min_peak_height")
         peak_height_operator = getattr(row, "peak_height_operator")
@@ -125,7 +125,7 @@ def check_config_sheet(config_sheet):
 
 
         # Optional parameters
-        if is_empty(read_lengths):
+        if is_empty(read_length_json):
             msg.warning("No read lengths specified, using default: -1 (all read lengths).")
 
         if bam_folder != "" and isinstance(bam_folder, str):
@@ -248,13 +248,12 @@ def call_ORFBounder(config_df, result_path):
         file_path_tis = getattr(row, "TIS_folder_path")
         file_path_tts = getattr(row, "TTS_folder_path")
         file_path_ribo = getattr(row, "RIBO_folder_path")
-        read_lengths = getattr(row, "read_lengths")
         mapping_method = getattr(row, "mapping_method").split(",")
         normalization = getattr(row, "normalization_method").split(",")
         offset_json = getattr(row, "offset_file_path")
 
         # Optional
-        read_lengths = getattr(row, "read_lengths")
+        read_length_json = getattr(row, "read_length_json")
         bam_folder = getattr(row, "alignment_folder_path")
         min_peak_height = getattr(row, "min_peak_height")
         peak_height_operator = getattr(row, "peak_height_operator")
@@ -318,7 +317,7 @@ def call_ORFBounder(config_df, result_path):
                 res_path = os.path.join(result_path, experiment, mapping, norm)
                 for (file_tis, file_tts, file_ribo), wildcard in bam_input_list:
                     try:
-                        res_df, combined_res_df = ob.run_orfbounder(file_tis, file_tts, file_ribo, read_lengths, \
+                        res_df, combined_res_df = ob.run_orfbounder(file_tis, file_tts, file_ribo, read_length_json, \
                                                                 norm, mapping, annotation, genome, \
                                                                 start_codons, stop_codons, res_path, wildcard, \
                                                                 offset_json, tts_start_selection, min_peak_height, \

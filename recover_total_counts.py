@@ -3,6 +3,8 @@ import pysam
 import argparse
 import math
 import pandas as pd
+import re
+import os
 
 from pathlib import Path
 import lib.messaging as msg
@@ -45,7 +47,7 @@ def check_config_sheet(config_sheet):
         file_path_tis = getattr(row, "TIS_folder_path")
         file_path_tts = getattr(row, "TTS_folder_path")
         file_path_ribo = getattr(row, "RIBO_folder_path")
-        read_lengths = getattr(row, "read_lengths")
+        read_length_json = getattr(row, "read_length_json")
 
         msg.message(f"Checking config file for: {experiment}")
 
@@ -72,17 +74,28 @@ def check_config_sheet(config_sheet):
         if is_empty(experiment):
             msg.error("Empty entry found: Missing experiment_name!")
 
-        if is_empty(read_lengths):
+        if is_empty(read_length_json):
             msg.warning("No read lengths specified, using default: -1 (all read lengths).")
 
     return config_df
 
-def count_mapped_reads(alignment_file_path, read_count_dict, read_length_list):
+def count_mapped_reads(alignment_file_path, read_count_dict, read_length_dict):
     """
     Read alignment file and count the number of mapped reads.
     """
     sample = alignment_file_path.stem
     msg.message(f">Counting reads for {sample}.")
+
+    wildcard = re.split('_|\.', os.path.basename(alignment_file_path))[0]
+    if read_length_dict == -1:
+        read_length_list = -1
+    elif wildcard in read_length_dict:
+        read_length_list = read_length_dict[wildcard]
+    elif "default" in read_length_dict:
+        read_length_list = read_length_dict["default"]
+    else:
+        msg.warning("Warning no default value given for read-lengths. Using all read lengths.")
+        read_length_list = -1
 
     alignment_file = pysam.AlignmentFile(alignment_file_path)
     try:
@@ -131,7 +144,7 @@ def recover_read_information(config_df, result_path):
         file_path_tis = getattr(row, "TIS_folder_path")
         file_path_tts = getattr(row, "TTS_folder_path")
         file_path_ribo = getattr(row, "RIBO_folder_path")
-        read_lengths = getattr(row, "read_lengths")
+        read_length_json = getattr(row, "read_length_json")
 
         differing_paths = set([file_path_tis, file_path_tts, file_path_ribo])
 
@@ -140,10 +153,10 @@ def recover_read_information(config_df, result_path):
             files.extend([entry for entry in Path(path).glob("*.bam") if entry.is_file()])
             files.extend([entry for entry in Path(path).glob("*.sam") if entry.is_file()])
 
-        read_length_list = io.parse_read_lengths(read_lengths)
+        read_length_dict = io.parse_read_lengths(read_length_json)
         read_count_dict = {}
         for alignment_file in sorted(files):
-            read_count_dict = count_mapped_reads(alignment_file, read_count_dict, read_length_list)
+            read_count_dict = count_mapped_reads(alignment_file, read_count_dict, read_length_dict)
 
         write_read_counts_to_file(read_count_dict, experiment_name, result_path)
 

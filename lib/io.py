@@ -25,31 +25,47 @@ def generate_genome_dict(genome_file):
 
     return genome_dict
 
-def parse_read_lengths(read_lengths):
+def parse_read_lengths(read_length_json):
     """
     Parse the read length input into a continuous list form.
     """
 
-    if read_lengths == "":
+    if read_length_json == "" or read_length_dict == -1:
         msg.warning("Warning: Empty read-lengths parameter given, using all available read lengths.")
         return -1
 
-    parts = read_lengths.split(",")
-    read_lengths = set()
-    for part in parts:
-        if "-" in part:
-            interval = part.split("-")
-            if interval[0] < interval[1]:
-                i1, i2 = interval[0], interval[1]
-            else:
-                i1, i2 = interval[1], interval[0]
+    if os.path.isfile(read_length_json):
+        with open(read_length_json, 'r') as json_file:
+            tmp_dict = json.load(json_file)
+    else:
+        msg.error("Error: Read-length JSON file does not exist! %s" % read_length_json)
 
-            for i in range(i1, i2+1):
-                read_lengths.add(i)
+    read_length_dict = {}
+    for file, read_length_string in tmp_dict.items():
+        if type(read_length_string) is int:
+            read_length_dict[file] = [str(read_length_string)]
+
+        elif type(read_length_string) is str:
+            parts = read_length_string.split(",")
+            read_lengths = set()
+            for part in parts:
+                if "-" in part:
+                    interval = part.split("-")
+                    if interval[0] < interval[1]:
+                        i1, i2 = interval[0], interval[1]
+                    else:
+                        i1, i2 = interval[1], interval[0]
+
+                    for i in range(i1, i2+1):
+                        read_lengths.add(i)
+                else:
+                    read_lengths.add(part)
+
+            read_length_dict[file] = [str(x) for x in sorted(read_lengths)]
         else:
-            read_lengths.add(part)
+            msg.error("Error: Read-length JSON file is not in correct format!")
 
-    return [str(i) for i in sorted(list(read_lengths))]
+    return read_length_dict
 
 def parse_total_reads(mapped_counts_file_path, normalization_method):
     """

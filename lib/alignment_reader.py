@@ -12,12 +12,24 @@ class PositionReader:
     read_lengths : list (e.g. [30,32,40])
     mapping_mode : threeprime, fiveprime, centered, global
     """
-    def __init__(self, alignment_file_path, read_lengths, mapping_mode, offset_dict):
+    def __init__(self, alignment_file_path, read_length_dict, mapping_mode, offset_dict):
         self.alignment_file_path = alignment_file_path
-        self.read_lengths = read_lengths
+        self.read_length_dict = read_length_dict
         self.mapping_mode = mapping_mode
 
+
         self.wildcard = re.split('_|\.', os.path.basename(alignment_file_path))[0]
+
+        if self.read_length_dict == -1:
+            self.read_lengths = -1
+        elif self.wildcard in self.read_length_dict:
+            self.read_lengths = self.read_length_dict[self.wildcard]
+        elif "default" in self.read_length_dict:
+            self.read_lengths = self.read_length_dict["default"]
+        else:
+            msg.warning("Warning no default value given for read-lengths. Using all read lengths.")
+            self.read_lengths = -1
+
         if self.wildcard in offset_dict:
             self.offset_dict = offset_dict[self.wildcard]
         elif "default" in offset_dict:
@@ -176,10 +188,21 @@ class IntervalReader():
     rpkm_all_reads : if True, all mapped reads are used for calculating the RPKM
                      else, only the mapped reads of the given read-lengths are used
     """
-    def __init__(self, alignment_file_path, read_lengths, rpkm_all_reads):
+    def __init__(self, alignment_file_path, read_length_dict, rpkm_all_reads):
         self.alignment_file_path = alignment_file_path
-        self.read_lengths = read_lengths
+        self.read_length_dict = read_length_dict
         self.rpkm_all_reads = rpkm_all_reads
+
+        self.wildcard = re.split('_|\.', os.path.basename(alignment_file_path))[0]
+        if self.read_length_dict == -1:
+            self.read_lengths = -1
+        elif self.wildcard in self.read_length_dict:
+            self.read_lengths = self.read_length_dict[self.wildcard]
+        elif "default" in self.read_length_dict:
+            self.read_lengths = self.read_length_dict["default"]
+        else:
+            msg.warning("Warning no default value given for read-lengths. Using all read lengths.")
+            self.read_lengths = -1
 
         if self.read_lengths == -1:
             self.rpkm_all_reads = True
