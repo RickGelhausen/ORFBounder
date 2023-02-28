@@ -30,7 +30,7 @@ def parse_read_lengths(read_length_json):
     Parse the read length input into a continuous list form.
     """
 
-    if read_length_json == "" or read_length_dict == -1:
+    if read_length_json == "" or read_length_json == -1:
         msg.warning("Warning: Empty read-lengths parameter given, using all available read lengths.")
         return -1
 
@@ -51,11 +51,10 @@ def parse_read_lengths(read_length_json):
             for part in parts:
                 if "-" in part:
                     interval = part.split("-")
-                    if interval[0] < interval[1]:
-                        i1, i2 = interval[0], interval[1]
-                    else:
-                        i1, i2 = interval[1], interval[0]
-
+                    i1, i2 = int(interval[0]), int(interval[1])
+                    if i1 > i2:
+                        i1, i2 = i2, i1
+                    print(i1, i2)
                     for i in range(i1, i2+1):
                         read_lengths.add(i)
                 else:
@@ -65,6 +64,7 @@ def parse_read_lengths(read_length_json):
         else:
             msg.error("Error: Read-length JSON file is not in correct format!")
 
+    print(read_length_dict)
     return read_length_dict
 
 def parse_total_reads(mapped_counts_file_path, normalization_method):
@@ -294,10 +294,9 @@ def write_results_to_gff(result_df, output_path, output_basename, split_gff):
     gff_internal_out = []
 
     for row in result_df.itertuples(index=False, name=None):
-        gene_type, identifier, chrom, start, stop, strand, gene_name, codon_count, rpm_start, rpm_stop, rpm_start_max, rpm_stop_max, start_offsets, stop_offsets, start_codon, stop_codon = row[0:16]
+        gene_type, identifier, chrom, start, stop, strand, locus_tag, codon_count, rpm_tis, rpm_tts, rpm_ribo, start_codon, stop_codon = row[0:13]
 
-        attribute = "ID=%s;Name=%s;Peak_height_TIS=%s;Peak_height_TTS=%s;Start_codon=%s;Stop_codon=%s;Codon_count=%s;Type=%s;Start_offsets=%s;Stop_offsets=%s" \
-                    % (identifier, gene_name, rpm_start, rpm_stop, start_codon, stop_codon, codon_count, gene_type, start_offsets, stop_offsets)
+        attribute = f"ID={identifier};Name={locus_tag};Peak_height_TIS={rpm_tis};Peak_height_TTS={rpm_tts};Peak_height_RIBO={rpm_ribo};Start_codon={start_codon};Stop_codon={stop_codon};Codon_count={codon_count};Type={gene_type};"
         cur_tuple = nTuple_gff(chrom, "ORFBounder", "CDS", int(start), int(stop), ".", strand, ".", attribute)
 
         gff_all.append(cur_tuple)

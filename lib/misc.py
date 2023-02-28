@@ -139,6 +139,8 @@ def calculate_density(alignment_position_dict, annotation_interlap_dict, gene_de
     """
 
     for (chrom, strand) in alignment_position_dict:
+        if (chrom, strand) not in annotation_interlap_dict:
+            continue
         for position, read_count in alignment_position_dict[(chrom, strand)].items():
             matching_genes = list(annotation_interlap_dict[(chrom, strand)].find((position, position)))
             for gene in matching_genes:

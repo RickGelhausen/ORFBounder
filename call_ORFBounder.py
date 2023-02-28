@@ -337,8 +337,8 @@ def call_ORFBounder(config_df, result_path):
                         combined_meta_dict, combined_dynamic_dict = mg.extend_combined_dictionary(combined_res_df, combined_meta_dict, combined_dynamic_dict)
 
                 if meta_dict:
-                    mg.write_merged_table(meta_dict, dynamic_dict, os.path.join(res_path, "%s_final.xlsx" % experiment))
-                    mg.write_merged_gff(meta_dict, os.path.join(res_path, "%s_final.xlsx" % experiment))
+                    result_df=mg.write_merged_table(meta_dict, dynamic_dict, os.path.join(res_path, "%s_final.xlsx" % experiment))
+                    mg.write_merged_gff(result_df, os.path.join(res_path, "%s_final.xlsx" % experiment))
                 if combined_meta_dict:
                     mg.write_merged_table(combined_meta_dict, combined_dynamic_dict, os.path.join(res_path, "%s_combined_final.xlsx" % experiment))
 

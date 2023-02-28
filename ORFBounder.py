@@ -54,7 +54,7 @@ def prediction_call(annotation_file, genome_dict, read_length_dict, normalizatio
         codon_interlap_dict, codon_dict = misc.create_codon_interlaps(chrom, genome_seq, search_codons)
         codon_dict = pred.screen_positions_for_tss(alignment_position_dict, codon_interlap_dict, codon_dict, min_peak_height, peak_height_operator)
 
-        io.write_codon_interval_gff(output_path, output_basename+"_%s_codon_intervals.gff" % method, codon_dict)
+        io.write_codon_interval_gff(output_path, output_basename+f"_{method}_{chrom}_codon_intervals.gff", codon_dict)
 
         detected_orfs_dict = pred.detect_potential_orfs(codon_dict, genome_seq, search_codons, match_codons, method, detected_orfs_dict, longest_potential_orf)
 

@@ -220,19 +220,55 @@ def write_merged_table(meta_dict, dynamic_dict, output_path):
     df_res.to_csv(output_path[:-4]+"csv", sep="\t", index=False, quoting=csv.QUOTE_NONE)
 
     io.excel_writer(output_path, {"CDS" : df_res})
+    return df_res
 
-def write_merged_gff(meta_dict, output_path):
+# def write_merged_gff(meta_dict, output_path):
+#     """
+#     create final merged annotation file in gff3 file
+#     """
+#     nTuple = collections.namedtuple('Pandas', ["chromosome", "source", "type", "start", "stop", "score", "strand", "phase", "attribute"])
+
+#     result_rows = []
+#     for unique_id, val in meta_dict.items():
+#         chrom, mid, strand = unique_id.split(":")
+#         start, stop = mid.split("-")
+
+#         attribute = "ID=%s;Name=%s" % (unique_id, val[1])
+#         result_rows.append(nTuple(chrom, "ORFBounder", "CDS", int(start), int(stop), ".", strand, ".", attribute))
+
+#     df = pd.DataFrame.from_records(result_rows, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
+#     Path(os.path.dirname(output_path)).mkdir(parents=True, exist_ok=True)
+
+#     with open(output_path.replace(".xlsx", ".gff"), "w") as f:
+#         f.write("##gff-version 3\n")
+#     with open(output_path.replace(".xlsx", ".gff"), "a") as f:
+#         df.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
+
+
+def write_merged_gff(res_df, output_path):
     """
     create final merged annotation file in gff3 file
     """
     nTuple = collections.namedtuple('Pandas', ["chromosome", "source", "type", "start", "stop", "score", "strand", "phase", "attribute"])
 
-    result_rows = []
-    for unique_id, val in meta_dict.items():
-        chrom, mid, strand = unique_id.split(":")
-        start, stop = mid.split("-")
+    log2FC_cols = [(x, f"_{list(res_df.columns).index(x)}") for x in res_df.columns if "log2FC" in x]
 
-        attribute = "ID=%s;Name=%s" % (unique_id, val[1])
+    result_rows = []
+    for row in res_df.itertuples(index=False):
+        gene_type = getattr(row, "Type")
+        identifier = getattr(row, "Identifier")
+        chrom = getattr(row, "Genome")
+        start = getattr(row, "Start")
+        stop = getattr(row, "Stop")
+        strand = getattr(row, "Strand")
+        locus_tag = getattr(row, "Locus_tag")
+
+        attribute = f"ID={identifier};Name={locus_tag};type={gene_type}"
+        for col in log2FC_cols:
+            log2FC = getattr(row, col[1])
+            if not pd.isna(log2FC):
+                attribute += f";{str(col[0]).lower()}={log2FC}"
+
         result_rows.append(nTuple(chrom, "ORFBounder", "CDS", int(start), int(stop), ".", strand, ".", attribute))
 
     df = pd.DataFrame.from_records(result_rows, columns=["chromosome","source","type","start","stop","score","strand","phase","attribute"])
@@ -243,16 +279,16 @@ def write_merged_gff(meta_dict, output_path):
     with open(output_path.replace(".xlsx", ".gff"), "a") as f:
         df.to_csv(f, sep="\t", header=False, index=False, quoting=csv.QUOTE_NONE)
 
-
-
 def merge_tables(table_list, output_path):
     """
     collect information from all input tables and merge them into one final output table
     """
 
     meta_dict, dynamic_dict = screen_input_tables(table_list)
-    write_merged_table(meta_dict, dynamic_dict, output_path)
-    write_merged_gff(meta_dict, output_path)
+    res_df = write_merged_table(meta_dict, dynamic_dict, output_path)
+    write_merged_gff(res_df, output_path)
+
+    #write_merged_gff(meta_dict, output_path)
 
 def main():
     # store commandline args
