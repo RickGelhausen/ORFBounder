@@ -101,18 +101,21 @@ def get_log_fc_contrast(wildcards):
 
     return contrasts
 
-def calculate_fold_changes(row, con1, con2):
+def calculate_fold_changes(row, tts, ribo, min_val):
     """
     Calculate the contrast between two columns
     """
 
-    con1_heights = float(row[con1 + "_peak_height"])
-    con2_heights = float(row[con2 + "_peak_height"])
+    tts_heights = np.float(row[tts + "_peak_height"])
+    ribo_heights = np.float(row[ribo + "_peak_height"])
+    # min_ribo = min_ribo_dict[ribo]
 
-    if np.nan in [con1_heights, con2_heights]:
+    if np.isnan(tts_heights):
         return np.nan
+    elif (np.isnan(ribo_heights) or ribo_heights == 0) and tts_heights > 0:
+        return np.log2(tts_heights / min_val)
 
-    return np.log2(con2_heights / con1_heights)
+    return np.log2(tts_heights / ribo_heights)
 
 def build_merged_dataframe(meta_dict, dynamic_dict):
     """
@@ -123,8 +126,11 @@ def build_merged_dataframe(meta_dict, dynamic_dict):
          wildcards.update(val.keys())
 
     wildcards = sorted(list(wildcards))
+    contrasts = get_log_fc_contrast(wildcards)
+
     header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count"] \
            + [card + "_peak_height" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card.split("-")[0]] \
+           + ["Evidence"] \
            + ["Start_codon", "Stop_codon", "15nt_window", "Nucleotide_Seq", "Amino_Acid_Seq", "5'-distance", "3'-distance"] \
            + [card + "_relative_density" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card.split("-")[0]] \
            + [card + "_rpkm" for card in wildcards] \
@@ -147,6 +153,14 @@ def build_merged_dataframe(meta_dict, dynamic_dict):
                 else:
                     result.append(np.nan)
 
+        evidence = []
+        for card in wildcards:
+            if ("TIS" in card or "TTS" in card) and not "RNA" in card.split("-")[0]:
+                if card in wild_dict:
+                    if wild_dict[card][0] > 0:
+                        evidence.append(card)
+
+        result.append(",".join(evidence))
         result.extend(val[3:])
         for card in wildcards:
             if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card.split("-")[0]:
@@ -169,22 +183,33 @@ def build_merged_dataframe(meta_dict, dynamic_dict):
         result_rows.append(nTuple(*result))
 
     result_df = pd.DataFrame.from_records(result_rows, columns=header)
-    contrasts = get_log_fc_contrast(wildcards)
+    # min_ribo_dict = {}
+    # for wild in wildcards:
+    #     if "RIBO" in wild:
+    #         min_ribo_dict[wild] = result_df[wild+ "_peak_height"].min() * 0.9
+    heights_list = []
+    for wild in wildcards:
+        if "RNA" not in wild:
+            heights_list.append(wild + "_peak_height")
+
+    min_val = result_df[heights_list].min().min() * 0.9
+    print(min_val)
 
     contrast_header = []
     if contrasts != []:
-        tis_columns = [x for x in result_df.columns if ("TIS" in x.split("_")[0] and not "RNA" in x.split("_")[0]) ]
-        result_df = result_df[result_df[tis_columns].any(axis="columns")]
+        ts_columns = [x for x in result_df.columns if (("TIS" in x.split("_")[0] or "TTS" in x.split("_")[0]) and not "RNA" in x.split("_")[0]) ]
+        result_df = result_df[result_df[ts_columns].any(axis="columns")]
 
         for contrast in contrasts:
             con1, con2 = contrast
-            result_df[f"{con1}_{con2}_log2FC"] = result_df.apply(lambda row: calculate_fold_changes(row, con1, con2), axis=1)
-            contrast_header.append(f"{con1}_{con2}_log2FC")
+            result_df[f"{con2}_{con1}_log2FC"] = result_df.apply(lambda row: calculate_fold_changes(row, con2, con1, min_val), axis=1)
+            contrast_header.append(f"{con2}_{con1}_log2FC")
 
 
         new_header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count"] \
                    + [card + "_peak_height" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card.split("-")[0]] \
                    + contrast_header \
+                   + ["Evidence"] \
                    + ["Start_codon", "Stop_codon", "15nt_window", "Nucleotide_Seq", "Amino_Acid_Seq", "5'-distance", "3'-distance"] \
                    + [card + "_relative_density" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and not "RNA" in card.split("-")[0]] \
                    + [card + "_rpkm" for card in wildcards] \
@@ -262,8 +287,9 @@ def write_merged_gff(res_df, output_path):
         stop = getattr(row, "Stop")
         strand = getattr(row, "Strand")
         locus_tag = getattr(row, "Locus_tag")
+        evidence = getattr(row, "Evidence")
 
-        attribute = f"ID={identifier};Name={locus_tag};type={gene_type}"
+        attribute = f"ID={identifier};Name={locus_tag};type={gene_type};evidence={evidence}"
         for col in log2FC_cols:
             log2FC = getattr(row, col[1])
             if not pd.isna(log2FC):
