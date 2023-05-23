@@ -227,50 +227,70 @@ def get_genome_information(start, stop, strand, genome_seq, method):
 def get_gene_information(chrom, start_position, stop_position, strand, gene_dict):
     """
     determine the gene_name and gene_type
-    # TODO clean up this function, check NC_002163.1:46424-49027:+, NC_002163.1:46557-46580:+
     """
 
+    # ensure that the positions are 1-based
     start_position += 1
     stop_position += 1
+
+    label = "Unannotated"
+    gene_name_assigned = None
+
     for gene_name, (gene_chrom, gene_start, gene_stop, gene_strand, _) in gene_dict.items():
+        if gene_chrom != chrom or gene_strand != strand:
+            continue
+
+        # Annotated
         if gene_start == start_position and gene_stop == stop_position:
             return "Annotated", gene_name
 
-    if strand == "-":
-        start_position, stop_position = stop_position, start_position
-
-    for gene_name, (gene_chrom, gene_start, gene_stop, gene_strand, _) in gene_dict.items():
-        if gene_chrom != chrom:
-            continue
-
+        # Near-Annotated
         if strand == "+":
-            if abs(start_position-gene_start)<10 and gene_strand==strand:
-                return "Near_Annotated", gene_name
+            if abs(start_position - gene_start) < 10 and stop_position == gene_stop:
+                label = "Near_Annotated"
+                gene_name_assigned = gene_name
+                continue
+        else:  # strand == "-"
+            if abs(stop_position - gene_stop) < 10 and start_position == gene_start:
+                label = "Near_Annotated"
+                gene_name_assigned = gene_name
+                continue
 
-            elif stop_position==gene_stop and gene_strand==strand:
-                if start_position > gene_start:
-                    return "Internal_Inframe", gene_name
-                else:
-                    return "N-terminal_extension", gene_name
-            else:
-                if start_position >= gene_start and start_position <= gene_stop and gene_strand==strand:
-                    return "Internal_OutofFrame", gene_name
-        else:
-            gene_start, gene_stop = gene_stop, gene_start
+        if label != "Near_Annotated":  # Near-Annotated has higher priority
+            # Internal_Inframe
+            if strand == "+":
+                if start_position > gene_start and stop_position <= gene_stop and start_position % 3 == gene_start % 3:
+                    if label != "Near_Annotated":  # Near-Annotated has higher priority
+                        label = "Internal_Inframe"
+                        gene_name_assigned = gene_name
+                    continue
+            else:  # strand == "-"
+                if stop_position < gene_stop and start_position >= gene_start and stop_position % 3 == gene_stop % 3:
+                    if label != "Near_Annotated":  # Near-Annotated has higher priority
+                        label = "Internal_Inframe"
+                        gene_name_assigned = gene_name
+                    continue
 
-            if abs(start_position-gene_start)<10 and gene_strand==strand:
-                return "Near_Annotated", gene_name
+            # N-terminal extension
+            if strand == "+":
+                if stop_position == gene_stop and start_position < gene_start:
+                    label = "N-terminal_extension"
+                    gene_name_assigned = gene_name
+            else:  # strand == "-"
+                if start_position == gene_start and stop_position > gene_stop:
+                    label = "N-terminal_extension"
+                    gene_name_assigned = gene_name
 
-            elif stop_position==gene_stop and gene_strand==strand:
-                if start_position < gene_start:
-                    return "Internal_Inframe", gene_name
-                else:
-                    return "N-terminal_extension", gene_name
-            else:
-                if start_position <= gene_start and start_position >= gene_stop and gene_strand==strand:
-                    return "Internal_OutofFrame", gene_name
+        # Internal-OutofFrame
+        if ((start_position >= gene_start and start_position <= gene_stop) or
+            (stop_position >= gene_start and stop_position <= gene_stop)) and start_position % 3 != gene_start % 3:
+            if label not in ["Near_Annotated", "Internal_Inframe", "N-terminal_extension"]:  # Previous labels have higher priority
+                label = "Internal_OutofFrame"
+                gene_name_assigned = gene_name
 
-    return "Unannotated", "%s:%s-%s:%s" % (chrom, start_position, stop_position, strand)
+    return label, gene_name_assigned if gene_name_assigned else f"{chrom}:{start_position}-{stop_position}:{strand}"
+
+
 
 def calculate_utr_distance(start_position, stop_position, gene_name, gene_dict, method):
     """
