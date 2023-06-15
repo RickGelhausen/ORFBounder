@@ -206,18 +206,13 @@ def get_genome_information(start, stop, strand, genome_seq, method):
         nt_seq = genome_seq[start:stop+1]
         aa_seq = str(Seq(nt_seq).translate(table=11, to_stop=False))
 
-        if method == "TIS":
-            nt_window = genome_seq[start-15:start]
-        else:
-            nt_window = genome_seq[stop+1:stop+16]
+        nt_window = genome_seq[start-15:start]
+
     else:
         nt_seq = str(Seq(genome_seq[start:stop+1]).reverse_complement())
         aa_seq = str(Seq(nt_seq).translate(table=11, to_stop=False))
 
-        if method == "TIS":
-            nt_window = str(Seq(genome_seq[stop+1:stop+16]).reverse_complement())
-        else:
-            nt_window = str(Seq(genome_seq[start-15:start]).reverse_complement())
+        nt_window = str(Seq(genome_seq[stop+1:stop+16]).reverse_complement())
 
     start_codon, stop_codon = nt_seq[:3], nt_seq[-3:]
 
@@ -282,8 +277,9 @@ def get_gene_information(chrom, start_position, stop_position, strand, gene_dict
                     gene_name_assigned = gene_name
 
         # Internal-OutofFrame
-        if ((start_position >= gene_start and start_position <= gene_stop) or
-            (stop_position >= gene_start and stop_position <= gene_stop)) and start_position % 3 != gene_start % 3:
+        # if ((start_position >= gene_start and start_position <= gene_stop) or
+        #     (stop_position >= gene_start and stop_position <= gene_stop)) and start_position % 3 != gene_start % 3:
+        if start_position >= gene_start and stop_position <= gene_stop and start_position % 3 != gene_start % 3:
             if label not in ["Near_Annotated", "Internal_Inframe", "N-terminal_extension"]:  # Previous labels have higher priority
                 label = "Internal_OutofFrame"
                 gene_name_assigned = gene_name
@@ -299,12 +295,8 @@ def calculate_utr_distance(start_position, stop_position, gene_name, gene_dict, 
     start_position += 1
     stop_position += 1
     if gene_name in gene_dict:
-        if method == "TIS":
-            fiveprime_dist = start_position - gene_dict[gene_name][1]
-            threeprime_dist = gene_dict[gene_name][2] - start_position
-        else:
-            fiveprime_dist = stop_position - gene_dict[gene_name][1]
-            threeprime_dist = gene_dict[gene_name][2] - stop_position
+        fiveprime_dist = start_position - gene_dict[gene_name][1]
+        threeprime_dist = gene_dict[gene_name][2] - start_position
     else:
         fiveprime_dist, threeprime_dist = np.nan, np.nan
 
