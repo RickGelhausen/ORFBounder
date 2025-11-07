@@ -38,12 +38,12 @@ def prediction_call(annotation_file, genome_dict, read_length_dict, normalizatio
     pr_object.normalize_read_counts(normalization, min_read_count_dict)
     alignment_position_dict, _ = pr_object.output()
 
-    #pr_object.to_wig(output_path)
+    pr_object.to_wig(output_path)
 
     for chrom, genome_seq in genome_dict.items():
-        msg.message("Current chromosome: %s" % chrom)
+        msg.message(f"Current chromosome: {chrom}")
         if (chrom, "+") not in alignment_position_dict and (chrom, "-") not in alignment_position_dict:
-            msg.warning("Warning: No valid entry found for chrom: %s" % chrom)
+            msg.warning(f"Warning: No valid entry found for chrom: {chrom}")
             msg.warning("Skipping...")
             continue
 
@@ -75,11 +75,11 @@ def run_orfbounder(alignment_file_tis, alignment_file_tts, alignment_file_ribo, 
 
     headers = ["TIS","TTS","RIBO"]
     if alignment_file_tis != "":
-        headers[0] = re.split('_|\.', os.path.basename(alignment_file_tis))[0]
+        headers[0] = re.split(r'_|\.', os.path.basename(alignment_file_tis))[0]
     if alignment_file_tts != "":
-        headers[1] = re.split('_|\.', os.path.basename(alignment_file_tts))[0]
+        headers[1] = re.split(r'_|\.', os.path.basename(alignment_file_tts))[0]
     if alignment_file_ribo != "":
-        headers[2] = re.split('_|\.', os.path.basename(alignment_file_ribo))[0]
+        headers[2] = re.split(r'_|\.', os.path.basename(alignment_file_ribo))[0]
 
     offset_dict = io.parse_offset_json(offset_json)
 
@@ -88,7 +88,7 @@ def run_orfbounder(alignment_file_tis, alignment_file_tts, alignment_file_ribo, 
         msg.message("No valid bam files detected in the bam folder, skipping readcount calculation")
     else:
         for file in bam_files:
-            wildcards.append(re.split('_|\.', os.path.basename(file))[0])
+            wildcards.append(re.split(r'_|\.', os.path.basename(file))[0])
 
         wildcards, bam_files = (list(t) for t in zip(*sorted(zip(wildcards, bam_files))))
 
@@ -118,7 +118,7 @@ def run_orfbounder(alignment_file_tis, alignment_file_tts, alignment_file_ribo, 
 
         result_df = misc.generate_result_dataframe(predictions, gene_density_tis_dict, {}, gene_density_ribo_dict, genome_dict, read_count_dict, \
                                             accepted_read_list, wildcards, method, headers)
-        msg.success("Potential ORFs detected: %s" % len(result_df))
+        msg.success(f"Potential ORFs detected: {len(result_df)}")
     elif method == "TTS":
         predictions, gene_density_tts_dict, _ \
                         = prediction_call(annotation_file, genome_dict, read_length_dict, normalization, mapping, \
@@ -139,7 +139,7 @@ def run_orfbounder(alignment_file_tis, alignment_file_tts, alignment_file_ribo, 
         result_df = misc.generate_result_dataframe(predictions, {}, gene_density_tts_dict, {}, genome_dict, read_count_dict, \
                                             accepted_read_list, wildcards, method, headers)
 
-        msg.success("Potential ORFs detected: %s" % len(result_df))
+        msg.success(f"Potential ORFs detected: {len(result_df)}")
     else:
         predictions, gene_density_tis_dict, _ \
                         = prediction_call(annotation_file, genome_dict, read_length_dict, normalization, mapping, \
@@ -170,7 +170,7 @@ def run_orfbounder(alignment_file_tis, alignment_file_tts, alignment_file_ribo, 
 
         #combined_result_df = misc.generate_result_dataframe(combined_predictions, gene_density_dict_tis, gene_density_dict_tts, genome_dict, \
          #                                           read_count_dict, total_mapped_list, wildcards, method, headers)
-        msg.success("Potential ORFs detected: %s" % len(result_df))
+        msg.success(f"Potential ORFs detected: {len(result_df)}")
         #msg.success("Combined ORFs detected: %s" % len(combined_result_df))
         #
 

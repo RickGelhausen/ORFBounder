@@ -15,13 +15,7 @@ def is_empty(entry):
     Check if the current table entry is empty
     """
 
-    if type(entry) == str and entry == "":
-        return True
-    elif type(entry) == float and math.isnan(entry):
-        return True
-    else:
-        return False
-
+    return entry == "" or (isinstance(entry, float) and math.isnan(entry))
 
 def check_config_sheet(config_sheet):
     """
@@ -50,7 +44,6 @@ def check_config_sheet(config_sheet):
         read_length_json = getattr(row, "read_length_json")
 
         msg.message(f"Checking config file for: {experiment}")
-
         # TIS / TTS / RIBO check
         with_tis = True
         with_tts = True
@@ -127,7 +120,7 @@ def write_read_counts_to_file(read_count_dict, experiment_name, result_path):
     Create a tsv table with total mapped read counts.
     """
 
-    with open(Path(result_path).joinpath(f"{experiment_name}_mapped_reads.tsv"), "w") as f:
+    with open(Path(result_path).joinpath(f"{experiment_name}_mapped_reads.tsv"), "w", encoding="utf-8") as f:
         for sample, chrom in read_count_dict.keys():
             f.write(f"{sample}\t{chrom}\t{read_count_dict[(sample, chrom)]}\n")
 
@@ -147,9 +140,10 @@ def recover_read_information(config_df, result_path):
         read_length_json = getattr(row, "read_length_json")
 
         differing_paths = set([file_path_tis, file_path_tts, file_path_ribo])
-
         files = []
         for path in differing_paths:
+            if is_empty(path):
+                continue
             files.extend([entry for entry in Path(path).glob("*.bam") if entry.is_file()])
             files.extend([entry for entry in Path(path).glob("*.sam") if entry.is_file()])
 

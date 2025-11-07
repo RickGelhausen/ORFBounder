@@ -274,7 +274,7 @@ def excel_writer(out_file_name, data_frames):
                 max_len = max(( series.astype(str).str.len().max(), len(str(series.name)) )) + 1
             #print("Sheet: %s | col: %s | max_len: %s" % (sheetname, col, max_len))
             worksheet.set_column(idx, idx, max_len)
-    writer.save()
+    writer.close()
 
 def write_results_to_gff(result_df, output_path, output_basename, split_gff):
     """

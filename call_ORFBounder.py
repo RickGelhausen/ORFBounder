@@ -17,12 +17,7 @@ def is_empty(entry):
     Check if the current table entry is empty
     """
 
-    if type(entry) == str and entry == "":
-        return True
-    elif type(entry) == float and math.isnan(entry):
-        return True
-    else:
-        return False
+    return entry == "" or (isinstance(entry, float) and math.isnan(entry))
 
 
 def check_config_sheet(config_sheet):
@@ -208,7 +203,7 @@ def retrieve_bam_input_information(file_path_tis, file_path_tts, file_path_ribo)
 
     sample_dict = {}
     for file in tt_files:
-        wildcard = re.split('_|\.', os.path.basename(file))[0]
+        wildcard = re.split(r'_|\.', os.path.basename(file))[0]
         method, condition, replicate = wildcard.split("-")
 
         if (condition, replicate) not in sample_dict:

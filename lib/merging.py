@@ -106,8 +106,8 @@ def calculate_fold_changes(row, tts, ribo, min_val):
     Calculate the contrast between two columns
     """
 
-    tts_heights = np.float(row[tts + "_peak_height"])
-    ribo_heights = np.float(row[ribo + "_peak_height"])
+    tts_heights = np.float64(row[tts + "_peak_height"])
+    ribo_heights = np.float64(row[ribo + "_peak_height"])
     # min_ribo = min_ribo_dict[ribo]
 
     if np.isnan(tts_heights):

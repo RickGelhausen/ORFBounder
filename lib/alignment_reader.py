@@ -56,8 +56,9 @@ class PositionReader:
                 if read.get_tag("NH") > 1 or read.mapping_quality < 0 or read.is_unmapped:
                     continue
 
-                start, stop = read.reference_start, read.reference_end - 1
-                read_length = stop - start + 1
+                start = read.reference_start
+                read_length = read.query_length # query read length
+                stop = start + read_length - 1
 
                 strand = "-" if read.is_reverse else "+"
 
@@ -226,8 +227,9 @@ class IntervalReader():
                 if read.get_tag("NH") > 1 or read.mapping_quality < 0 or read.is_unmapped:
                     continue
 
-                start, stop = read.reference_start, read.reference_end-1
-                read_length = stop - start + 1
+                start = read.reference_start
+                read_length = read.query_length # query read length
+                stop = start + read_length - 1
 
                 strand = "-" if read.is_reverse else "+"
 
