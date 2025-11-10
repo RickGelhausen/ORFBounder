@@ -1,63 +1,64 @@
+"""
+Messaging functions for terminal output with colors.
+"""
 import sys
 
-class mcolors:
-    BLUE = '\033[94m'
-    CYAN = '\033[96m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
+# ANSI color codes
+BLUE = '\033[94m'
+CYAN = '\033[96m'
+GREEN = '\033[92m'
+YELLOW = '\033[93m'
+RED = '\033[91m'
+ENDC = '\033[0m'
+BOLD = '\033[1m'
+UNDERLINE = '\033[4m'
+
 
 def error(text):
-    """
-    Write an error message in bold red, leading to a crash and terminate the program.
-    """
-    print(f"{mcolors.RED}{mcolors.BOLD}%s{mcolors.ENDC}" % text)
-    sys.exit()
+    """Write an error message in bold red to stderr."""
+    print(f"{RED}{BOLD}{text}{ENDC}", file=sys.stderr)
+
 
 def error_list(prefix_text, suffix_text, input_description, expected_list, input_list):
     """
-    Write an error message in bold red,
+    Display a colored list showing missing (red) and present (green) items.
+
+    Args:
+        prefix_text: Text before the list
+        suffix_text: Text after the list
+        input_description: Description of the input
+        expected_list: List of expected items
+        input_list: List of actual items
     """
-    missing_entries = list(set(expected_list) - set(input_list))
-    description_length = len(input_description)
+    missing_entries = set(expected_list) - set(input_list)
+    indent = " " * (len(input_description) + 1)
 
     item_list = []
-    for item in expected_list:
-        if len(item_list) == 0:
-            if item in missing_entries:
-                item_list.append(" "+f"{mcolors.RED}{mcolors.BOLD}%s{mcolors.ENDC}\n" % item)
-            else:
-                item_list.append(" "+f"{mcolors.GREEN}{mcolors.BOLD}%s{mcolors.ENDC}\n" % item)
-        else:
-            if item in missing_entries:
-                item_list.append(" "*(description_length+1)+ f"{mcolors.RED}{mcolors.BOLD}%s{mcolors.ENDC}\n" % item)
-            else:
-                item_list.append(" "*(description_length+1)+ f"{mcolors.GREEN}{mcolors.BOLD}%s{mcolors.ENDC}\n" % item)
+    for i, item in enumerate(expected_list):
+        color = RED if item in missing_entries else GREEN
+        prefix = " " if i == 0 else indent
+        item_list.append(f"{prefix}{color}{BOLD}{item}{ENDC}\n")
 
-    print(f"{mcolors.RED}{mcolors.BOLD}%s{mcolors.ENDC}" % prefix_text\
-         +f"{mcolors.RED}{mcolors.BOLD}%s{mcolors.ENDC}" % input_description\
-         +"".join(item_list)\
-         +f"{mcolors.RED}{mcolors.BOLD}%s{mcolors.ENDC}" % suffix_text)
+    error_msg = (
+        f"{RED}{BOLD}{prefix_text}{ENDC}"
+        f"{RED}{BOLD}{input_description}{ENDC}"
+        f"{''.join(item_list)}"
+        f"{RED}{BOLD}{suffix_text}{ENDC}"
+    )
 
-    sys.exit()
+    print(error_msg, file=sys.stderr)
+
 
 def success(text):
-    """
-    Write a message in green
-    """
-    print(f"{mcolors.GREEN}%s{mcolors.ENDC}" % text)
+    """Write a success message in green."""
+    print(f"{GREEN}{text}{ENDC}")
+
 
 def message(text):
-    """
-    Write a normal message
-    """
-    print(f"{mcolors.BLUE}%s{mcolors.ENDC}" % text)
+    """Write a normal message in blue."""
+    print(f"{BLUE}{text}{ENDC}")
+
 
 def warning(text):
-    """
-    Write a warning message in yellow.
-    """
-    print(f"{mcolors.YELLOW}%s{mcolors.ENDC}" % text)
+    """Write a warning message in yellow to stderr."""
+    print(f"{YELLOW}{text}{ENDC}", file=sys.stderr)

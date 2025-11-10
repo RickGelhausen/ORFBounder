@@ -239,7 +239,7 @@ def main():
     parser.add_argument("--split_gff", action="store_true", dest="split_gff", help="Split gff into one for each gene_type.")
     args = parser.parse_args()
 
-    result_df, _ = run_orfbounder(args.alignment_file_tis, args.alignment_file_tts, args.alignment_file_ribo, args.read_lengths, \
+    result_df, _ = run_orfbounder(args.alignment_file_tis, args.alignment_file_tts, args.alignment_file_ribo, args.read_length_json, \
                         args.normalization, args.mapping, args.annotation_file, args.genome_file, args.start_codons, args.stop_codons, args.output_path, \
                         args.output_basename, args.offset_json, args.tts_start_selection, args.min_peak_height, \
                         args.max_ORF_length, args.peak_height_operator, args.all_reads_rpkm, args.alignment_file_path, args.total_read_file_path)

@@ -1,8 +1,16 @@
+"""
+Class to read alignment files and create position dictionaries or interlap dictionaries
+for read counting.
+"""
+
+from pathlib import Path
+
 import re
-import os, sys
+import os
+import sys
 import pysam
 import interlap
-from pathlib import Path
+
 
 import lib.messaging as msg
 
@@ -18,29 +26,29 @@ class PositionReader:
         self.mapping_mode = mapping_mode
 
 
-        self.wildcard = re.split('_|\.', os.path.basename(alignment_file_path))[0]
+        self.wildcard = re.split(r'_|\.', os.path.basename(alignment_file_path))[0]
 
-        if self.read_length_dict == -1:
-            self.read_lengths = -1
+        if not self.read_length_dict:
+            self.read_lengths = None
         elif self.wildcard in self.read_length_dict:
             self.read_lengths = self.read_length_dict[self.wildcard]
         elif "default" in self.read_length_dict:
             self.read_lengths = self.read_length_dict["default"]
         else:
             msg.warning("Warning no default value given for read-lengths. Using all read lengths.")
-            self.read_lengths = -1
+            self.read_lengths = None
 
         if self.wildcard in offset_dict:
             self.offset_dict = offset_dict[self.wildcard]
         elif "default" in offset_dict:
             self.offset_dict = offset_dict["default"]
         else:
-            msg.error("Error: Offsets and default value missing for wildcard: %s" % self.wildcard)
+            msg.error(f"Error: Offsets and default value missing for wildcard: {self.wildcard}")
 
         self.reads_position_dict = {}
         self.no_accepted_reads_dict = {}
 
-        msg.message("Reading read positions from alignment file: %s" % os.path.basename(alignment_file_path))
+        msg.message(f"Reading read positions from alignment file: {os.path.basename(alignment_file_path)}")
         self._read_alignment_file()
 
     def _read_alignment_file(self):
@@ -62,7 +70,7 @@ class PositionReader:
 
                 strand = "-" if read.is_reverse else "+"
 
-                if self.read_lengths != -1:
+                if self.read_lengths is not None:
                     if str(read_length) not in self.read_lengths:
                         continue
 
@@ -77,17 +85,17 @@ class PositionReader:
                     offset = self.offset_dict["default"]
                 else:
                     msg.error(f"Error: Offsets and default value missing for (wildcard, readlength): {self.wildcard}, {read_length}")
+                    sys.exit()
 
                 clip_length = 11
                 positions = []
+                center_length = None
                 if strand == "-":
                     if self.mapping_mode == "threeprime":
                         positions = [start + offset]
                     elif self.mapping_mode == "fiveprime":
                         positions = [stop + offset]
                     elif self.mapping_mode == "centered":
-                        # mid = round((read_length)/2)
-                        # positions = [start+mid-1 + offset, start+mid + offset, start+mid+1 + offset]
                         center_start = start + clip_length
                         center_stop = stop - clip_length
                         positions = [i + offset for i in range(center_start, center_stop + 1, 1)]
@@ -100,8 +108,6 @@ class PositionReader:
                     elif self.mapping_mode == "fiveprime":
                         positions = [start - offset]
                     elif self.mapping_mode == "centered":
-                        # mid = round((read_length)/2)
-                        # positions = [start+mid-1 - offset, start+mid - offset, start+mid+1 - offset]
                         center_start = start + clip_length
                         center_stop = stop - clip_length
                         positions = [i + offset for i in range(center_start, center_stop + 1, 1)]
@@ -133,6 +139,7 @@ class PositionReader:
 
         except ValueError:
             msg.error("Error: Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.")
+            sys.exit()
 
     def normalize_read_counts(self, normalization, min_read_count_dict):
         """
@@ -167,11 +174,11 @@ class PositionReader:
         Create two wiggle format files (+/-) for the used positions.
         """
 
-        for (chrom, strand) in self.reads_position_dict.keys():
+        for (chrom, strand) in self.reads_position_dict:
             orientation = "reverse" if strand == "-" else "forward"
             cur_file = Path(file_path) / f"{Path(self.alignment_file_path).stem}_{chrom}_{orientation}.wig"
             Path(cur_file.parent).mkdir(parents=True, exist_ok=True)
-            with open(cur_file, "w") as f:
+            with open(cur_file, "w", encoding="utf-8") as f:
                 f.write(f"track type=wiggle_0 name={Path(cur_file).name}\nvariableStep chrom={chrom} span=1\n")
 
                 for position in sorted(self.reads_position_dict[(chrom,strand)].keys()):
@@ -180,6 +187,8 @@ class PositionReader:
 
 
     def output(self):
+        """
+        return the position dictionary and number of accepted reads dictionary"""
         return self.reads_position_dict, self.no_accepted_reads_dict
 
 class IntervalReader():
@@ -195,17 +204,17 @@ class IntervalReader():
         self.rpkm_all_reads = rpkm_all_reads
 
         self.wildcard = re.split('_|\.', os.path.basename(alignment_file_path))[0]
-        if self.read_length_dict == -1:
-            self.read_lengths = -1
+        if self.read_length_dict is None:
+            self.read_lengths = None
         elif self.wildcard in self.read_length_dict:
             self.read_lengths = self.read_length_dict[self.wildcard]
         elif "default" in self.read_length_dict:
             self.read_lengths = self.read_length_dict["default"]
         else:
             msg.warning("Warning no default value given for read-lengths. Using all read lengths.")
-            self.read_lengths = -1
+            self.read_lengths = None
 
-        if self.read_lengths == -1:
+        if self.read_lengths is None:
             self.rpkm_all_reads = True
 
         self.no_accepted_reads_dict = {}
@@ -256,4 +265,7 @@ class IntervalReader():
             sys.exit("Error: Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.")
 
     def output(self):
+        """
+        return the interlap dictionary and number of accepted reads dictionary
+        """
         return self.reads_interlap_dict, self.no_accepted_reads_dict
