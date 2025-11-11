@@ -12,7 +12,7 @@ import math
 
 import pandas as pd
 
-import ORFBounder as ob
+import orfbounder as ob
 import lib.merging as mg
 import lib.io as io
 import lib.messaging as msg
@@ -236,7 +236,7 @@ def retrieve_bam_input_information(
             sample_dict[key] = [None, None, None]
 
         method_index = {"TIS": 0, "TTS": 1, "RIBO": 2}[method]
-        sample_dict[key][method_index] = file_path
+        sample_dict[key][method_index] = Path(file_path)
 
     return [
         (files, f"{condition}-{replicate}")
@@ -245,8 +245,7 @@ def retrieve_bam_input_information(
     ]
 
 
-
-def call_orfbounder(config_df: pd.DataFrame, result_path: str) -> None:
+def call_orfbounder(config_df: pd.DataFrame, result_path: Path) -> None:
     """
     Run the ORFBounder experiments specified in the config sheet.
 
@@ -254,13 +253,12 @@ def call_orfbounder(config_df: pd.DataFrame, result_path: str) -> None:
         config_df: DataFrame containing validated configuration
         result_path: Base path for all results
     """
-    result_path_obj = Path(result_path)
 
     for row in config_df.itertuples(index=False, name="Pandas"):
         # Required
         experiment = getattr(row, "experiment_name")
-        annotation = getattr(row, "annotation_file_path")
-        genome = getattr(row, "genome_file_path")
+        annotation = Path(getattr(row, "annotation_file_path"))
+        genome = Path(getattr(row, "genome_file_path"))
         file_path_tis = getattr(row, "TIS_folder_path")
         file_path_tts = getattr(row, "TTS_folder_path")
         file_path_ribo = getattr(row, "RIBO_folder_path")
@@ -269,8 +267,8 @@ def call_orfbounder(config_df: pd.DataFrame, result_path: str) -> None:
         offset_json = getattr(row, "offset_file_path")
 
         # Optional
-        read_length_json = getattr(row, "read_length_json")
-        bam_folder = getattr(row, "alignment_folder_path")
+        read_length_json = Path(getattr(row, "read_length_json")) if not is_empty(getattr(row, "read_length_json")) else None
+        bam_folder = Path(getattr(row, "alignment_folder_path")) if not is_empty(getattr(row, "alignment_folder_path")) else None
         min_peak_height = getattr(row, "min_peak_height")
         peak_height_operator = getattr(row, "peak_height_operator")
         tts_start_selection = getattr(row, "tts_start_selection")
@@ -278,7 +276,7 @@ def call_orfbounder(config_df: pd.DataFrame, result_path: str) -> None:
         gff_output_mode = getattr(row, "gff_output_mode")
         start_codons = getattr(row, "start_codons")
         stop_codons = getattr(row, "stop_codons")
-        mapped_counts_file_path = getattr(row, "mapped_counts_file_path")
+        mapped_counts_file_path = Path(getattr(row, "mapped_counts_file_path")) if not is_empty(getattr(row, "mapped_counts_file_path")) else None
 
         if is_empty(min_peak_height):
             min_peak_height = 5
@@ -325,7 +323,7 @@ def call_orfbounder(config_df: pd.DataFrame, result_path: str) -> None:
 
                 bam_input_list = retrieve_bam_input_information(path_tis, path_tts, path_ribo)
 
-                res_path = result_path_obj / experiment / mapping / norm
+                res_path = result_path / experiment / mapping / norm
 
                 for (file_tis, file_tts, file_ribo), wildcard in bam_input_list:
                     try:
@@ -378,11 +376,11 @@ def main() -> None:
     )
 
     parser.add_argument(
-        "-c", "--config_sheet", action="store", dest="config_sheet", required=True,
+        "-c", "--config_sheet", action="store", dest="config_sheet", type=Path, required=True,
         help="Config sheet containing information on experiments to be run."
     )
     parser.add_argument(
-        "-r", "--result_path", action="store", dest="result_path", required=True,
+        "-r", "--result_path", action="store", dest="result_path", type=Path, required=True,
         help="Path of the result folder."
     )
 

@@ -114,46 +114,47 @@ def parse_total_reads(
 
 
 def parse_alignment_input(
-    alignment_file_tis: Path,
-    alignment_file_tts: Path
+    alignment_file_tis: Path | None,
+    alignment_file_tts: Path | None
 ) -> str:
     """
     Check whether the input alignment files are valid and determine the execution method for ORFBounder
     """
 
-    if alignment_file_tis != "" and alignment_file_tts != "":
+    if alignment_file_tis and alignment_file_tts:
         if not alignment_file_tis.is_file():
-            msg.error(
+            raise FileNotFoundError(msg.error(
                 f"Error: Non-empty alignment file path given for TIS does not exist: {alignment_file_tis}"
-            )
+            ))
+
         if not alignment_file_tts.is_file():
-            msg.error(
+            raise FileNotFoundError(msg.error(
                 f"Error: Non-empty alignment file path given for TTS does not exist: {alignment_file_tts}"
-            )
+            ))
 
         return "combined_methods"
 
-    if alignment_file_tis != "":
+    if alignment_file_tis:
         if not alignment_file_tis.is_file():
-            msg.error(
+            raise FileNotFoundError(msg.error(
                 f"Error: Non-empty alignment file path given for TIS does not exist: {alignment_file_tis}"
-            )
+            ))
         return "TIS"
 
-    if alignment_file_tts != "":
+    if alignment_file_tts:
         if not alignment_file_tts.is_file():
-            msg.error(
+            raise FileNotFoundError(msg.error(
                 f"Error: Non-empty alignment file path given for TTS does not exist: {alignment_file_tts}"
-            )
+            ))
         return "TTS"
 
     raise FileNotFoundError(msg.error("Error: Please ensure to either provide a TIS file, a TTS file or both!"))
 
 
 def check_alignment_path_input(
-    alignment_file_path: Path,
-    alignment_file_tis: Path,
-    alignment_file_tts: Path
+    alignment_file_path: Path | None,
+    alignment_file_tis: Path | None,
+    alignment_file_tts: Path | None
 ) -> Optional[set[Path]]:
     """
     Check alignment input path.
@@ -162,7 +163,7 @@ def check_alignment_path_input(
      - (optional) one RNA bam file corresponding to each input method (TIS, TTS)
     """
 
-    if not str(alignment_file_path) or not alignment_file_path.is_dir():
+    if not alignment_file_path or not alignment_file_path.is_dir():
         return None
 
     valid_bam = set()
@@ -173,7 +174,7 @@ def check_alignment_path_input(
     ]
 
     condition, replicate = "", ""
-    if alignment_file_tis != "":
+    if alignment_file_tis:
         tis_path = Path(alignment_file_tis)
         tis_prefix = tis_path.stem
         condition, replicate = tis_prefix.split("-")[1:]
@@ -182,7 +183,7 @@ def check_alignment_path_input(
             if tis_prefix in file.name or rnatis_prefix in file.name:
                 valid_bam.add(file)
 
-    if alignment_file_tts != "":
+    if alignment_file_tts:
         tts_path = Path(alignment_file_tts)
         tts_prefix = tts_path.stem
         condition, replicate = tts_prefix.split("-")[1:]

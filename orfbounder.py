@@ -156,6 +156,7 @@ def run_orfbounder(
         Tuple of (result_df, combined_result_df)
     """
 
+
     method = io.parse_alignment_input(alignment_file_tis, alignment_file_tts)
     bam_files = io.check_alignment_path_input(alignment_file_path, alignment_file_tis, alignment_file_tts)
     read_length_dict = io.parse_read_lengths(read_length_json)
@@ -200,7 +201,7 @@ def run_orfbounder(
             predictions, min_peak_height, peak_height_operator, min_read_count_dict
         )
 
-        if alignment_file_ribo != "":
+        if alignment_file_ribo:
             predictions, gene_density_ribo_dict, _ = prediction_call(
                 annotation_file_path, genome_dict, read_length_dict, normalization, mapping,
                 start_codons, stop_codons, alignment_file_ribo, output_path,
@@ -226,7 +227,7 @@ def run_orfbounder(
             predictions, min_peak_height, peak_height_operator, min_read_count_dict
         )
 
-        if alignment_file_ribo != "":
+        if alignment_file_ribo:
             predictions, gene_density_ribo_dict, _ = prediction_call(
                 annotation_file_path, genome_dict, read_length_dict, normalization, mapping,
                 start_codons, stop_codons, alignment_file_ribo, output_path,
@@ -252,7 +253,7 @@ def run_orfbounder(
             predictions, min_peak_height, peak_height_operator, min_read_count_dict
         )
 
-        if alignment_file_ribo != "":
+        if alignment_file_ribo:
             predictions, gene_density_ribo_dict, _ = prediction_call(
                 annotation_file_path, genome_dict, read_length_dict, normalization, mapping,
                 start_codons, stop_codons, alignment_file_ribo, output_path,
@@ -287,20 +288,20 @@ def main() -> None:
         formatter_class=argparse.RawTextHelpFormatter
     )
     parser.add_argument(
-        "--alignment_file_tis", action="store", dest="alignment_file_tis", type=Path, default="",
+        "--alignment_file_tis", action="store", dest="alignment_file_tis", type=Path, default=None,
         help="input alignment file for TIS (sam/bam format)."
     )
     parser.add_argument(
-        "--alignment_file_tts", action="store", dest="alignment_file_tts", type=Path, default="",
+        "--alignment_file_tts", action="store", dest="alignment_file_tts", type=Path, default=None,
         help="input alignment file for TTS (sam/bam format)."
     )
     parser.add_argument(
-        "--alignment_file_ribo", action="store", dest="alignment_file_ribo", type=Path, default="",
+        "--alignment_file_ribo", action="store", dest="alignment_file_ribo", type=Path, default=None,
         help="input alignment file for RIBO (sam/bam format)."
     )
 
     parser.add_argument(
-        "-l", "--read_length_json", action="store", dest="read_length_json", default="",
+        "-l", "--read_length_json", action="store", dest="read_length_json", default=None,
         help="JSON file containing read-length specifications per file.\n"
             +"Ranges can be given using the - symbol (e.g. 15-20,31,33-35,39"
     )
@@ -335,7 +336,7 @@ def main() -> None:
     parser.add_argument("--stop_codons", nargs="+", dest="stop_codons", default=["TAG", "TAA", "TGA"])
 
     parser.add_argument(
-        "--offset_json", action="store", dest="offset_json", type=Path, default="",
+        "--offset_json", action="store", dest="offset_json", type=Path, default=None,
         help="A JSON file containing offsets for each file/read-length combination.\n"
             +"Default value will be used for missing entries."
     )
@@ -372,7 +373,7 @@ def main() -> None:
         help="the basename for all output files."
     )
     parser.add_argument(
-        "--alignment_file_path", action="store", dest="alignment_file_path", type=Path, default="",
+        "--alignment_file_path", action="store", dest="alignment_file_path", type=Path, default=None,
         help="(optional) sam/bam files to calculate RPKM and TE values for the final results."
     )
     parser.add_argument(

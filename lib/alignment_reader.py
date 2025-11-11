@@ -3,11 +3,7 @@ Class to read alignment files and create position dictionaries or interlap dicti
 for read counting.
 """
 
-from pathlib import Path
 
-import re
-import os
-import sys
 import pysam
 import interlap
 
@@ -25,8 +21,7 @@ class PositionReader:
         self.read_length_dict = read_length_dict
         self.mapping_mode = mapping_mode
 
-
-        self.wildcard = re.split(r'_|\.', os.path.basename(alignment_file_path))[0]
+        self.wildcard = alignment_file_path.stem.split('_')[0]
 
         if not self.read_length_dict:
             self.read_lengths = None
@@ -43,12 +38,12 @@ class PositionReader:
         elif "default" in offset_dict:
             self.offset_dict = offset_dict["default"]
         else:
-            msg.error(f"Error: Offsets and default value missing for wildcard: {self.wildcard}")
+            raise ValueError(f"Error: Offsets and default value missing for wildcard: {self.wildcard}")
 
         self.reads_position_dict = {}
         self.no_accepted_reads_dict = {}
 
-        msg.message(f"Reading read positions from alignment file: {os.path.basename(alignment_file_path)}")
+        msg.message(f"Reading read positions from alignment file: {alignment_file_path.name}")
         self._read_alignment_file()
 
     def _read_alignment_file(self):
@@ -84,8 +79,7 @@ class PositionReader:
                 elif "default" in self.offset_dict:
                     offset = self.offset_dict["default"]
                 else:
-                    msg.error(f"Error: Offsets and default value missing for (wildcard, readlength): {self.wildcard}, {read_length}")
-                    sys.exit()
+                    raise ValueError(f"Error: Offsets and default value missing for (wildcard, readlength): {self.wildcard}, {read_length}")
 
                 clip_length = 11
                 positions = []
@@ -137,9 +131,9 @@ class PositionReader:
                         else:
                             self.reads_position_dict[(chrom, strand)] = {pos : 1}
 
-        except ValueError:
-            msg.error("Error: Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.")
-            sys.exit()
+        except ValueError as exc:
+            raise ValueError("Error: Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.") from exc
+
 
     def normalize_read_counts(self, normalization, min_read_count_dict):
         """
@@ -161,11 +155,12 @@ class PositionReader:
                             if min_read_count > 0:
                                 self.reads_position_dict[(chrom, strand)][position] *= (min_read_count / self.no_accepted_reads_dict[chrom])
                             else:
-                                msg.error(f"Error: You chose min as normalization factor, but the provided minimal read count is not valid: {min_read_count}!")
+                                raise ValueError(f"Error: You chose min as normalization factor, but the provided minimal read count is not valid: {min_read_count}!")
+
                     elif normalization == "mil":
                         self.reads_position_dict[(chrom, strand)][position] *= (1000000 / self.no_accepted_reads_dict[chrom])
                     else:
-                        msg.error(f"Error: Given normalization method is not supported: {normalization}. Supported methods: (raw, min, mil)")
+                        raise ValueError(f"Error: Given normalization method is not supported: {normalization}. Supported methods: (raw, min, mil)")
         else:
             msg.message("Skipping normalization!")
 
@@ -176,10 +171,10 @@ class PositionReader:
 
         for (chrom, strand) in self.reads_position_dict:
             orientation = "reverse" if strand == "-" else "forward"
-            cur_file = Path(file_path) / f"{Path(self.alignment_file_path).stem}_{chrom}_{orientation}.wig"
-            Path(cur_file.parent).mkdir(parents=True, exist_ok=True)
+            cur_file = file_path / f"{self.alignment_file_path.stem}_{chrom}_{orientation}.wig"
+            cur_file.parent.mkdir(parents=True, exist_ok=True)
             with open(cur_file, "w", encoding="utf-8") as f:
-                f.write(f"track type=wiggle_0 name={Path(cur_file).name}\nvariableStep chrom={chrom} span=1\n")
+                f.write(f"track type=wiggle_0 name={cur_file.name}\nvariableStep chrom={chrom} span=1\n")
 
                 for position in sorted(self.reads_position_dict[(chrom,strand)].keys()):
                     value = self.reads_position_dict[(chrom,strand)][position]
@@ -203,7 +198,7 @@ class IntervalReader():
         self.read_length_dict = read_length_dict
         self.rpkm_all_reads = rpkm_all_reads
 
-        self.wildcard = re.split(r'_|\.', os.path.basename(alignment_file_path))[0]
+        self.wildcard = alignment_file_path.stem.split('_')[0]
         if self.read_length_dict is None:
             self.read_lengths = None
         elif self.wildcard in self.read_length_dict:
@@ -261,8 +256,8 @@ class IntervalReader():
                 inter.update(val)
                 self.reads_interlap_dict[key] = inter
 
-        except ValueError:
-            sys.exit("Error: Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.")
+        except ValueError as exc:
+            raise ValueError("Error: Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.") from exc
 
     def output(self):
         """
