@@ -203,7 +203,7 @@ class IntervalReader():
         self.read_length_dict = read_length_dict
         self.rpkm_all_reads = rpkm_all_reads
 
-        self.wildcard = re.split('_|\.', os.path.basename(alignment_file_path))[0]
+        self.wildcard = re.split(r'_|\.', os.path.basename(alignment_file_path))[0]
         if self.read_length_dict is None:
             self.read_lengths = None
         elif self.wildcard in self.read_length_dict:

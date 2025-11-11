@@ -1,14 +1,19 @@
-from numpy import diff
-import pysam
-import argparse
-import math
-import pandas as pd
-import re
-import os
+#!/usr/bin/env python3
+"""
+Recover total mapped read counts from alignment files.
+"""
 
 from pathlib import Path
-import lib.messaging as msg
-import lib.io as io
+
+import re
+import math
+import argparse
+
+import pysam
+import pandas as pd
+
+from lib import messaging as msg
+from lib import io
 
 def is_empty(entry):
     """
@@ -27,7 +32,7 @@ def check_config_sheet(config_sheet):
 
     input_columns = config_df.columns
 
-    if list(set(expected_columns) - set(input_columns)) != []:
+    if list(set(expected_columns) - set(input_columns)):
         msg.error_list("Config Sheet columns are incomplete:\n",\
                        "Ensure that the file is TAB seperated.",\
                        "Required columns:",\
@@ -55,20 +60,20 @@ def check_config_sheet(config_sheet):
         if is_empty(file_path_ribo):
             with_ribo = False
         if not with_tis and not with_tts:
-            msg.error("No TIS or TTS path given! Specify atleast one.")
+            raise ValueError(msg.error("No TIS or TTS path given! Specify atleast one."))
         if with_tis and not Path(file_path_tis).is_dir():
-            msg.error(f"Mapping TIS directory is not valid! Ensure to enter a correct path!\n{file_path_tis}")
+            raise ValueError(msg.error(f"Mapping TIS directory is not valid! Ensure to enter a correct path!\n{file_path_tis}"))
         if with_tts and not Path(file_path_tts).is_dir():
-            msg.error(f"Mapping TTS directory is not valid! Ensure to enter a correct path!\n{file_path_tts}")
+            raise ValueError(msg.error(f"Mapping TTS directory is not valid! Ensure to enter a correct path!\n{file_path_tts}"))
         if with_ribo and not Path(file_path_ribo).is_dir():
-            msg.error(f"Mapping RIBO directory is not valid! Ensure to enter a correct path!\n{file_path_ribo}")
+            raise ValueError(msg.error(f"Mapping RIBO directory is not valid! Ensure to enter a correct path!\n{file_path_ribo}"))
 
         # Required parameter check
         if is_empty(experiment):
-            msg.error("Empty entry found: Missing experiment_name!")
+            raise ValueError(msg.error("Empty entry found: Missing experiment_name!"))
 
         if is_empty(read_length_json):
-            msg.warning("No read lengths specified, using default: -1 (all read lengths).")
+            msg.warning("No read lengths specified, using default: None (all read lengths).")
 
     return config_df
 
@@ -79,16 +84,16 @@ def count_mapped_reads(alignment_file_path, read_count_dict, read_length_dict):
     sample = alignment_file_path.stem
     msg.message(f">Counting reads for {sample}.")
 
-    wildcard = re.split('_|\.', os.path.basename(alignment_file_path))[0]
-    if read_length_dict == -1:
-        read_length_list = -1
+    wildcard = re.split('_|\.', alignment_file_path.name)[0]
+    if read_length_dict is None:
+        read_length_list = None
     elif wildcard in read_length_dict:
         read_length_list = read_length_dict[wildcard]
     elif "default" in read_length_dict:
         read_length_list = read_length_dict["default"]
     else:
         msg.warning("Warning no default value given for read-lengths. Using all read lengths.")
-        read_length_list = -1
+        read_length_list = None
 
     alignment_file = pysam.AlignmentFile(alignment_file_path)
     try:
@@ -101,7 +106,7 @@ def count_mapped_reads(alignment_file_path, read_count_dict, read_length_dict):
             start, stop = read.reference_start, read.reference_end - 1
             read_length = stop - start + 1
 
-            if read_length_list != -1:
+            if read_length_list is not None:
                 if str(read_length) not in read_length_list:
                     continue
 
@@ -110,8 +115,8 @@ def count_mapped_reads(alignment_file_path, read_count_dict, read_length_dict):
             else:
                 read_count_dict[(sample, chrom)] = 1
 
-    except ValueError:
-        msg.error("Error: Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.")
+    except ValueError as exc:
+       raise ValueError(msg.error("Error: Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.")) from exc
 
     return read_count_dict
 
@@ -155,11 +160,14 @@ def recover_read_information(config_df, result_path):
         write_read_counts_to_file(read_count_dict, experiment_name, result_path)
 
 def main():
-    # store commandline args
+    """
+    Main function to parse arguments and recover total read counts.
+    """
+
     parser = argparse.ArgumentParser(description="Wrapper for the ORFBounder.py, when running ORFBounder for multiple experiments.", formatter_class=argparse.RawTextHelpFormatter)
 
-    parser.add_argument("-c","--config_sheet", action="store", dest="config_sheet", required=True, help="Config sheet containing information on experiments to be run.")
-    parser.add_argument("-r","--result_path", action="store", dest="result_path", required=True, help="Path of the result folder.")
+    parser.add_argument("-c","--config_sheet", action="store", dest="config_sheet", type=Path, required=True, help="Config sheet containing information on experiments to be run.")
+    parser.add_argument("-r","--result_path", action="store", dest="result_path", type=Path, required=True, help="Path of the result folder.")
 
     args = parser.parse_args()
 

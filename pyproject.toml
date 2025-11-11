@@ -1,0 +1,19 @@
+[project]
+name = "orfbounder"
+version = "1.0.0"
+description = "ORFBounder - A tool to identify TIS/TTS peaks and annotate open reading frames (ORFs) in prokaryotic genomes using ribosome profiling data."
+readme = "README.md"
+requires-python = ">=3.14"
+dependencies = [
+    "pysam>=0.23.3",
+    "pandas>=2.3.3",
+    "numpy>=2.3.4",
+    "biopython>=1.8.6",
+    "interlap>=0.2.7",
+    "openpyxl>=3.1.5",
+    "xlsxwriter>=3.2.9",
+    "xlrd>=2.0.2",
+    "pytest>=8.4.2",
+    "pytest-mock>=3.15.1",
+    "pyyaml>=6.0.3"
+]

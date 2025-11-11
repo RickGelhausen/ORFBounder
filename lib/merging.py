@@ -10,7 +10,6 @@ import collections
 import csv
 
 import argparse
-import os
 import pandas as pd
 import numpy as np
 
@@ -214,7 +213,6 @@ def build_merged_dataframe(
 
     contrast_header = []
     if contrasts:
-        # CHANGED: Fixed operator precedence
         ts_columns = [x for x in result_df.columns if (("TIS" in x.split("_")[0] or "TTS" in x.split("_")[0]) and "RNA" not in x.split("_")[0])]
         result_df = result_df[result_df[ts_columns].any(axis="columns")]
 
@@ -223,7 +221,6 @@ def build_merged_dataframe(
             result_df[f"{con2}_{con1}_log2FC"] = result_df.apply(lambda row: calculate_fold_changes(row, con2, con1, min_val), axis=1)
             contrast_header.append(f"{con2}_{con1}_log2FC")
 
-        # CHANGED: Fixed operator precedence
         new_header = ["Type", "Identifier", "Genome", "Start", "Stop", "Strand", "Locus_tag", "Codon_count"] \
                    + [f"{card}_peak_height" for card in wildcards if ("TIS" in card or "TTS" in card or "RIBO" in card) and "RNA" not in card.split("-")[0]] \
                    + contrast_header \
