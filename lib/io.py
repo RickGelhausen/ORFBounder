@@ -38,13 +38,7 @@ def parse_read_lengths(read_length_json: Path) -> Optional[dict[str, list[str]]]
         )
         return None
 
-    read_length_path = Path(read_length_json)
-    if not read_length_path.is_file():
-        raise FileNotFoundError(
-            msg.error(f"Read-length JSON file does not exist! {read_length_json}")
-        )
-
-    with open(read_length_path, "r", encoding="utf-8") as json_file:
+    with open(read_length_json, "r", encoding="utf-8") as json_file:
         tmp_dict = json.load(json_file)
 
     read_length_dict = {}
@@ -65,11 +59,11 @@ def parse_read_lengths(read_length_json: Path) -> Optional[dict[str, list[str]]]
                     for i in range(i1, i2 + 1):
                         read_lengths.add(i)
                 else:
-                    read_lengths.add(part)
+                    read_lengths.add(int(part))
 
             read_length_dict[file] = [str(x) for x in sorted(read_lengths)]
         else:
-            msg.error("Error: Read-length JSON file is not in correct format!")
+            raise ValueError("Error: Read-length JSON file is not in correct format!")
 
     return read_length_dict
 
@@ -93,7 +87,7 @@ def parse_total_reads(
 
 
         if not mapped_counts_file_path.is_file():
-            raise FileNotFoundError(msg.error(error_msg))
+            raise FileNotFoundError(error_msg)
 
         with open(mapped_counts_file_path, "r", encoding="utf-8") as f:
             lines = list(filter(None, [line.strip() for line in f.readlines()]))
@@ -123,32 +117,32 @@ def parse_alignment_input(
 
     if alignment_file_tis and alignment_file_tts:
         if not alignment_file_tis.is_file():
-            raise FileNotFoundError(msg.error(
+            raise FileNotFoundError(
                 f"Error: Non-empty alignment file path given for TIS does not exist: {alignment_file_tis}"
-            ))
+            )
 
         if not alignment_file_tts.is_file():
-            raise FileNotFoundError(msg.error(
+            raise FileNotFoundError(
                 f"Error: Non-empty alignment file path given for TTS does not exist: {alignment_file_tts}"
-            ))
+            )
 
         return "combined_methods"
 
     if alignment_file_tis:
         if not alignment_file_tis.is_file():
-            raise FileNotFoundError(msg.error(
+            raise FileNotFoundError(
                 f"Error: Non-empty alignment file path given for TIS does not exist: {alignment_file_tis}"
-            ))
+            )
         return "TIS"
 
     if alignment_file_tts:
         if not alignment_file_tts.is_file():
-            raise FileNotFoundError(msg.error(
+            raise FileNotFoundError(
                 f"Error: Non-empty alignment file path given for TTS does not exist: {alignment_file_tts}"
-            ))
+            )
         return "TTS"
 
-    raise FileNotFoundError(msg.error("Error: Please ensure to either provide a TIS file, a TTS file or both!"))
+    raise FileNotFoundError("Error: Please ensure to either provide a TIS file, a TTS file or both!")
 
 
 def check_alignment_path_input(
@@ -211,13 +205,17 @@ def parse_offset_json(offset_json: Path) -> dict:
     Read offset JSON file into a dictionary
     """
 
-    offset_path = Path(offset_json)
-    if not offset_path.is_file():
+    if not offset_json.is_file():
         raise FileNotFoundError(
-            msg.error(f"Offset JSON file does not exist! {offset_json}")
+            f"Error: Offset JSON file does not exist! {offset_json}"
         )
 
-    with open(offset_path, "r", encoding="utf-8") as json_file:
+    if offset_json.stat().st_size == 0:
+        raise ValueError(
+            f"Error: Offset JSON file is empty or invalid! {offset_json}"
+        )
+
+    with open(offset_json, "r", encoding="utf-8") as json_file:
         return json.load(json_file)
 
 
@@ -250,6 +248,9 @@ def write_codon_interval_gff(
     """
     Create a gff3 file with all codon intervals.
     """
+
+    if len(codon_dict) == 0:
+        raise ValueError("Error: Codon dictionary is empty, cannot create codon interval gff file!")
 
     nTuple_gff = collections.namedtuple(
         "Pandas",

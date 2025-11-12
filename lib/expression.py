@@ -36,7 +36,6 @@ def header_to_dictionary(
             cur_dict[(method, condition)] = [replicate]
 
 
-
 def get_te_header(wildcards: list[str]) -> list[str]:
     """
     generate the correct te_header based on the available data
@@ -58,7 +57,6 @@ def get_te_header(wildcards: list[str]) -> list[str]:
     return te_header
 
 
-
 def calculate_rpkm(total_mapped: int, read_count: int, read_length: int) -> float:
     """
     calculate the rpkm
@@ -73,18 +71,16 @@ def calculate_rpkm(total_mapped: int, read_count: int, read_length: int) -> floa
 
     return float(f"{(read_count * 1000000000) / (total_mapped * read_length):.2f}")
 
+
 def te_value(ribo_count: float, rna_count: float) -> float:
     """
     calculate the translational efficiency for one entry
     """
 
-    if ribo_count == 0 and rna_count == 0:
-        return np.nan
     if rna_count == 0:
         return np.nan
 
     return ribo_count / rna_count
-
 
 
 def get_avg(t_eff: list[float]) -> list[float]:
@@ -159,6 +155,7 @@ def calculate_te(read_list: list[float], wildcards: list[str]) -> list[float]:
 
     return te_list
 
+
 def init_read_count_dict(
     read_count_dict: dict[tuple[str, int, int, str], list],
     result_dict: dict[tuple[str, str], dict[tuple[int, int], any]]
@@ -173,6 +170,7 @@ def init_read_count_dict(
                 read_count_dict[(chrom, start, stop, strand)] = []
 
     return read_count_dict
+
 
 def create_interlap_dict(bam_file: Path) -> tuple[dict[tuple[str, str], InterLap], dict[str, int]]:
     """
@@ -192,9 +190,9 @@ def create_interlap_dict(bam_file: Path) -> tuple[dict[tuple[str, str], InterLap
                 if read.get_tag("NH") > 1 or read.mapping_quality < 0 or read.is_unmapped:
                     continue
 
-                # start, stop = read.reference_start, read.reference_start + read.query_length
-                start, stop = read.reference_start, read.reference_end - 1
-                # start, stop = read.query_alignment_start, read.query_alignment_end
+                start = read.reference_start
+                read_length = read.query_length # query read length
+                stop = start + read_length - 1
 
                 if chrom in total_mapped_reads:
                     total_mapped_reads[chrom] += 1
@@ -212,9 +210,8 @@ def create_interlap_dict(bam_file: Path) -> tuple[dict[tuple[str, str], InterLap
                     else:
                         tmp_dict[(chrom, "-")] = [(start, stop)]
 
-        except ValueError:
-            msg.error("Error: Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.")
-            sys.exit()
+        except ValueError as exc:
+            raise ValueError("Error: Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.") from exc
 
     for key, val in tmp_dict.items():
         inter = InterLap()
