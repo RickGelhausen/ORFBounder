@@ -12,7 +12,6 @@ import numpy as np
 
 from lib.expression import (
     OrderedCounter,
-    RNAMAP,
     header_to_dictionary,
     get_te_header,
     calculate_rpkm,
@@ -712,7 +711,6 @@ class TestRetrieveReadCounts:
         }
 
         with patch('lib.expression.IntervalReader') as mock_reader:
-            from interlap import InterLap
             interlap = InterLap()
             interlap.update([(100, 200)])
 
@@ -745,7 +743,6 @@ class TestRetrieveReadCounts:
         }
 
         with patch('lib.expression.IntervalReader') as mock_reader:
-            from interlap import InterLap
             interlap = InterLap()
             interlap.update([(100, 200), (300, 400)])
 

@@ -29,15 +29,11 @@ def generate_annotation_dict(annotation_path: Path) -> dict[str, tuple]:
     """
     create dictionary from annotation.
     key : (gene_id, locus_tag, name, gene_name)
-
-    ### MAJOR CHANGE 2: Added file validation and pathlib
-    # Original code didn't check if annotation file exists
-    # Now validates file exists before processing
     """
 
     if not annotation_path.is_file():
         raise FileNotFoundError(
-            msg.error(f"Annotation file does not exist: {annotation_path}")
+            f"Annotation file does not exist: {annotation_path}"
         )
 
     annotation_df = pd.read_csv(annotation_path, sep="\t", comment="#", header=None)
@@ -61,7 +57,7 @@ def generate_annotation_dict(annotation_path: Path) -> dict[str, tuple]:
                 if i % 2 == 0:
                     attribute_list[i] = attribute_list[i].lower()
         else:
-            raise ValueError(msg.error(f"Error: invalid gff, wrongly formatted attribute fields.\n{attribute_list}"))
+            raise ValueError(f"Error: invalid gff, wrongly formatted attribute fields.\n{attribute_list}")
 
         if feature.lower() == "cds":
             locus_tag = ""
@@ -208,7 +204,7 @@ def create_codon_interlaps(
         elif codon in reverse_codons:
             interval_start = pos
             interval_stop = pos + CODON_INTERVAL_SIZE - 1
-            if interval_start < 0 or interval_stop > len(genome_seq) - CODON_LENGTH + 1:
+            if interval_start < 0 or interval_stop >= len(genome_seq):
                 continue
             key = f"{chrom}:{interval_start}-{interval_stop}:-"
             if (chrom, "-") in interlap_dict:
@@ -236,7 +232,6 @@ def get_genome_information(
     genome_seq: str
 ) -> tuple[str, str, str, str, str]:
     """
-    TODO fix for combined method
     retrieve information from genome including nucleotide sequence, start_codon, stop_codon, amino acid sequence, 15nt window
     """
     if strand == "+":
@@ -353,7 +348,7 @@ def calculate_relative_density(
     gene_dict: dict[str, tuple[str, int, int, str, int]]
 ) -> float:
     """
-    calculate the relative density
+    calculate the relative density of the signal to the overall gene density
     """
     if gene_dict == {} or gene_type == "N-terminal_extension" or gene_name not in gene_dict:
         return np.nan

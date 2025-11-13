@@ -4,14 +4,15 @@
 Module for prediction of ORF boundaries based on detected codon positions and read coverage.
 """
 
-from Bio.Seq import Seq
+from typing import Optional
 
+from Bio.Seq import Seq
 import numpy as np
 
 from lib import misc
 import lib.messaging as msg
 
-from typing import Optional
+
 
 CODON_LENGTH = misc.CODON_LENGTH
 
