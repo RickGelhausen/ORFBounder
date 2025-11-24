@@ -43,9 +43,11 @@ def screen_positions_for_tss(
                     if read_count > codon_dict[match[2]][1]:
                         codon_dict[match[2]][1] = read_count
                 else:
-                    msg.error("Invalid method! Use either 'sum' or 'max'!")
+                    raise ValueError("Invalid method! Use either 'sum' or 'max'!")
 
     return codon_dict
+
+
 
 
 def search_codon_forward(
@@ -90,7 +92,12 @@ def search_codon_reverse(
 
     return cur_position
 
-
+#    if method == "TIS" or method == "RIBO":
+#        search_codons = start_codons
+#        match_codons = stop_codons
+#    else:
+#        search_codons = stop_codons
+#        match_codons = start_codons
 def search_longest_forward(
     cur_position: int,
     genome_seq: str,
@@ -130,17 +137,21 @@ def search_longest_reverse(
 ) -> Optional[int]:
     """
     search for the match codon that is following the last inframe search codon.
+    Example: Search for the next stop codon then take the furthest upstream start codon between the current and that stop codon.
     Return: Position of matching codon or None if not found
     """
     loop_counter = 0
     original_position = cur_position
     nt = genome_seq[cur_position:cur_position + 3]
+
+    # Search backwards for a search_codon (e.g., stop codon)
     while nt not in search_codons or loop_counter == 0:
         loop_counter += 1
         cur_position -= 3
         if cur_position < 0:
-            return search_codon_reverse(original_position, genome_seq, match_codons)
-
+            # No upstream stop found - search from the beginning
+            cur_position = original_position % 3
+            break
         nt = genome_seq[cur_position:cur_position + 3]
 
     while nt not in match_codons:
@@ -204,7 +215,9 @@ def detect_potential_orfs(
                     if cur_position is None:
                         continue
                 elif tts_start_selection == "furthest_inframe":
+
                     cur_position = search_longest_reverse(cur_position, genome_seq, search_codons, match_codons)
+                    print(cur_position)
                     if cur_position is None:
                         continue
                 else:

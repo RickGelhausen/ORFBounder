@@ -16,7 +16,7 @@ from Bio.Seq import Seq
 
 from interlap import InterLap
 import lib.expression as expr
-import lib.messaging as msg
+
 
 
 CODON_LENGTH = 3
