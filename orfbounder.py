@@ -87,7 +87,7 @@ def prediction_call(
     pr_object.normalize_read_counts(normalization, min_read_count_dict)
     alignment_position_dict, _ = pr_object.output()
 
-    pr_object.to_wig(output_path)
+    pr_object.to_wig(output_path / "coverage_files")
 
     for chrom, genome_seq in genome_dict.items():
         msg.message(f"Current chromosome: {chrom}")
