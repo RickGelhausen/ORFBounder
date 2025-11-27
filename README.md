@@ -20,7 +20,10 @@ These scripts were created to be used with the metagene-profiling and alignment 
 - [Output Files](#output-files)
   - [Results Directory Structure](#results-directory-structure)
   - [Output Tables](#output-tables)
+- [Toy Example](#toy-example)
 - [References](#references)
+- [Citation](#citation)
+- [License](#license)
 
 ---
 
