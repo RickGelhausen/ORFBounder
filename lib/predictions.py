@@ -184,7 +184,7 @@ def detect_potential_orfs(
 
         chrom, mid, strand = key.split(":")
         interval_start, _ = mid.split("-")
-        if method == "TIS" or method == "RIBO":
+        if method in ["TIS", "RIBO"]:
             if strand == "+":
                 cur_start = int(interval_start) + 2
                 cur_position = cur_start
@@ -217,7 +217,6 @@ def detect_potential_orfs(
                 elif tts_start_selection == "furthest_inframe":
 
                     cur_position = search_longest_reverse(cur_position, genome_seq, search_codons, match_codons)
-                    print(cur_position)
                     if cur_position is None:
                         continue
                 else:

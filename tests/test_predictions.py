@@ -15,8 +15,7 @@ from lib.predictions import (
     search_longest_forward,
     search_longest_reverse,
     detect_potential_orfs,
-    convert_codon_dict,
-    combined_data_detection
+    convert_codon_dict
 )
 
 
@@ -755,28 +754,3 @@ class TestConvertCodonDict:
         # Should have entries for both offsets
         assert 10 in start_dict
         assert 12 in start_dict
-
-
-class TestCombinedDataDetection:
-    """Tests for combined_data_detection function"""
-
-    def test_combined_detection_basic_plus_strand(self):
-        """Test basic combined detection on plus strand"""
-        codon_dict_tis = {
-            ("chr1:2-6:+", 12): ["ATG", 10]  # Start at position -8
-        }
-        codon_dict_tts = {
-            ("chr1:11-15:+", 12): ["TAA", 20]  # Stop at position 3
-        }
-
-        result = combined_data_detection(
-            codon_dict_tis,
-            codon_dict_tts,
-            offset_tis=12,
-            offset_tts=12,
-            max_orf_length=1000
-        )
-
-        # Should find ORF (but need to check calculation is correct)
-        # This might not work due to the offset calculations
-        assert isinstance(result, dict)

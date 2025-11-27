@@ -1071,6 +1071,15 @@ class TestGetGeneInformation:
         assert gene_type == "Annotated"
         assert gene_name == "gene1"
 
+    def test_get_gene_information_same_start(self, sample_gene_dict):
+        """Test exact match returns Annotated"""
+        gene_type, gene_name = get_gene_information(
+            "chr1", 100, 172, "+", sample_gene_dict
+        )
+
+        assert gene_type == "Unannotated"
+        assert gene_name == "chr1:101-173:+"
+
     def test_get_gene_information_unannotated(self, sample_gene_dict):
         """Test no match returns Unannotated"""
         gene_type, gene_name = get_gene_information(

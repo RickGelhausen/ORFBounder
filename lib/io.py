@@ -436,7 +436,7 @@ def write_results_to_gff(
         ],
     )
     write_gff_file(
-        df_all, output_path, Path("result_gffs") / f"{output_basename}.gff"
+        df_all, output_path, Path(f"{output_basename}.gff")
     )
 
     if split_gff:
@@ -457,7 +457,7 @@ def write_results_to_gff(
         write_gff_file(
             df_annotated,
             output_path,
-            Path("result_gffs") / f"{output_basename}_annotated.gff",
+            Path(f"{output_basename}_annotated.gff"),
         )
 
         df_unannotated = pd.DataFrame.from_records(
@@ -477,7 +477,7 @@ def write_results_to_gff(
         write_gff_file(
             df_unannotated,
             output_path,
-            Path("result_gffs") / f"{output_basename}_unannotated.gff",
+            Path(f"{output_basename}_unannotated.gff"),
         )
 
         df_near_annotated = pd.DataFrame.from_records(
@@ -497,7 +497,7 @@ def write_results_to_gff(
         write_gff_file(
             df_near_annotated,
             output_path,
-            Path("result_gffs") / f"{output_basename}_near_annotated.gff",
+            Path(f"{output_basename}_near_annotated.gff"),
         )
 
         df_internal_inframe = pd.DataFrame.from_records(
@@ -517,7 +517,7 @@ def write_results_to_gff(
         write_gff_file(
             df_internal_inframe,
             output_path,
-            Path("result_gffs") / f"{output_basename}_internal_inframe.gff",
+            Path(f"{output_basename}_internal_inframe.gff"),
         )
 
         df_n_terminal = pd.DataFrame.from_records(
@@ -537,7 +537,7 @@ def write_results_to_gff(
         write_gff_file(
             df_n_terminal,
             output_path,
-            Path("result_gffs") / f"{output_basename}_n_terminal.gff",
+            Path(f"{output_basename}_n_terminal.gff"),
         )
 
         df_internal_out = pd.DataFrame.from_records(
@@ -557,7 +557,7 @@ def write_results_to_gff(
         write_gff_file(
             df_internal_out,
             output_path,
-            Path("result_gffs") / f"{output_basename}_internal_out.gff",
+            Path(f"{output_basename}_internal_out.gff"),
         )
     msg.success("Done")
 

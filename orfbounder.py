@@ -21,7 +21,8 @@ from lib import messaging as msg
 
 
 # Constants
-RESULT_TABLES_DIR = "result_tables"
+RESULT_TABLES_DIR = "table_per_sample"
+RESULT_GFF_DIR = "gff_per_sample"
 OUTPUT_FILE_EXTENSION = ".csv"
 
 
@@ -120,7 +121,7 @@ def run_orfbounder(
     stop_codons: list[str],
     output_path: Path,
     output_basename: str,
-    offset_json: str,
+    offset_json: Path,
     tts_start_selection: str,
     min_peak_height: int,
     peak_height_operator: str,
@@ -394,9 +395,11 @@ def main() -> None:
         args.total_read_file_path
     )
 
-    output_result_dir = Path(args.output_path) / RESULT_TABLES_DIR
-    io.write_results_to_gff(result_df, output_result_dir, args.output_basename, args.split_gff)
-    io.write_results_to_table(result_df, output_result_dir, args.output_basename)
+    output_table_dir = Path(args.output_path) / RESULT_TABLES_DIR
+    output_gff_dir = Path(args.output_path) / RESULT_GFF_DIR
+
+    io.write_results_to_gff(result_df, output_gff_dir, args.output_basename, args.split_gff)
+    io.write_results_to_table(result_df, output_table_dir, args.output_basename)
 
     msg.success("Success! Terminating...")
 

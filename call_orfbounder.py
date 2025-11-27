@@ -5,8 +5,6 @@ A wrapper script to call ORFBounder for multiple experiments based on a config s
 
 from pathlib import Path
 
-import os
-import re
 import argparse
 import math
 
@@ -18,7 +16,8 @@ import lib.io as io
 import lib.messaging as msg
 
 # Constants
-RESULT_TABLES_DIR = "result_tables"
+RESULT_TABLES_DIR = "table_per_sample"
+RESULT_GFF_DIR = "gff_per_sample"
 COMBINED_RESULTS_DIR = "combined_results"
 FINAL_OUTPUT_EXTENSION = ".xlsx"
 FINAL_GFF_EXTENSION = ".gff"
@@ -264,7 +263,7 @@ def call_orfbounder(config_df: pd.DataFrame, result_path: Path) -> None:
         file_path_ribo = getattr(row, "RIBO_folder_path")
         mapping_method = getattr(row, "mapping_method").split(",")
         normalization = getattr(row, "normalization_method").split(",")
-        offset_json = getattr(row, "offset_file_path")
+        offset_json = Path(getattr(row, "offset_file_path"))
 
         # Optional
         read_length_json = Path(getattr(row, "read_length_json")) if not is_empty(getattr(row, "read_length_json")) else None
@@ -342,9 +341,11 @@ def call_orfbounder(config_df: pd.DataFrame, result_path: Path) -> None:
                         msg.warning("Error encountered while calling ORFBounder! Moving to next run!")
                         continue
 
-                    result_tables_path = res_path / RESULT_TABLES_DIR
-                    io.write_results_to_gff(res_df, result_tables_path, wildcard, split_gff)
-                    io.write_results_to_table(res_df, result_tables_path, wildcard)
+
+                    output_table_dir = res_path / RESULT_TABLES_DIR
+                    output_gff_dir = res_path / RESULT_GFF_DIR
+                    io.write_results_to_gff(res_df, output_gff_dir, wildcard, split_gff)
+                    io.write_results_to_table(res_df, output_table_dir, wildcard)
 
                     meta_dict, dynamic_dict = mg.extend_combined_dictionary(res_df, meta_dict, dynamic_dict)
 

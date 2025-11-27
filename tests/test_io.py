@@ -708,22 +708,22 @@ class TestWriteResultsToGff:
 
     def test_write_results_to_gff_creates_main_file(self, tmp_path, sample_results_df):
         """Test that main GFF file is created"""
-        output_path = tmp_path / "output"
+        output_path = tmp_path / "output" / "gff_per_condition"
         output_basename = "results"
 
         write_results_to_gff(sample_results_df, output_path, output_basename, split_gff=False)
 
-        main_gff = output_path / "result_gffs" / f"{output_basename}.gff"
+        main_gff = output_path / f"{output_basename}.gff"
         assert main_gff.exists()
 
     def test_write_results_to_gff_contains_all_entries(self, tmp_path, sample_results_df):
         """Test that main file contains all entries"""
-        output_path = tmp_path / "output"
+        output_path = tmp_path / "output" / "gff_per_condition"
         output_basename = "results"
 
         write_results_to_gff(sample_results_df, output_path, output_basename, split_gff=False)
 
-        main_gff = output_path / "result_gffs" / f"{output_basename}.gff"
+        main_gff = output_path / f"{output_basename}.gff"
         content = main_gff.read_text()
 
         lines = [l for l in content.split('\n') if l and not l.startswith('#')]
@@ -731,14 +731,14 @@ class TestWriteResultsToGff:
 
     def test_write_results_to_gff_split_creates_separate_files(self, tmp_path, sample_results_df):
         """Test that split_gff creates separate files per type"""
-        output_path = tmp_path / "output"
+        output_path = tmp_path / "output" / "gff_per_condition"
         output_basename = "results"
 
         write_results_to_gff(sample_results_df, output_path, output_basename, split_gff=True)
 
-        annotated_gff = output_path / "result_gffs" / f"{output_basename}_annotated.gff"
-        unannotated_gff = output_path / "result_gffs" / f"{output_basename}_unannotated.gff"
-        near_annotated_gff = output_path / "result_gffs" / f"{output_basename}_near_annotated.gff"
+        annotated_gff = output_path / f"{output_basename}_annotated.gff"
+        unannotated_gff = output_path / f"{output_basename}_unannotated.gff"
+        near_annotated_gff = output_path / f"{output_basename}_near_annotated.gff"
 
         assert annotated_gff.exists()
         assert unannotated_gff.exists()
@@ -746,12 +746,12 @@ class TestWriteResultsToGff:
 
     def test_write_results_to_gff_no_split_only_main_file(self, tmp_path, sample_results_df):
         """Test that split_gff=False only creates main file"""
-        output_path = tmp_path / "output"
+        output_path = tmp_path / "output" / "gff_per_condition"
         output_basename = "results"
 
         write_results_to_gff(sample_results_df, output_path, output_basename, split_gff=False)
 
-        annotated_gff = output_path / "result_gffs" / f"{output_basename}_annotated.gff"
+        annotated_gff = output_path / f"{output_basename}_annotated.gff"
 
         # Split files should not exist
         assert not annotated_gff.exists()

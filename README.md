@@ -20,9 +20,6 @@ These scripts were created to be used with the metagene-profiling and alignment 
 - [Output Files](#output-files)
   - [Results Directory Structure](#results-directory-structure)
   - [Output Tables](#output-tables)
-- [Additional Information](#additional-information)
-  - [Normalization Methods](#normalization-methods)
-  - [Mapping Methods](#mapping-methods)
 - [References](#references)
 
 ---
@@ -70,16 +67,7 @@ We recommend using [uv](https://docs.astral.sh/uv/) for dependency management. T
 curl -LsSf https://astral.sh/uv/install.sh | sh
 
 # Run ORFBounder (dependencies will be automatically managed)
-uv run call_ORFBounder.py -c  -o
-```
-
-**Alternative installation with conda:**
-
-If you prefer using conda, you can install the dependencies using the provided `environment.yml`:
-
-```bash
-conda env create -f environment.yml
-conda activate orfbounder_env
+uv run call_ORFBounder.py -c config.tsv -r output
 ```
 
 > **⚠️ Platform Note:** This tool was developed and tested on a Linux system. It should not contain Linux-specific commands, but it was never tested on Windows or macOS.
@@ -111,6 +99,7 @@ For details on the analysis itself, please refer to our publication *(in progres
 Analyzing data using ORFBounder is done in three steps:
 
 1. **Determine offsets**: Using metagene profiling output, determine the best mapping and offset combinations. This step is currently manual and requires the user to determine the best mapping/offset and read lengths to be used by `ORFBounder`.
+We suggest using the metagene workflow described in `
 
 2. **Prepare configuration files**: Create an offset JSON file and a config spreadsheet with experimental parameters.
 
@@ -242,18 +231,12 @@ The config spreadsheet is a tab-separated table that contains all input paramete
 After creating both input files, running ORFBounder is straightforward:
 
 ```bash
-uv run call_ORFBounder.py -c  -o
-```
-
-**Alternative (if not using uv):**
-
-```bash
-python3 call_ORFBounder.py -c  -o
+uv run call_ORFBounder.py -c  -r
 ```
 
 **Parameters:**
 - `-c <config_spreadsheet>`: Path to the configuration spreadsheet
-- `-o <output_folder>`: Path to the output directory where results will be saved
+- `-r <output_folder>`: Path to the output directory where results will be saved
 
 ---
 
@@ -266,16 +249,17 @@ For each experiment, ORFBounder creates a structured output directory containing
 ```
 <output_folder>/
 └── <experiment_name>/
-    ├── <mapping_method>_<normalization_method>/
-    │   └── final_results.xlsx
-    ├── coverage/
-    │   └── *.wig (or similar coverage files)
-    ├── result_tables/
-    │   ├── combined_results.tsv
-    │   └── <condition>_results.tsv
-    └── gff_files/
-        ├── combined.gff (if gff_output_mode=combined)
-        └── <orf_type>.gff (if gff_output_mode=split)
+    └── <mapping_method>_
+		├── <normalization_method>/
+		│   ├── <experiment>_final.xlsx
+		│   └── <experiment>_final.gff
+		├── coverage_files/
+		│   └── *.wig (or similar coverage files)
+		├── table_per_condition/
+		│   └── <condition>-<replicate>.xlsx
+		└── gff_per_condition/
+			├── <condition>-<replicate>_<orf_type>.gff (if gff_output_mode=split)
+		  └── <condition>-<replicate>.gff (if gff_output=combined)
 ```
 
 #### Directory Contents
@@ -284,23 +268,22 @@ For each experiment, ORFBounder creates a structured output directory containing
 
 For each combination of mapping method (e.g., `threeprime`, `fiveprime`) and normalization method (e.g., `raw`, `mil`, `min`), a separate folder is created containing:
 
-- **`final_results.xlsx`**: The primary output file containing all detected ORFs with comprehensive annotations and statistics
+- **`<experiment>_final.xlsx`**: The primary output file containing all detected ORFs with comprehensive annotations and statistics
+- **`<experiment>_final.gff`**: Single file with all ORF types.
 
-**2. Coverage Folder** (`coverage/`)
+**2. Coverage Folder** (`coverage_files/`)
 
 Contains coverage files adjusted to the experimental settings (offsets, read lengths, mapping method).
 
-**3. Result Tables Folder** (`result_tables/`)
+**3. Result Tables Folder** (`table_per_sample/`)
 
-Contains tab-separated tables with detected ORFs:
-- **`combined_results.tsv`**: All conditions combined in a single table
-- **`<condition>_results.tsv`**: Separate tables for each individual condition
+Contains tab-separated tables with detected ORFs for each sample:
+- **`<condition>-<replicate>.xlsx`**: Separate tables for each individual condition
 
-**4. GFF Files Folder** (`gff_files/`)
+**4. GFF Files Folder** (`gff_per_sample/`)
 
-Contains GFF3 format files for genome browser visualization:
-- **`combined.gff`**: Single file with all ORF types (if `gff_output_mode=combined`)
-- **`<orf_type>.gff`**: Separate files for each ORF type (if `gff_output_mode=split`)
+Contains GFF3 format files for genome browser visualization per sample:
+- **`<condition>-<replicate>_<orf_type>.gff`**: Separate files for each ORF type (if `gff_output_mode=split`)
 
 ---
 
@@ -341,29 +324,25 @@ The following column types are generated for each sample in your experiment (e.g
 | `<sample>_rpkm` | Reads Per Kilobase per Million mapped reads |
 | `<sample>_TE` | Translation Efficiency (if RNA-seq data is provided) |
 
-**Example columns from a typical experiment:**
-
-```
-Type | Identifier | Genome | Start | Stop | Strand | Locus_tag | Codon_count |
-RIBO-WT-1_peak_height | RIBO-WT-2_peak_height | TIS-WT-1_peak_height | TIS-WT-2_peak_height |
-TIS-WT-1_RIBO-WT-1_log2FC | TIS-WT-2_RIBO-WT-2_log2FC | Evidence | Start_codon | Stop_codon |
-15nt_window | Nucleotide_Seq | Amino_Acid_Seq | 5'-distance | 3'-distance |
-RIBO-WT-1_relative_density | RIBO-WT-2_relative_density | TIS-WT-1_relative_density | TIS-WT-2_relative_density |
-RIBO-WT-1_rpkm | RIBO-WT-2_rpkm | TIS-WT-1_rpkm | TIS-WT-2_rpkm |
-RIBO-WT-1_TE | RIBO-WT-2_TE | TIS-WT-1_TE | TIS-WT-2_TE
-```
-
 ---
 
-## Additional Information
+## Toy example
 
-### Normalization Methods
+We provide a toy example to show how to run the workflow.
 
-🚧 *Documentation in progress*
+The toy example can be generated using:
 
-### Mapping Methods
+```
+uv run helpers/toy_example_generation.py
+```
 
-🚧 *Documentation in progress*
+This will create toy versions of each input file required for `ORFBounder`.
+
+You can run the toy example using:
+
+```
+uv run call_orfbounder.py -c toy_example/config/config.tsv -r toy_example/results
+```
 
 ---
 
@@ -379,8 +358,6 @@ RIBO-WT-1_TE | RIBO-WT-2_TE | TIS-WT-1_TE | TIS-WT-2_TE
 
 ## License
 
-🚧 *To be added*
+GPL-3.0 license
 
-## Contact
 
-🚧 *To be added*
