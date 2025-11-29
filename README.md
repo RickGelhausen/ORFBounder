@@ -35,7 +35,7 @@ ORFBounder is a tool that aids in the detection of potential Open Reading Frames
 
 1. **TIS-only mode**: Detects start codons with strong TIS peaks and creates ORFs using the next in-frame stop codon
 2. **TTS-only mode**: Detects stop codons with strong TTS peaks and creates ORFs using either the closest or furthest in-frame start codon (that does not overlap with another in-frame stop codon)
-3. **Combined TIS/TTS mode**: Runs both TIS and TTS analyses individually, then combines the results in an experimental approach that pairs start codons detected by TIS with stop codons detected by TTS to form high-confidence ORFs
+3. **Combined TIS/TTS mode**: Runs both TIS and TTS analyses individually, then combines the results.
 
 Ribo-seq data is used as a control and to calculate fold-changes in order to determine ORFs with high confidence.
 
