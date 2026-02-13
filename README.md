@@ -262,7 +262,7 @@ For each experiment, ORFBounder creates a structured output directory containing
 		│   └── <condition>-<replicate>.xlsx
 		└── gff_per_condition/
 			├── <condition>-<replicate>_<orf_type>.gff (if gff_output_mode=split)
-		  └── <condition>-<replicate>.gff (if gff_output=combined)
+		    └── <condition>-<replicate>.gff (if gff_output=combined)
 ```
 
 #### Directory Contents
