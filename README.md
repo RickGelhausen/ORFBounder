@@ -1,6 +1,6 @@
 # ORFBounder
 
-Detection of potential start/stop codons based on Translation Initiation Site (TIS) or Translation Termination Site (TTS) peaks, using a similar concept to the [RETscript for TIS](https://www.sciencedirect.com/science/article/pii/S1097276519301078).
+Detection of potential start/stop codons based on Translation Initiation Site (TIS) or Translation Termination Site (TTS) peaks, using a similar concept to the [RETscript for TIS]([https://www.sciencedirect.com/science/article/pii/S1097276519301078](https://doi.org/10.1093/nar/gkaa304)).
 
 These scripts were created to be used with the metagene-profiling and alignment files created by the [HRIBO workflow](https://github.com/RickGelhausen/HRIBO) [[1]](#references). Nevertheless, `ORFBounder` can also be used with other standard alignment files and metagene-profiling tools.
 
