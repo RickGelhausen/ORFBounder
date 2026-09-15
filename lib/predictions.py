@@ -10,11 +10,13 @@ from Bio.Seq import Seq
 import numpy as np
 
 from lib import misc
+from lib.coordinates import parse_coordinate_id
 import lib.messaging as msg
 
 
 
 CODON_LENGTH = misc.CODON_LENGTH
+CODON_INTERVAL_OFFSET = misc.CODON_INTERVAL_OFFSET
 
 def screen_positions_for_tss(
     alignment_position_dict: dict[tuple[str, str], dict[int, int]],
@@ -108,25 +110,16 @@ def search_longest_forward(
     search for the match codon in reverse that is following the last inframe search codon.
     Return: Position of matching codon or None if not found
     """
-    loop_counter = 0
-    original_position = cur_position
-    nt = genome_seq[cur_position:cur_position + 3]
-    while nt not in search_codons or loop_counter == 0:
-        cur_position += 3
-        loop_counter += 1
-        if cur_position > len(genome_seq):
-            return search_codon_forward(original_position, genome_seq, match_codons)
-
-        nt = genome_seq[cur_position:cur_position + 3]
-
-    while nt not in match_codons:
-        cur_position -= 3
-        if cur_position == original_position:
-            return None
-
-        nt = genome_seq[cur_position:cur_position + 3]
-
-    return cur_position
+    furthest = None
+    for position in range(cur_position + CODON_LENGTH, len(genome_seq) - CODON_LENGTH + 1, CODON_LENGTH):
+        codon = genome_seq[position:position + CODON_LENGTH]
+        if codon in search_codons:
+            return furthest
+        if codon in match_codons:
+            furthest = position
+    if furthest is None and genome_seq[cur_position:cur_position + CODON_LENGTH] in match_codons:
+        return cur_position
+    return furthest
 
 
 def search_longest_reverse(
@@ -140,28 +133,124 @@ def search_longest_reverse(
     Example: Search for the next stop codon then take the furthest upstream start codon between the current and that stop codon.
     Return: Position of matching codon or None if not found
     """
-    loop_counter = 0
-    original_position = cur_position
-    nt = genome_seq[cur_position:cur_position + 3]
-
-    # Search backwards for a search_codon (e.g., stop codon)
-    while nt not in search_codons or loop_counter == 0:
-        loop_counter += 1
-        cur_position -= 3
-        if cur_position < 0:
-            # No upstream stop found - search from the beginning
-            cur_position = original_position % 3
+    furthest = None
+    for position in range(cur_position - CODON_LENGTH, -1, -CODON_LENGTH):
+        codon = genome_seq[position:position + CODON_LENGTH]
+        if codon in search_codons:
             break
-        nt = genome_seq[cur_position:cur_position + 3]
+        if codon in match_codons:
+            furthest = position
+    return furthest
 
-    while nt not in match_codons:
-        cur_position += 3
-        if cur_position == original_position:
+
+def _circular_codon(genome_seq: str, position: int) -> str:
+    """Return a forward-reference codon, wrapping across the origin."""
+    reference_length = len(genome_seq)
+    return "".join(genome_seq[(position + offset) % reference_length]
+                   for offset in range(CODON_LENGTH))
+
+
+def _search_circular_next(
+    cur_position: int,
+    genome_seq: str,
+    match_codons: list[str],
+    direction: int,
+) -> Optional[int]:
+    """Return the in-frame distance to the next codon within one revolution."""
+    for distance in range(0, len(genome_seq) - CODON_LENGTH + 1, CODON_LENGTH):
+        position = (cur_position + direction * distance) % len(genome_seq)
+        if _circular_codon(genome_seq, position) in match_codons:
+            return distance
+    return None
+
+
+def _search_circular_furthest(
+    cur_position: int,
+    genome_seq: str,
+    search_codons: list[str],
+    match_codons: list[str],
+    direction: int,
+) -> Optional[int]:
+    """Find the furthest in-frame match before the next search codon."""
+    furthest = None
+    for distance in range(CODON_LENGTH, len(genome_seq) - CODON_LENGTH + 1, CODON_LENGTH):
+        position = (cur_position + direction * distance) % len(genome_seq)
+        codon = _circular_codon(genome_seq, position)
+        if codon in search_codons:
+            break
+        if codon in match_codons:
+            furthest = distance
+    if furthest is None and _circular_codon(genome_seq, cur_position) in match_codons:
+        return 0
+    return furthest
+
+
+def _detect_circular_orf(
+    interval_start: int,
+    strand: str,
+    genome_seq: str,
+    search_codons: list[str],
+    match_codons: list[str],
+    reverse_search_codons: list[str],
+    reverse_match_codons: list[str],
+    method: str,
+    tts_start_selection: str,
+) -> Optional[tuple[int, int]]:
+    """Return canonical zero-based virtual ORF coordinates on a circle."""
+    reference_length = len(genome_seq)
+    codon_position = ((interval_start + CODON_INTERVAL_OFFSET) % reference_length
+                      if strand == "+" else interval_start % reference_length)
+
+    if method in {"TIS", "RIBO"}:
+        if strand == "+":
+            distance = _search_circular_next(
+                codon_position, genome_seq, match_codons, 1,
+            )
+            if distance is None:
+                return None
+            return codon_position, codon_position + distance + CODON_LENGTH - 1
+        distance = _search_circular_next(
+            codon_position, genome_seq, reverse_match_codons, -1,
+        )
+        if distance is None:
             return None
+        start = (codon_position - distance) % reference_length
+        return start, start + distance + CODON_LENGTH - 1
 
-        nt = genome_seq[cur_position:cur_position + 3]
+    if method != "TTS":
+        raise ValueError(msg.error(f"Error! Unknown prediction method: {method}"))
 
-    return cur_position
+    if tts_start_selection not in {"furthest_inframe", "next_inframe"}:
+        raise ValueError(msg.error(
+            f"Error! Unknown TTS start selection method: {tts_start_selection} "
+            "expected:(furthest_inframe, next_inframe)"
+        ))
+    if strand == "+":
+        if tts_start_selection == "next_inframe":
+            distance = _search_circular_next(
+                codon_position, genome_seq, match_codons, -1,
+            )
+        else:
+            distance = _search_circular_furthest(
+                codon_position, genome_seq, search_codons, match_codons, -1,
+            )
+        if distance is None:
+            return None
+        start = (codon_position - distance) % reference_length
+        return start, start + distance + CODON_LENGTH - 1
+
+    if tts_start_selection == "next_inframe":
+        distance = _search_circular_next(
+            codon_position, genome_seq, reverse_match_codons, 1,
+        )
+    else:
+        distance = _search_circular_furthest(
+            codon_position, genome_seq, reverse_search_codons,
+            reverse_match_codons, 1,
+        )
+    if distance is None:
+        return None
+    return codon_position, codon_position + distance + CODON_LENGTH - 1
 
 def detect_potential_orfs(
     codon_dict: dict[str, list],
@@ -170,7 +259,8 @@ def detect_potential_orfs(
     match_codons: list[str],
     method: str,
     detected_orfs_dict: dict,
-    tts_start_selection: str
+    tts_start_selection: str,
+    circular: bool = False,
 ) -> dict:
     """
     for each relavent codon site, find a matching orf region
@@ -178,15 +268,26 @@ def detect_potential_orfs(
     reverse_search_codons = [str(Seq(codon).reverse_complement()) for codon in search_codons]
     reverse_match_codons = [str(Seq(codon).reverse_complement()) for codon in match_codons]
 
+    if circular and len(genome_seq) < CODON_LENGTH:
+        return detected_orfs_dict
+
     for key, val in codon_dict.items():
         if val[1] <= 0:
             continue
 
-        chrom, mid, strand = key.split(":")
-        interval_start, _ = mid.split("-")
-        if method in ["TIS", "RIBO"]:
+        chrom, interval_start, _, strand = parse_coordinate_id(key)
+        if circular:
+            coordinates = _detect_circular_orf(
+                interval_start, strand, genome_seq, search_codons, match_codons,
+                reverse_search_codons, reverse_match_codons, method,
+                tts_start_selection,
+            )
+            if coordinates is None:
+                continue
+            out_start, out_stop = coordinates
+        elif method in ["TIS", "RIBO"]:
             if strand == "+":
-                cur_start = int(interval_start) + 2
+                cur_start = interval_start + 2
                 cur_position = cur_start
 
                 cur_position = search_codon_forward(cur_position, genome_seq, match_codons)
@@ -196,7 +297,7 @@ def detect_potential_orfs(
                 cur_stop = cur_position + 2
 
             elif strand == "-":
-                cur_start = int(interval_start) + 2
+                cur_start = interval_start + 2
                 cur_position = cur_start - 2
 
                 cur_position = search_codon_reverse(cur_position, genome_seq, reverse_match_codons)
@@ -207,7 +308,7 @@ def detect_potential_orfs(
 
         elif method == "TTS":
             if strand == "+":
-                cur_stop = int(interval_start) + 4
+                cur_stop = interval_start + 4
                 cur_position = cur_stop - 2
 
                 if tts_start_selection == "next_inframe":
@@ -225,7 +326,7 @@ def detect_potential_orfs(
                 cur_start = cur_position
 
             elif strand == "-":
-                cur_stop = int(interval_start)
+                cur_stop = interval_start
                 cur_position = cur_stop
 
                 if tts_start_selection == "next_inframe":
@@ -241,10 +342,11 @@ def detect_potential_orfs(
 
                 cur_start = cur_position + 2
 
-        if strand == "+":
-            out_start, out_stop = cur_start, cur_stop
-        else:
-            out_start, out_stop = cur_stop, cur_start
+        if not circular:
+            if strand == "+":
+                out_start, out_stop = cur_start, cur_stop
+            else:
+                out_start, out_stop = cur_stop, cur_start
 
         if (chrom, strand) in detected_orfs_dict:
             if (out_start, out_stop) in detected_orfs_dict[(chrom, strand)]:
@@ -277,105 +379,3 @@ def detect_potential_orfs(
                 detected_orfs_dict[(chrom, strand)] = {(out_start, out_stop): (np.nan, np.nan, val[1])}
 
     return detected_orfs_dict
-
-def convert_codon_dict(
-    codon_dict_tis: dict,
-    codon_dict_tts: dict,
-    offset_tis: int,
-    offset_tts: int
-) -> tuple[dict, dict]:
-    """
-    Reformat the codon_dicts.
-    Convert the positions in the codon_dicts to the real positions using the offsets.
-    """
-    start_codon_dict = {}
-    for key, val in codon_dict_tis.items():
-        chrom, mid, strand = key[0].split(":")
-        offset_tis = key[1]
-        interval_start, _ = mid.split("-")
-        if val[1] < 1:
-            continue
-
-        if strand == "+":
-            cur_start = int(interval_start) - offset_tis + 2
-        else:
-            cur_start = int(interval_start) + offset_tis + 2
-
-        if offset_tis in start_codon_dict:
-            if (chrom, strand) in start_codon_dict[offset_tis]:
-                start_codon_dict[offset_tis][(chrom, strand)].append((cur_start, val[1]))
-            else:
-                start_codon_dict[offset_tis][(chrom, strand)] = [(cur_start, val[1])]
-        else:
-            start_codon_dict[offset_tis] = {(chrom, strand): [(cur_start, val[1])]}
-
-    stop_codon_dict = {}
-    for key, val in codon_dict_tts.items():
-        chrom, mid, strand = key[0].split(":")
-        offset_tts = key[1]
-        interval_start, _ = mid.split("-")
-        if val[1] < 1:
-            continue
-
-        if strand == "+":
-            cur_stop = int(interval_start) - offset_tts + 4
-        else:
-            cur_stop = int(interval_start) + offset_tts
-
-        if offset_tts in stop_codon_dict:
-            if (chrom, strand) in stop_codon_dict[offset_tts]:
-                stop_codon_dict[offset_tts][(chrom, strand)].append((cur_stop, val[1]))
-            else:
-                stop_codon_dict[offset_tts][(chrom, strand)] = [(cur_stop, val[1])]
-        else:
-            stop_codon_dict[offset_tts] = {(chrom, strand): [(cur_stop, val[1])]}
-
-    return start_codon_dict, stop_codon_dict
-
-def combined_data_detection(
-    codon_dict_tis: dict,
-    codon_dict_tts: dict,
-    offset_tis: int,
-    offset_tts: int,
-    max_orf_length: int
-) -> dict:
-    """
-    Use the detected codons from TIS and TTS to find combined results.
-    """
-    start_codon_dict, stop_codon_dict = convert_codon_dict(codon_dict_tis, codon_dict_tts, offset_tis, offset_tts)
-
-    keys = set()
-    keys.update(start_codon_dict.keys())
-    keys.update(stop_codon_dict.keys())
-
-    predictions = {}
-    for (chrom, strand) in sorted(list(keys)):
-        if (chrom, strand) not in start_codon_dict or (chrom, strand) not in stop_codon_dict:
-            continue
-
-        if strand == "+":
-            for stop, stop_rpm in sorted(stop_codon_dict[(chrom, strand)], key=lambda x: x[0]):
-                for start, start_rpm in sorted(start_codon_dict[(chrom, strand)], key=lambda x: x[0]):
-                    if start >= stop:
-                        break
-                    if misc.get_frame(start) != misc.get_frame(stop - 2) or abs(start - stop + 1) > max_orf_length:
-                        continue
-                    out_start, out_stop = start, stop
-                    if (chrom, strand) in predictions:
-                        predictions[(chrom, strand)][(out_start, out_stop)] = (start_rpm, stop_rpm)
-                    else:
-                        predictions[(chrom, strand)] = {(out_start, out_stop): (start_rpm, stop_rpm)}
-        else:
-            for start, start_rpm in sorted(start_codon_dict[(chrom, strand)], key=lambda x: x[0]):
-                for stop, stop_rpm in sorted(stop_codon_dict[(chrom, strand)], key=lambda x: x[0]):
-                    if stop >= start:
-                        break
-                    if misc.get_frame(start - 2) != misc.get_frame(stop) or abs(start - stop + 1) > max_orf_length:
-                        continue
-                    out_start, out_stop = stop, start
-                    if (chrom, strand) in predictions:
-                        predictions[(chrom, strand)][(out_start, out_stop)] = (start_rpm, stop_rpm)
-                    else:
-                        predictions[(chrom, strand)] = {(out_start, out_stop): (start_rpm, stop_rpm)}
-
-    return predictions

@@ -1,0 +1,26 @@
+name: Tests and package
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.11', '3.12', '3.13', '3.14']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install '.[dev]'
+      - run: python -m ruff check lib helpers orfbounder.py orfbounder_batch.py tests
+      - run: python -m pytest -q
+      - run: python -m build
+      - run: orfbounder --help && orfbounder-batch --help
+        working-directory: /tmp
+  container:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build --tag orfbounder:test .
+      - run: docker run --rm orfbounder:test orfbounder --help
+      - run: docker run --rm orfbounder:test orfbounder-batch --help

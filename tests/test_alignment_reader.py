@@ -2,14 +2,23 @@
 Unit tests for PositionReader and IntervalReader classes
 """
 
-from pathlib import Path
-
 import re
 from unittest.mock import Mock, patch
 import pytest
 
 from lib.alignment_reader import PositionReader, IntervalReader
 from lib import messaging as msg
+
+
+def configure_contiguous_read(read):
+    """Give mock alignments the primary flags and contiguous CIGAR used here."""
+    read.is_secondary = False
+    read.is_supplementary = False
+    read.is_qcfail = False
+    read.has_tag.return_value = True
+    read.get_reference_positions.side_effect = lambda **kwargs: list(range(read.reference_start, read.reference_start + read.query_length))
+    read.get_blocks.side_effect = lambda: [(read.reference_start, read.reference_start + read.query_length)]
+    read.header.get_reference_length.return_value = 10000
 
 class TestPositionReader:
     """Tests for PositionReader class"""
@@ -42,6 +51,7 @@ class TestPositionReader:
         read.reference_start = 100
         read.query_length = 30
         read.is_reverse = False
+        configure_contiguous_read(read)
         return read
 
     def test_init_with_wildcard_specific_read_lengths(self, mock_alignment_file, basic_read_length_dict, basic_offset_dict):
@@ -176,6 +186,7 @@ class TestPositionReader:
         mock_read.reference_start = 100
         mock_read.query_length = 30
         mock_read.is_reverse = False
+        configure_contiguous_read(mock_read)
 
         with patch('pysam.AlignmentFile') as mock_pysam:
             mock_pysam.return_value.fetch.return_value = [mock_read]
@@ -202,6 +213,7 @@ class TestPositionReader:
         mock_read.reference_start = 100
         mock_read.query_length = 30
         mock_read.is_reverse = True
+        configure_contiguous_read(mock_read)
 
         with patch('pysam.AlignmentFile') as mock_pysam:
             mock_pysam.return_value.fetch.return_value = [mock_read]
@@ -228,6 +240,7 @@ class TestPositionReader:
         mock_read.reference_start = 100
         mock_read.query_length = 30
         mock_read.is_reverse = False
+        configure_contiguous_read(mock_read)
 
         with patch('pysam.AlignmentFile') as mock_pysam:
             mock_pysam.return_value.fetch.return_value = [mock_read]
@@ -254,6 +267,7 @@ class TestPositionReader:
         mock_read.reference_start = 100
         mock_read.query_length = 30
         mock_read.is_reverse = True
+        configure_contiguous_read(mock_read)
 
         with patch('pysam.AlignmentFile') as mock_pysam:
             mock_pysam.return_value.fetch.return_value = [mock_read]
@@ -280,6 +294,7 @@ class TestPositionReader:
         mock_read.reference_start = 100
         mock_read.query_length = 30
         mock_read.is_reverse = False
+        configure_contiguous_read(mock_read)
 
         with patch('pysam.AlignmentFile') as mock_pysam:
             mock_pysam.return_value.fetch.return_value = [mock_read]
@@ -311,6 +326,7 @@ class TestPositionReader:
         mock_read.reference_start = 100
         mock_read.query_length = 30
         mock_read.is_reverse = False
+        configure_contiguous_read(mock_read)
 
         with patch('pysam.AlignmentFile') as mock_pysam:
             mock_pysam.return_value.fetch.return_value = [mock_read]
@@ -339,6 +355,7 @@ class TestPositionReader:
         mock_read.reference_start = 100
         mock_read.query_length = 30
         mock_read.is_reverse = False
+        configure_contiguous_read(mock_read)
 
         with patch('pysam.AlignmentFile') as mock_pysam:
             mock_pysam.return_value.fetch.return_value = [mock_read]
@@ -366,6 +383,7 @@ class TestPositionReader:
         mock_read1.reference_start = 100
         mock_read1.query_length = 30
         mock_read1.is_reverse = False
+        configure_contiguous_read(mock_read1)
 
         mock_read2 = Mock()
         mock_read2.reference_name = "chr1"
@@ -375,6 +393,7 @@ class TestPositionReader:
         mock_read2.reference_start = 100
         mock_read2.query_length = 30
         mock_read2.is_reverse = False
+        configure_contiguous_read(mock_read2)
 
         with patch('pysam.AlignmentFile') as mock_pysam:
             mock_pysam.return_value.fetch.return_value = [mock_read1, mock_read2]
@@ -481,6 +500,27 @@ class TestPositionReader:
             assert "track type=wiggle_0" in content
             assert "variableStep chrom=chr1" in content
 
+    def test_to_wig_percent_encodes_path_separators_in_reference_name(
+            self, mock_alignment_file, basic_read_length_dict,
+            basic_offset_dict, mock_read, tmp_path):
+        mock_read.reference_name = "../../../escaped"
+        with patch('pysam.AlignmentFile') as mock_pysam:
+            mock_pysam.return_value.fetch.return_value = [mock_read]
+
+            reader = PositionReader(
+                mock_alignment_file,
+                basic_read_length_dict,
+                "fiveprime",
+                basic_offset_dict,
+            )
+            output_dir = tmp_path / "wig_output"
+            reader.to_wig(output_dir)
+
+        expected = output_dir / "TIS-WT-1_..%2F..%2F..%2Fescaped_forward.wig"
+        assert expected.is_file()
+        assert "variableStep chrom=../../../escaped" in expected.read_text()
+        assert not (tmp_path / "escaped_forward.wig").exists()
+
     def test_output_method(self, mock_alignment_file, basic_read_length_dict, basic_offset_dict, mock_read):
         """Test output method returns correct data structures"""
         with patch('pysam.AlignmentFile') as mock_pysam:
@@ -506,8 +546,8 @@ class TestPositionReader:
         with patch('pysam.AlignmentFile') as mock_pysam:
             mock_pysam.return_value.fetch.side_effect = ValueError("Index not found")
 
-            with pytest.raises(ValueError, match=(re.escape("Error: Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index."))):
-                    reader = PositionReader(
+            with pytest.raises(ValueError, match=(re.escape("Cannot read alignment file"))):
+                    PositionReader(
                         mock_alignment_file,
                         basic_read_length_dict,
                         "fiveprime",
@@ -541,6 +581,7 @@ class TestIntervalReader:
         read.reference_start = 100
         read.query_length = 30
         read.is_reverse = False
+        configure_contiguous_read(read)
         return read
 
     def test_init_with_specific_read_lengths(self, mock_alignment_file, basic_read_length_dict):
@@ -667,6 +708,7 @@ class TestIntervalReader:
         mock_read.reference_start = 100
         mock_read.query_length = 50  # Not in the allowed list
         mock_read.is_reverse = False
+        configure_contiguous_read(mock_read)
 
         with patch('pysam.AlignmentFile') as mock_pysam:
             mock_pysam.return_value.fetch.return_value = [mock_read]
@@ -690,6 +732,7 @@ class TestIntervalReader:
         mock_read.reference_start = 100
         mock_read.query_length = 50  # Not in the allowed list
         mock_read.is_reverse = False
+        configure_contiguous_read(mock_read)
 
         with patch('pysam.AlignmentFile') as mock_pysam:
             mock_pysam.return_value.fetch.return_value = [mock_read]
@@ -713,6 +756,7 @@ class TestIntervalReader:
         mock_read2.reference_start = 200
         mock_read2.query_length = 30
         mock_read2.is_reverse = False
+        configure_contiguous_read(mock_read2)
 
         with patch('pysam.AlignmentFile') as mock_pysam:
             mock_pysam.return_value.fetch.return_value = [mock_read, mock_read2]
@@ -735,6 +779,7 @@ class TestIntervalReader:
         mock_read1.reference_start = 100
         mock_read1.query_length = 30
         mock_read1.is_reverse = False
+        configure_contiguous_read(mock_read1)
 
         mock_read2 = Mock()
         mock_read2.reference_name = "chr2"
@@ -744,6 +789,7 @@ class TestIntervalReader:
         mock_read2.reference_start = 100
         mock_read2.query_length = 30
         mock_read2.is_reverse = False
+        configure_contiguous_read(mock_read2)
 
         with patch('pysam.AlignmentFile') as mock_pysam:
             mock_pysam.return_value.fetch.return_value = [mock_read1, mock_read2]
@@ -769,6 +815,7 @@ class TestIntervalReader:
         mock_read_plus.reference_start = 100
         mock_read_plus.query_length = 30
         mock_read_plus.is_reverse = False
+        configure_contiguous_read(mock_read_plus)
 
         mock_read_minus = Mock()
         mock_read_minus.reference_name = "chr1"
@@ -778,6 +825,7 @@ class TestIntervalReader:
         mock_read_minus.reference_start = 100
         mock_read_minus.query_length = 30
         mock_read_minus.is_reverse = True
+        configure_contiguous_read(mock_read_minus)
 
         with patch('pysam.AlignmentFile') as mock_pysam:
             mock_pysam.return_value.fetch.return_value = [mock_read_plus, mock_read_minus]
@@ -814,8 +862,8 @@ class TestIntervalReader:
         with patch('pysam.AlignmentFile') as mock_pysam:
             mock_pysam.return_value.fetch.side_effect = ValueError("Index not found")
 
-            with pytest.raises(ValueError, match=(re.escape("Error: Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index."))):
-                reader = IntervalReader(
+            with pytest.raises(ValueError, match=(re.escape("Cannot read alignment file"))):
+                IntervalReader(
                     mock_alignment_file,
                     basic_read_length_dict,
                     rpkm_all_reads=True

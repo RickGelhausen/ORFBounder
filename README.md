@@ -1,366 +1,478 @@
 # ORFBounder
 
-Detection of potential start/stop codons based on Translation Initiation Site (TIS) or Translation Termination Site (TTS) peaks, using a similar concept to the [RETscript for TIS](https://doi.org/10.1093/nar/gkaa304).
+ORFBounder finds candidate bacterial open reading frames (ORFs) from ribosome
+profiling peaks at translation initiation sites (TIS) and termination sites
+(TTS). Use its HTML report to explore candidates, compare samples and open
+tables, sequences and genome-browser files.
 
-These scripts were created to be used with the metagene-profiling and alignment files created by the [HRIBO workflow](https://github.com/RickGelhausen/HRIBO) [[1]](#references). Nevertheless, `ORFBounder` can also be used with other standard alignment files and metagene-profiling tools.
+- **TIS data:** a start-codon peak proposes an ORF ending at the next in-frame stop.
+- **TTS data:** a stop-codon peak proposes an ORF beginning at an upstream in-frame start.
+- **TIS and TTS together:** predictions with identical coordinates share a row.
+  Either assay can contribute a candidate; both assays are not required.
+- **RIBO and RNA data:** optional measurements describe peak ratios, expression
+  and translation efficiency for the candidates.
 
----
+Use [Docker](docs/docker.md) or install with Python below, then follow
+[the results guide](docs/results.md) to inspect an ORF.
 
-## Table of Contents
+## Install
 
-- [What is ORFBounder?](#what-is-orfbounder)
-- [Requirements](#requirements)
-  - [Required Packages](#required-packages)
-  - [Required Files](#required-files)
-- [Analysis Overview](#analysis-overview)
-- [Running ORFBounder](#running-orfbounder)
-  - [Step 1: Offset JSON](#step-1-offset-json)
-  - [Step 2: Config Spreadsheet](#step-2-config-spreadsheet)
-  - [Step 3: Running call_ORFBounder.py](#step-3-running-call_orfbounderpy)
-- [Output Files](#output-files)
-  - [Results Directory Structure](#results-directory-structure)
-  - [Output Tables](#output-tables)
-- [Toy Example](#toy-example)
-- [References](#references)
-- [Citation](#citation)
-- [License](#license)
+### Docker
 
----
-
-## What is ORFBounder?
-
-ORFBounder is a tool that aids in the detection of potential Open Reading Frames using TIS, TTS and Ribo-seq data, based on previously determined offsets.
-
-**ORFBounder can be run in three modes:**
-
-1. **TIS-only mode**: Detects start codons with strong TIS peaks and creates ORFs using the next in-frame stop codon
-2. **TTS-only mode**: Detects stop codons with strong TTS peaks and creates ORFs using either the closest or furthest in-frame start codon (that does not overlap with another in-frame stop codon)
-3. **Combined TIS/TTS mode**: Runs both TIS and TTS analyses individually, then combines the results.
-
-Ribo-seq data is used as a control and to calculate fold-changes in order to determine ORFs with high confidence.
-
----
-
-## Requirements
-
-### Required Packages
-
-The scripts used in the analysis exclusively require Python 3 (>3.6).
-
-| Package | Minimum Version |
-|------------|----------------|
-| pysam | 0.23.3 |
-| pandas | 2.3.3 |
-| numpy | 2.3.4 |
-| biopython | 1.8.6 |
-| interlap | 0.2.7 |
-| openpyxl | 3.1.5 |
-| xlsxwriter | 3.2.9 |
-| xlrd | 2.0.2 |
-| pytest | 8.4.2 |
-| pytest-mock | 3.15.1 |
-| pyyaml | 6.0.3 |
-
-**Installation:**
-
-We recommend using [uv](https://docs.astral.sh/uv/) for dependency management. The required packages will be automatically downloaded when you run ORFBounder:
+With Docker installed and running, open a terminal in this repository and run:
 
 ```bash
-# Install uv if you haven't already
-curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Run ORFBounder (dependencies will be automatically managed)
-uv run call_ORFBounder.py -c config.tsv -r output
+docker build -t orfbounder:2.0.0 .
+docker run --rm orfbounder:2.0.0
 ```
 
-> **⚠️ Platform Note:** This tool was developed and tested on a Linux system (Ubuntu 22.04.5 LTS, Ubuntu 20.04 LTS). It should not contain Linux-specific commands, but it was never tested on Windows or macOS.
+The second command displays the help. The image includes both `orfbounder` and
+`orfbounder-batch`. Follow [the Docker guide](docs/docker.md) to mount your inputs,
+run an analysis and open the results.
 
-### Required Files
+### Python
 
-| File | Description |
-|-------------------|------------------------------------------------|
-| `genome.fa` | A genome file in FASTA format for the analyzed organism |
-| `annotation.gff` | An annotation file in GFF3 format for the analyzed organism (tested using annotation files from NCBI) |
-| `alignment.(sam\|bam)` | Alignment files in `.sam` or `.bam` format |
+Use Python **3.11 or later**. Download this repository, open a terminal in its
+folder, and run:
 
-> **⚠️ IMPORTANT - File Naming Convention:**
->
-> The scripts are written to be compatible with the [HRIBO workflow](https://github.com/RickGelhausen/HRIBO). All samples (`.sam|.bam`) must be in the form:
->
-> **`<method>-<condition>-<replicate>.(sam|bam)`**
->
-> - `<method>` is either `RIBO`, `RNA`, `TIS`, `RNATIS`, `TTS`, or `RNATTS`
-> - `<condition>` can be any string (avoid using special characters, e.g., A, B, C, pH4, xyz123)
-> - `<replicate>` can be any integer (e.g., 1, 2, 3, 4)
+```bash
+python -m venv .venv
+source .venv/bin/activate
+python -m pip install .
+orfbounder --version
+```
 
----
+Activate the environment with `source .venv/bin/activate` again when opening a
+new terminal. Linux is the tested platform. If you use conda, run
+`conda env create -f environment.yml` followed by `conda activate orfbounder`
+instead. With [uv](https://docs.astral.sh/uv/), use `uv sync --locked`
+and prefix subsequent commands with `uv run`.
 
-## Analysis Overview
+The commands are `orfbounder` for one sample or matched set of assays and
+`orfbounder-batch` for multiple samples.
 
-For details on the analysis itself, please refer to our publication *(in progress)*.
+## Try the supplied example
 
-Analyzing data using ORFBounder is done in three steps:
+From the repository folder, with the environment active:
 
-1. **Determine offsets**: Using metagene profiling output, determine the best mapping and offset combinations. This step is currently manual and requires the user to determine the best mapping/offset and read lengths to be used by `ORFBounder`.
-We suggest using the metagene workflow described in `
+```bash
+python -m helpers.toy_example_generation --output-dir demo
+orfbounder-batch -c demo/config/config.tsv --validate-only
+orfbounder-batch -c demo/config/config.tsv -r demo/results
+```
 
-2. **Prepare configuration files**: Create an offset JSON file and a config spreadsheet with experimental parameters.
+Choose a new folder name if `demo` already contains files. The example generates
+a small reference genome and two TIS/RIBO replicates, so no external data are
+needed.
 
-3. **Run ORFBounder**: Execute `call_ORFBounder.py`, which allows you to run single or multiple experiments with different parameterizations simultaneously.
+Open **`demo/results/toy_example/fiveprime/raw/report.html`** in a web browser.
+The report works offline. You should find three annotated ORFs on `NC_000913.3`,
+at **100–162, 300–362 and 500–562**, each 63 nucleotides long, with TIS calls in
+both replicates. The spreadsheet is `toy_example_final.xlsx` in the same folder.
+The example has local statistics switched off; missing q-values are expected.
 
----
+To practice using the output, search for `100-162`, inspect its sample evidence,
+then load the result GFF and WIG tracks alongside `demo/data/genome.fa` in your
+genome browser. See [reading and using results](docs/results.md) for the next steps.
 
-## Running ORFBounder
+## Prepare your own inputs
 
-We recommend using the `call_ORFBounder.py` script, as it allows running ORFBounder on multiple experiments and with multiple parameterizations at the same time.
+You need a reference genome in **FASTA**, CDS annotations in **GFF3**, and at
+least one **TIS or TTS SAM/BAM** alignment. All must use the same assembly,
+contig identifiers and reference lengths. SAM and unindexed BAM are accepted;
+your genome browser may require BAM indexes. FASTA sequence identifiers and
+alignment-header reference names must be nonempty and unique.
 
-It requires two input files:
-- An **offset JSON** file
-- A **config spreadsheet**
+Multipart CDS rows are joined by their GFF3 `ID`. Annotation labels can be on
+the CDS itself or inherited through its `Parent` chain (for example,
+CDS → mRNA → gene); use normal GFF3 percent encoding for reserved characters in
+IDs and Parent values. Each attribute name may occur only once on a feature row;
+write multiple parents as one comma-separated `Parent=parent1,parent2` value.
 
-Using these files reduces the number of input parameters and makes it easier to reproduce results later.
+Supply offsets calibrated for your assay, organism, read lengths and selected
+read end. Calibration is usually based on metagene profiles: an incorrect offset
+can assign a peak to the wrong codon. [The offset instructions below](#set-offsets-and-read-lengths)
+explain the file format and sign convention.
 
-> 🚧 Templates for both files can be found in the [templates](templates/) folder.
+For batch runs and matched expression measurements, name files like this:
 
-### Step 1: Offset JSON
+```text
+alignments/
+├── TIS-WT-1.bam
+├── TTS-WT-1.bam
+├── RIBO-WT-1.bam
+├── RNA-WT-1.bam
+├── TIS-WT-2.bam
+└── RIBO-WT-2.bam
+```
 
-ORFBounder requires a set of offsets for each input file (TIS, TTS, or RIBO). These offsets can be determined using any metagene-profiling tool.
+Names follow `METHOD-condition-replicate.bam` or `.sam`. Conditions contain
+letters and digits; replicate numbers are positive integers. A suffix such as
+`TIS-WT-1_aligned.bam` is accepted; JSON sample names are still `TIS-WT-1`.
+Keep only one alignment per sample in each input folder. Matching uses the exact
+condition and replicate, so replicate 1 and replicate 10 are separate samples.
+Direct calling files may use custom labels when no folder-based expression
+matching is needed. If all calling files in one direct command use the standard
+pattern, ORFBounder verifies their assay prefixes and requires the same condition
+and replicate before creating output.
 
-ORFBounder allows different offsets for different samples and per read length. To enable this, offsets should be provided in JSON format.
+### Circular references
 
-**Example offset JSON:**
+Circularity is opt-in and is never guessed from a contig name. For every
+circular FASTA sequence, declare a whole-reference `region` in the input GFF3;
+including the matching sequence-region directive is recommended:
+
+```gff3
+##sequence-region plasmid 1 5000
+plasmid	RefSeq	region	1	5000	.	.	.	ID=plasmid-region;Is_circular=true
+```
+
+The region must span exactly `1..reference_length`, matching the FASTA length
+and, when the sequence occurs in an alignment, its SAM/BAM header length. Input
+CDS coordinates remain physical and within that range.
+Represent an annotated CDS crossing the origin as multiple physical GFF3 rows
+with the same `ID`; do not use `start > end` or a coordinate above the reference
+length. Undeclared sequences remain linear, so their searches and windows do
+not wrap.
+
+ORF tables linearize a crossing candidate: `Start` remains in `1..L`, while
+`Stop` can be greater than `L`. `Reference_length` and `Is_circular` make that
+representation explicit. Candidate GFF3 files convert it back to physical
+multipart CDS rows, and WIG tracks always use physical coordinates. See
+[circular coordinates in the results guide](docs/results.md#circular-reference-coordinates).
+
+## Run one sample
+
+For a TIS sample, using your own file paths and calibrated mapping method:
+
+```bash
+orfbounder \
+  --alignment_file_tis alignments/TIS-WT-1.bam \
+  --annotation_file annotation.gff --genome_file genome.fa \
+  --offset_json offsets.json --mapping_method fiveprime \
+  --output_path results/tis-WT-1 --output_basename WT-1
+```
+
+For a TTS sample:
+
+```bash
+orfbounder \
+  --alignment_file_tts alignments/TTS-WT-1.bam \
+  --annotation_file annotation.gff --genome_file genome.fa \
+  --offset_json tts-offsets.json --mapping_method threeprime \
+  --tts_start_selection furthest_inframe \
+  --output_path results/tts-WT-1 --output_basename WT-1
+```
+
+`furthest_inframe` selects the furthest upstream allowed start before the next
+in-frame stop. Use `next_inframe` to select the closest upstream start instead.
+In a TTS-only result, the start is inferred from sequence. It has no measured
+TIS support unless TIS data are also supplied and call that boundary.
+
+For a matched TIS/TTS pair, with optional RIBO measurements:
+
+```bash
+orfbounder \
+  --alignment_file_tis alignments/TIS-WT-1.bam \
+  --alignment_file_tts alignments/TTS-WT-1.bam \
+  --alignment_file_ribo alignments/RIBO-WT-1.bam \
+  --annotation_file annotation.gff --genome_file genome.fa \
+  --offset_json offsets.json --mapping_method fiveprime \
+  --statistics local \
+  --output_path results/paired-WT-1 --output_basename WT-1
+```
+
+Each run uses one mapping method for every supplied assay, with separate offsets
+allowed per sample. Choose a method for which all supplied assays are calibrated.
+TTS offsets need termination-specific calibration; initiation advice alone does
+not provide that calibration.
+
+Open `WT-1.report.html` in the selected output folder after the command finishes.
+Use `orfbounder --help` for all options.
+
+## Set offsets and read lengths
+
+An offset JSON maps sample names to read-length offsets. For example, a
+fiveprime calibration might produce:
 
 ```json
 {
-  "TIS-A-1": {
-    "33": 12,
-    "30": 6,
-    "default": 10
-  },
-  "RIBO-A-1": {
-    "28": 5,
-    "30": 6,
-    "default": 10
-  },
-  "TIS-B-4": {
-    "24": 6,
-    "30": 6,
-    "40": -10,
-    "default": 10
-  },
-  "default": {
-    "31": 10,
-    "32": 10,
-    "default": 10
-  }
+  "TIS-WT-1": {"28": -12, "30": -13},
+  "RIBO-WT-1": {"28": -12, "30": -13}
 }
 ```
 
-This file allows setting specific offsets for each file and each read length within the file.
+These numbers illustrate the format; use your own calibrated values. An offset
+of **-12 with fiveprime** moves the endpoint 12 bases downstream in transcript
+direction. An offset of **+12 with threeprime** moves it 12 bases upstream.
+This applies on both strands. When using offsets from another tool, check its
+sign convention before preparing this file.
 
-> **⚠️ Important Notes:**
->
-> - In the offset file, use the prefixes of the alignment files in format: `<method>-<condition>-<replicate>`
-> - If a value is not specified in the offset JSON file, the default value will be used. **Make sure that default values are set.**
-> - The minimal JSON file would be:
->   ```json
->   {
->     "default": {
->       "default": 10
->     }
->   }
->   ```
->   In this case, the offset for all files and all read lengths is set to 10.
+A `"default"` length supplies a fallback within a sample's map. A top-level
+`"default"` map is used when the sample itself is absent. A sample-specific map
+does not inherit missing lengths from the top-level map. Leave out fallbacks
+when uncalibrated samples or lengths should cause an error.
+Write length keys as ordinary positive decimal integers without leading zeros
+(`"30"`, not `"030"`), so they match the read's query length exactly.
 
-> **💡 Tips:**
->
-> - Negative offsets are supported and are common for certain organisms and mapping methods
-> - Multiple offsets for the same read length (within the same file) are currently not supported
+Use a separate read-length JSON to select calibrated lengths:
 
----
+```json
+{"TIS-WT-1": "28,30", "RIBO-WT-1": "28,30"}
+```
 
-### Step 2: Config Spreadsheet
+Pass it with `--read_length_json read_lengths.json`. Lengths can be integers or
+comma-separated values and ranges, such as `"28-30,32"`; omitting this file uses
+all lengths. Expanded selections are limited to 100,000 lengths per sample to
+catch accidental enormous ranges. Read length is query length, including
+soft-clipped bases.
+When the file is supplied, every TIS, TTS and RIBO calling sample must have an
+exact key or the JSON must contain a top-level `"default"`. Expression samples
+also need a key when `rpkm_read_usage` is `specific`. Validation rejects missing
+entries so a misspelled sample name cannot silently disable length filtering.
 
-The config spreadsheet is a tab-separated table that contains all input parameters for ORFBounder.
+## Run several samples with a configuration table
 
-- **Columns** describe different parameters (some required, some optional)
-- **Rows** describe different independent experiments
+Copy [the TSV template](templates/template_config_spreadsheet.tsv), fill in your
+paths and save as **tab-separated text**. Each row is one experiment. Optional
+columns can be omitted; empty optional cells use defaults.
 
-#### Required Parameters
+| Required column | What to enter |
+| --- | --- |
+| `experiment_name` | Unique name, such as `WT_tis`; start with a letter or digit and use only letters, digits, `_`, `-`, `.` |
+| `annotation_file_path` | GFF3 annotation file |
+| `genome_file_path` | FASTA genome file |
+| `offset_file_path` | Calibrated offset JSON file |
+| `TIS_folder_path` or `TTS_folder_path` | At least one alignment folder; supply both for paired assays |
 
-| Column | Description |
-|----------------------|------------------------------------------------|
-| `experiment_name` | The name given to the experiment (e.g., exp1, run001). We suggest not using special characters. |
-| `annotation_file_path` | The path to the GFF3 format annotation file |
-| `genome_file_path` | The path to the FASTA format genome file |
-| `TIS_folder_path` | The path to the folder containing the TIS alignment files in `.sam\|.bam` format. Can be the same as TTS or RIBO. |
-| `TTS_folder_path` | The path to the folder containing the TTS alignment files in `.sam\|.bam` format. Can be the same as TIS or RIBO. |
-| `RIBO_folder_path` | The path to the folder containing the RIBO alignment files in `.sam\|.bam` format. Can be the same as TIS or TTS. |
-| `normalization_method` | The normalization method(s) to be used. Multiple methods can be given and result in multiple ORFBounder runs (e.g., `raw,mil` or `min` or `mil,min,raw`). See [Normalization Methods](#normalization-methods) for details. |
-| `mapping_method` | The mapping method to be used. Determines which part of reads are used in the analysis. For TIS and TTS analysis, `fiveprime` or `threeprime` usually perform better because they result in sharper peaks (e.g., `fiveprime`, `threeprime`, `centered`, or `global`). See [Mapping Methods](#mapping-methods) for details. |
-| `offset_file_path` | The path to the custom offset JSON file. See [Offset JSON](#step-1-offset-json) section for details. |
-
-> **💡 Tips:**
->
-> - `TIS_folder_path`, `TTS_folder_path`, and `RIBO_folder_path` (even `alignment_folder_path`) can point to the same directory. Due to the `<method>-<condition>-<replicate>` naming scheme, ORFBounder will collect and match the correct samples and accumulate all results in one file. These are only split into different parameters should the different file types be stored in different folders.
-> - You do not have to run ORFBounder separately for each replicate. All replicates present in the respective folder paths will be run automatically.
-
-#### Optional Parameters
-
-| Column | Default Value | Options | Description |
-|-----------------------|------------------|---------|--------------------------------|
-| `read_lengths` | -1 (all lengths) | `24,25,26,28` or `24-26,28` | Read lengths used in the analysis. These can be given as intervals and/or single values. |
-| `start_codons` | `ATG,TTG,GTG` | Any list of codons | Start codons used in the analysis |
-| `stop_codons` | `TAG,TAA,TGA` | Any list of codons | Stop codons used in the analysis |
-| `alignment_folder_path` | No TE/RPKM | Path to alignment files or nothing | Path to a folder containing RIBO and/or RNA alignment files. These will be used to calculate RPKM and TE values for every detected ORF. If no path is given, this analysis step is skipped. |
-| `min_peak_height` | 5 | Any positive integer | The minimum height of a TIS/TTS or RIBO peak required to be considered a valid start/stop codon |
-| `peak_height_operator` | `max` | `max` \| `sum` | Peaks are searched in a 5nt interval around the start/stop codon. This specifies whether the maximum value or the sum of values within the interval are used. |
-| `tts_start_selection` | `furthest_inframe` | `furthest_inframe` \| `next_inframe` | When constructing an ORF based on a stop codon detected using TTS data, either use the next or the furthest in-frame start codon, without overlapping with another stop codon. |
-| `log_fold_contrasts` | No Fold Change | List of contrasts (e.g., `RIBO-A-1_TIS-A-1, RIBO-A-2_TIS-A-2`) | Fold changes for any samples present in the experiment can be requested using this parameter. |
-| `max_ORF_length` | 150 | Any positive integer | When both TIS and TTS data is used, the data is combined to form ORFs up to a length of `max_ORF_length`. |
-| `rpkm_read_usage` | `all` | `all` \| `specific` | When calculating RPKM and TE values, either all reads can be used or the specific read lengths given by the `read_lengths` parameter. |
-| `gff_output_mode` | `combined` | `combined` \| `split` | Output a single combined GFF file or a GFF file for each ORF type. |
-
-> **⚠️ Important Notes:**
->
-> - Even though these parameters are optional, the column headers are not. ORFBounder will tell you which headers are missing.
-> - The values are optional and default values will be used if not specified.
-> - Ensure that the file is tab-separated. You can modify the template file with any spreadsheet viewer.
-
----
-
-### Step 3: Running call_ORFBounder.py
-
-After creating both input files, running ORFBounder is straightforward:
+TIS, TTS and RIBO columns can point to the same folder; filenames select the
+assay. **Relative input paths start from the directory where you run the
+command**, not the TSV's directory. Absolute paths avoid that ambiguity.
 
 ```bash
-uv run call_ORFBounder.py -c  -r
+orfbounder-batch -c experiments.tsv --validate-only
+orfbounder-batch -c experiments.tsv -r results
 ```
 
-**Parameters:**
-- `-c <config_spreadsheet>`: Path to the configuration spreadsheet
-- `-r <output_folder>`: Path to the output directory where results will be saved
+Validation checks configuration, sample matching, offset coverage by sample and
+reference headers before analysis. A missing read-length-specific offset can
+still appear only when the analysis encounters a record of that length.
 
----
+The report for each experiment is at
+`results/<experiment>/<mapping>/<normalization>/report.html`. Replicates are
+merged by ORF coordinates while preserving their separate measurements.
 
-## Output Files
+### Choose analysis settings
 
-### Results Directory Structure
+| TSV column | Default | How it affects your analysis |
+| --- | --- | --- |
+| `RIBO_folder_path` | blank | Include matched RIBO peak measurements |
+| `mapping_method` | `threeprime` | `fiveprime`, `threeprime`, `centered`, `global`; match your calibration |
+| `read_length_json` | blank | File selecting read lengths; blank accepts all lengths |
+| `min_peak_height` | `5` | A position must be **strictly greater** than this value to contribute to a called peak |
+| `peak_height_operator` | `max` | Highest passing position in a codon window; `sum` adds all passing positions |
+| `tts_start_selection` | `furthest_inframe` | Furthest or closest (`next_inframe`) upstream start |
+| `genetic_code` | `11` | NCBI translation-table number for the organism |
+| `start_codons`, `stop_codons` | See below | Comma-separated DNA triplets for boundary searching |
+| `normalization_method` | `raw` | `raw`, `mil` or `min`, explained below |
+| `normalization_scope` | `contig` | Scale using reads on the same contig; `library` uses all contigs |
+| `mapped_counts_file_path` | blank | Required for `min`; tab-separated sample, contig and count, without a header |
+| `alignment_folder_path` | blank | Matched assay/RNA alignments for RPKM and TE |
+| `rpkm_read_usage` | `all` | All accepted lengths for expression; `specific` uses selected lengths |
+| `gff_output_mode` | `combined` | One GFF per sample; `split` also writes category-group files (ordinary and complex exact annotation matches share the annotated file) |
+| `statistics` | `none` | `local` adds local enrichment tests with endpoint mapping |
+| `background_width` | `50` | Bases in each statistical background flank |
+| `fdr` | `0.05` | Adjusted p-value threshold for local support |
+| `fdr_method` | `by` | `by` or `bh` correction; see [statistics](docs/statistics.md) |
+| `min_mapq` | `0` | Exclude alignment records below this MAPQ |
+| `duplicates` | `include` | Include or exclude records carrying the SAM duplicate flag |
+| `multimappers` | `exclude` | Exclude or include records with an `NH` tag greater than 1 |
+| `matched_comparison_file_path` | blank | Optional comparison TSV for exploratory fixed-margin, same-assay support; requires `statistics=local` |
+| `matched_fdr` | `0.05` | Adjusted p-value threshold used by the exploratory matched-support rule |
+| `matched_fdr_method` | `by` | `by` or `bh` correction for each matched comparison |
 
-For each experiment, ORFBounder creates a structured output directory containing the following:
+Comma-separated mapping or normalization methods create separate runs, for
+example `raw,mil`. Choose settings before inspecting statistical results;
+q-values do not account for selecting a favorable parameter run.
 
-```
-<output_folder>/
-└── <experiment_name>/
-    └── <mapping_method>_
-		├── <normalization_method>/
-		│   ├── <experiment>_final.xlsx
-		│   └── <experiment>_final.gff
-		├── coverage_files/
-		│   └── *.wig (or similar coverage files)
-		├── table_per_condition/
-		│   └── <condition>-<replicate>.xlsx
-		└── gff_per_condition/
-			├── <condition>-<replicate>_<orf_type>.gff (if gff_output_mode=split)
-		    └── <condition>-<replicate>.gff (if gff_output=combined)
-```
+### Genetic code and boundary codons
 
-#### Directory Contents
+The default is **NCBI table 11**, with starts `ATG,GTG,TTG` and stops
+`TAG,TAA,TGA`. Set `--genetic-code` in a direct run or `genetic_code` in the TSV
+for another code. Other codes use their full table-defined start and stop sets
+when these lists are omitted. Choose the code appropriate to your organism using
+[NCBI's genetic-code tables](https://www.ncbi.nlm.nih.gov/Taxonomy/Utils/wprintgc.cgi).
 
-**1. Mapping/Normalization Folders** (`<mapping_method>_<normalization_method>/`)
+Explicit lists restrict boundary searching to a subset of that code's allowed
+start/stop codons. Direct commands use spaces, such as
+`--start_codons ATG GTG TTG`; TSV cells use commas. Tables with context-dependent
+stop/sense codons (27, 28 and 31) are unsupported. The selected code also determines
+amino-acid translation; see [using sequences](docs/results.md#use-nucleotide-and-protein-sequences).
 
-For each combination of mapping method (e.g., `threeprime`, `fiveprime`) and normalization method (e.g., `raw`, `mil`, `min`), a separate folder is created containing:
+### Mapping and normalization
 
-- **`<experiment>_final.xlsx`**: The primary output file containing all detected ORFs with comprehensive annotations and statistics
-- **`<experiment>_final.gff`**: Single file with all ORF types.
+`fiveprime` and `threeprime` put one count at each selected read endpoint after
+applying its offset. They support local enrichment testing. `global` counts each
+aligned base. `centered` trims 11 query bases from each end and shares one count
+among the remaining aligned bases; reads without a remaining aligned base
+contribute no coverage.
 
-**2. Coverage Folder** (`coverage_files/`)
+`raw` keeps counts unchanged. `mil` expresses counts per million accepted
+reads. With `contig` scope, each contig uses its own accepted-read total; with
+`library`, the denominator is the total across all contigs. Both strands
+contribute to these totals. The scope also sets the RPKM denominator, including
+when peak counts are `raw`. Use the same scope across samples you compare.
 
-Contains coverage files adjusted to the experimental settings (offsets, read lengths, mapping method).
+`min` scales to the smallest provided accepted-read count. With `contig` scope,
+the target is calculated separately for each contig. With `library` scope, the
+rows are first summed by sample across contigs and the smallest sample total is
+used as the library-wide target. To prepare the count file:
 
-**3. Result Tables Folder** (`table_per_sample/`)
-
-Contains tab-separated tables with detected ORFs for each sample:
-- **`<condition>-<replicate>.xlsx`**: Separate tables for each individual condition
-
-**4. GFF Files Folder** (`gff_per_sample/`)
-
-Contains GFF3 format files for genome browser visualization per sample:
-- **`<condition>-<replicate>_<orf_type>.gff`**: Separate files for each ORF type (if `gff_output_mode=split`)
-
----
-
-### Output Tables
-
-The main output file (`final_results.xlsx`) contains the following columns:
-
-#### Static Columns (Always Present)
-
-| Column | Description |
-|--------|-------------|
-| `Type` | The type/category of the detected ORF |
-| `Identifier` | Unique identifier for the ORF |
-| `Genome` | Reference genome/chromosome name |
-| `Start` | Start position of the ORF (genomic coordinate) |
-| `Stop` | Stop position of the ORF (genomic coordinate) |
-| `Strand` | Strand orientation (+ or -) |
-| `Locus_tag` | Associated locus tag from annotation (if applicable) |
-| `Codon_count` | Number of codons in the ORF |
-| `Evidence` | Type of evidence supporting the ORF (TIS, TTS, or combined) |
-| `Start_codon` | The start codon sequence |
-| `Stop_codon` | The stop codon sequence |
-| `15nt_window` | 15 nucleotide window around the start codon |
-| `Nucleotide_Seq` | Complete nucleotide sequence of the ORF |
-| `Amino_Acid_Seq` | Translated amino acid sequence |
-| `5'-distance` | Distance to the nearest upstream feature |
-| `3'-distance` | Distance to the nearest downstream feature |
-
-#### Dynamic Columns (Depend on Experimental Setup)
-
-The following column types are generated for each sample in your experiment (e.g., `RIBO-WT-1`, `RIBO-WT-2`, `TIS-WT-1`, `TIS-WT-2`):
-
-| Column Pattern | Description |
-|----------------|-------------|
-| `<sample>_peak_height` | Peak height at the start/stop codon for each sample |
-| `<sample1>_<sample2>_log2FC` | Log2 fold change between specified sample pairs |
-| `<sample>_relative_density` | Relative read density across the ORF |
-| `<sample>_rpkm` | Reads Per Kilobase per Million mapped reads |
-| `<sample>_TE` | Translation Efficiency (if RNA-seq data is provided) |
-
----
-
-## Toy example
-
-We provide a toy example to show how to run the workflow.
-
-The toy example can be generated using:
-
-```
-uv run helpers/toy_example_generation.py
+```bash
+python -m helpers.recover_total_counts -c experiments.tsv -r mapped_counts
 ```
 
-This will create toy versions of each input file required for `ORFBounder`.
+Set `mapped_counts_file_path` to the generated `<experiment>_mapped_reads.tsv`.
+Counts use the same alignment policy and selected read lengths as the analysis.
+Each input row must be unique and positive, and the file must contain every
+calling sample in that experiment; a missing or misspelled calling label is
+rejected so it cannot change the minimum silently. Additional samples may be
+included intentionally as normalization references. With contig scope, every analyzed
+contig needs a count; with library scope, every analyzed sample needs one or
+more rows.
 
-You can run the toy example using:
+For direct runs, use `--normalization_method mil --normalization-scope library`
+for whole-library scaling. Normalization changes the meaning of the peak-height
+threshold; it does not change the raw counts used for statistics.
 
+### Include expression measurements
+
+Set `alignment_folder_path` in a batch TSV, or pass
+`--alignment_file_path alignments` in a direct run, to calculate RPKM. Include
+matched assay files and any RNA libraries in that folder. Translation efficiency
+(TE) uses the same condition and replicate in these pairs:
+
+| Assay | Matched RNA name |
+| --- | --- |
+| `RIBO-WT-1` | `RNA-WT-1` |
+| `TIS-WT-1` | `RNATIS-WT-1` |
+| `TTS-WT-1` | `RNATTS-WT-1` |
+
+Batch expression counting uses all lengths by default. Direct runs use the
+selected lengths unless you add `--all_reads_rpkm`. Expression length selection
+is separate from peak-calling length selection. See
+[expression and ratios](docs/results.md#interpret-expression-and-ratios)
+before comparing values.
+
+## Add statistical support
+
+Add `--statistics local` to a direct command or enter `local` in the TSV's
+`statistics` column. Results then include raw endpoint/background counts,
+width-normalized local fold enrichment, p-values, adjusted p-values (q-values)
+and local support flags for each assay.
+The report and table still include calls without statistical support.
+
+Use the effect size and q-values to prioritize inspection alongside called
+peaks, annotation, coverage and replicate consistency. The test describes local endpoint
+enrichment; it does not compare treatments with controls or establish that an
+ORF is translated. Read [the statistical guide](docs/statistics.md) and
+[the candidate inspection workflow](docs/results.md#choose-candidates-to-inspect).
+
+For a batch, ORFBounder can also calculate **exploratory fixed-margin matched
+support** between two conditions within one TIS or TTS assay. Copy
+[the comparison template](templates/template_matched_comparisons.tsv), or create
+a tab-separated file such as:
+
+```text
+comparison	assay	numerator_condition	denominator_condition
+treated_vs_control	TIS	treated	control
 ```
-uv run call_orfbounder.py -c toy_example/config/config.tsv -r toy_example/results
+
+The corresponding files must be named, for example, `TIS-treated-1.bam` and
+`TIS-control-1.bam`, with at least two identical replicate IDs in both
+conditions. Each ID must represent a real, predeclared experimental pair or
+block, and those blocks must be independent; arbitrary ordinal matching and
+technical lane splits are not biological replication. Set `statistics=local`
+and put this file in `matched_comparison_file_path`.
+
+The directional fixed-margin test asks whether the numerator has greater
+peak-versus-local-background endpoint odds while retaining each block's local
+read depth. A candidate needs at least two informative pairs; support requires
+its q-value to meet the configured threshold, a common odds ratio above 1 and a
+strict majority of informative pairs favoring the numerator. Local and matched
+effect directions at the neutral boundary are evaluated from exact count
+relationships rather than rounded display ratios. This is read-depth evidence
+under a conditional endpoint-count model: it does not estimate
+biological dispersion, test a population-level condition effect, compare TIS
+against RIBO, test overall abundance or combine TIS and TTS evidence.
+The aggregate candidate table and a companion `_strata.tsv` table retain the
+summary and per-pair counts, respectively. Join them by `candidate_id`. See
+[matched-condition inference](docs/statistics.md#matched-condition-inference).
+
+## Use the installed utilities
+
+The Python package and Docker image include the following utility modules. Run
+them with the same Python environment as ORFBounder:
+
+```bash
+python -m helpers.toy_example_generation --output-dir demo
+python -m helpers.recover_total_counts -c experiments.tsv -r mapped_counts
+python -m lib.merging -t first.csv second.xlsx -o merged.xlsx
+python -m helpers.final_to_gff -i merged.xlsx -o colored.gff
 ```
 
----
+`lib.merging` accepts ORFBounder Excel files and tab-separated `.csv`/`.tsv`
+tables, then writes a merged `.xlsx`, tab-separated `.csv` and `.gff`. Sample
+identities come from table column names; repeated measurements must be missing
+or identical, otherwise the merge stops instead of choosing one by input order.
+Local and matched statistical evidence is retained. Integer audit fields are
+parsed exactly; malformed count representations are rejected, and spreadsheet
+counts above `2^53` are stored as decimal text to avoid silent rounding.
+Nullable support flags accept only Boolean/blank values (including `1`/`0`),
+so TSV and XLSX inputs cannot silently disagree about statistical support.
+`helpers.merge_tables` remains an installed compatibility entry point, but
+`python -m lib.merging` is the supported interface. `helpers.final_to_gff`
+creates a GFF3 from an existing result table and colors features by their
+TIS/TTS call evidence. Its importer preserves literal identity labels such as
+`NA` and leading-zero reference names, rejects duplicate headers, and checks a
+coordinate-form identifier against its coordinate columns. These utilities
+publish complete files without replacing an existing target. Choose new output
+paths with no symbolic-link components; derived files are not written into a
+completed result folder in place.
 
-## References
+## Troubleshooting
 
-<a id="1">[1]</a> Gelhausen, R. (2020). HRIBO - High-throughput analysis of bacterial ribosome profiling data. [BioRxiv](https://www.biorxiv.org/content/10.1101/2020.04.27.046219v1)
+| Problem | What to do |
+| --- | --- |
+| Command not found | Activate your environment; use `orfbounder-batch` for TSV runs |
+| Missing/unknown configuration columns | Save tab-separated text using the current template; the read-length column is `read_length_json` |
+| No samples found | Check folders and the exact `METHOD-condition-replicate` filename pattern |
+| Duplicate sample | Keep one SAM or BAM per sample; move alternative alignments out of the input folder |
+| Reference mismatch | Use the same assembly and contig identifiers in FASTA, GFF and alignments |
+| Missing offset for a sample or length | Add that sample to the offset JSON (or an intentional top-level default); for a missing length, select calibrated lengths or add it to the sample's offset map |
+| Zero ORFs | Check accepted counts in run JSON, offset signs, selected lengths, genetic code and threshold; height 5 does not pass threshold 5 |
+| No q-values | Enable `statistics=local` with `fiveprime` or `threeprime`; see [missing values](docs/results.md#understand-missing-values) |
+| Missing RPKM or TE | Supply the expression folder and exactly matched assay/RNA names |
+| Existing results error | Select a new output directory to preserve the earlier analysis |
+| Interrupted or failed analysis | Read the terminal error, correct the input and rerun; use only outputs marked complete |
 
----
+ORFBounder retains primary mapped alignments passing the SAM QC flag. Secondary,
+supplementary, unmapped and QC-failed records are always excluded. Configure
+MAPQ, duplicate-flag and `NH > 1` filtering with `min_mapq`, `duplicates` and
+`multimappers`; without an `NH` tag, a multimapper cannot be identified by that
+rule. A present `NH` tag must be a positive integer; malformed values stop the
+run rather than being treated as unique alignments. Coverage respects CIGAR gaps,
+and every primary mapped alignment must provide a CIGAR. When a valid SAM record
+omits `SEQ`, CIGAR supplies the query length needed for read-length filters and
+offset selection. Expression counts an alignment once when any of its blocks
+overlaps the ORF on the same strand. Paired mates are separate alignment records;
+ORFBounder does not infer fragments. The run JSON records the policy and counts
+for every exclusion reason.
 
-## Citation
+Interpret candidates alongside your controls and biological replicates.
 
-🚧 *Publication in progress*
+## References and license
 
-## License
-
-GPL-3.0 license
-
-
+The TIS peak-calling approach was inspired by
+[RETscript](https://doi.org/10.1093/nar/gkaa304).
+License: [GPL-3.0](LICENSE).

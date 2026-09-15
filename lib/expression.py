@@ -5,13 +5,12 @@ module for expression calculations
 from collections import Counter, OrderedDict
 from pathlib import Path
 
-import sys
-import pysam
 import numpy as np
 from interlap import InterLap
 
 import lib.messaging as msg
-from lib.alignment_reader import IntervalReader
+from lib.alignment_reader import IntervalReader, validate_normalization_scope
+from lib.coordinates import split_circular_interval
 
 class OrderedCounter(Counter, OrderedDict):
     pass
@@ -29,7 +28,7 @@ def header_to_dictionary(
     Add a header value to the correct sample in the given dictionary
     """
 
-    if f"{RNAMAP[method]}-{condition}-{replicate}" in wildcards:
+    if method in RNAMAP and f"{RNAMAP[method]}-{condition}-{replicate}" in wildcards:
         if (method, condition) in cur_dict:
             cur_dict[(method, condition)].append(replicate)
         else:
@@ -43,18 +42,25 @@ def get_te_header(wildcards: list[str]) -> list[str]:
 
     te_header = []
     te_header_dict = OrderedDict()
-    for card in wildcards:
-        if "-" not in card:
+    for card in dict.fromkeys(wildcards):
+        parts = card.split("-")
+        if len(parts) != 3 or not all(parts) or parts[0] not in RNAMAP:
             continue
-        method, condition, replicate = card.split("-")
-        if "rna" in method.lower():
-            continue
+        method, condition, replicate = parts
         header_to_dictionary(method, condition, replicate, wildcards, te_header_dict)
 
     for key, val in te_header_dict.items():
         te_header.extend([f"{key[0]}-{key[1]}-{x}" for x in val])
 
     return te_header
+
+
+def normalization_read_count(accepted_reads: dict[str, int], chrom: str, normalization_scope: str = "contig") -> int:
+    """Return the accepted-read denominator across both strands in the requested scope."""
+    validate_normalization_scope(normalization_scope)
+    if normalization_scope == "library":
+        return sum(accepted_reads.values())
+    return accepted_reads.get(chrom, 0)
 
 
 def calculate_rpkm(total_mapped: int, read_count: int, read_length: int) -> float:
@@ -114,7 +120,7 @@ def te_value_to_dictionary(
     add Translational Efficiency value to the correct dictionary entry
     """
 
-    if (RNAMAP[method], condition, replicate) in read_dict:
+    if method in RNAMAP and (RNAMAP[method], condition, replicate) in read_dict:
         rpkm_ribo = read_dict[(method, condition, replicate)]
         rpkm_rna = read_dict[(RNAMAP[method], condition, replicate)]
         cur_te = te_value(rpkm_ribo, rpkm_rna)
@@ -131,8 +137,14 @@ def calculate_te(read_list: list[float], wildcards: list[str]) -> list[float]:
 
     read_dict = OrderedDict()
     te_dict = OrderedDict()
+    if len(read_list) != len(wildcards):
+        raise ValueError("Read counts and sample names must have the same length for TE calculation.")
+    accepted_methods = set(RNAMAP) | set(RNAMAP.values())
     for idx, wildcard in enumerate(wildcards):
-        method, condition, replicate = wildcard.split("-")
+        parts = wildcard.split("-")
+        if len(parts) != 3 or not all(parts) or parts[0] not in accepted_methods:
+            continue
+        method, condition, replicate = parts
         key = (method, condition, replicate)
         if key not in read_dict:
             read_dict[key] = read_list[idx]
@@ -141,17 +153,13 @@ def calculate_te(read_list: list[float], wildcards: list[str]) -> list[float]:
 
     for key, val in read_dict.items():
         method, condition, replicate = key
-        if "rna" in method.lower():
+        if method not in RNAMAP:
             continue
         te_value_to_dictionary(method, condition, replicate, read_dict, te_dict)
 
     te_list = []
-    for key, val in te_dict.items():
-        if len(val) > 1:
-            t_eff = get_avg(val)
-        else:
-            t_eff = val
-        te_list.extend(t_eff)
+    for val in te_dict.values():
+        te_list.extend(val)
 
     return te_list
 
@@ -172,54 +180,12 @@ def init_read_count_dict(
     return read_count_dict
 
 
-def create_interlap_dict(bam_file: Path) -> tuple[dict[tuple[str, str], InterLap], dict[str, int]]:
+def create_interlap_dict(bam_file: Path, alignment_policy=None) -> tuple[dict[tuple[str, str], InterLap], dict[str, int]]:
     """
     create a dictionary with interlap objects for the current bam file.
     """
-    bam_path = Path(bam_file)
-    msg.message(f"Reading: {bam_path}")
+    return IntervalReader(Path(bam_file), None, True, alignment_policy).output()
 
-    interlap_dict = {}
-    total_mapped_reads = {}
-    tmp_dict = {}
-
-    with pysam.AlignmentFile(bam_file) as samfile:
-        try:
-            for read in samfile.fetch():
-                chrom = read.reference_name
-                if read.get_tag("NH") > 1 or read.mapping_quality < 0 or read.is_unmapped:
-                    continue
-
-                start = read.reference_start
-                read_length = read.query_length # query read length
-                stop = start + read_length - 1
-
-                if chrom in total_mapped_reads:
-                    total_mapped_reads[chrom] += 1
-                else:
-                    total_mapped_reads[chrom] = 1
-
-                if not read.is_reverse:
-                    if (chrom, "+") in tmp_dict:
-                        tmp_dict[(chrom, "+")].append((start, stop))
-                    else:
-                        tmp_dict[(chrom, "+")] = [(start, stop)]
-                else:
-                    if (chrom, "-") in tmp_dict:
-                        tmp_dict[(chrom, "-")].append((start, stop))
-                    else:
-                        tmp_dict[(chrom, "-")] = [(start, stop)]
-
-        except ValueError as exc:
-            raise ValueError("Error: Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.") from exc
-
-    for key, val in tmp_dict.items():
-        inter = InterLap()
-        inter.update(val)
-        interlap_dict[key] = inter
-
-    msg.success("Done")
-    return interlap_dict, total_mapped_reads
 
 
 def count_reads(
@@ -227,31 +193,70 @@ def count_reads(
     start: int,
     stop: int,
     strand: str,
-    read_interlap_dict: dict[tuple[str, str], InterLap]
+    read_interlap_dict: dict[tuple[str, str], InterLap],
+    reference_lengths: dict[str, int] | None = None,
+    circular_contigs: set[str] | None = None,
 ) -> int:
     """
     count the reads falling into a certain region
     """
-    return len(list(read_interlap_dict[(chrom, strand)].find((start, stop))))
+    intervals = read_interlap_dict.get((chrom, strand))
+    if intervals is None:
+        return 0
+    circular_contigs = set(circular_contigs or ())
+    if chrom in circular_contigs:
+        if reference_lengths is None or chrom not in reference_lengths:
+            raise ValueError(f"Missing reference length for circular sequence {chrom!r}.")
+        query_intervals = split_circular_interval(start, stop, reference_lengths[chrom])
+    else:
+        query_intervals = ((start, stop),)
+    # New alignment intervals carry a per-record identity so CIGAR blocks count
+    # once per read, including when a virtual circular query is split at the
+    # origin. Retain support for callers using plain (start, stop) pairs.
+    record_ids = set()
+    plain_multiplicity = Counter()
+    for query_start, query_stop in query_intervals:
+        matches = list(intervals.find((query_start, query_stop)))
+        record_ids.update(match[2] for match in matches if len(match) >= 3)
+        current_plain = Counter(match[:2] for match in matches if len(match) < 3)
+        for match, count in current_plain.items():
+            plain_multiplicity[match] = max(plain_multiplicity[match], count)
+    return sum(plain_multiplicity.values()) + len(record_ids)
 
 
 def retrieve_read_counts(
     read_count_dict: dict[tuple[str, int, int, str], list],
     bam_files: list[Path],
     read_lengths: dict,
-    all_reads_rpkm: bool
+    all_reads_rpkm: bool,
+    alignment_policy=None,
+    diagnostics: dict | None = None,
+    reference_lengths: dict[str, int] | None = None,
+    circular_contigs: set[str] | None = None,
 ) -> tuple[dict[tuple[str, int, int, str], list], list[dict]]:
     """
     run over all available bam files and add read_counts for each interval in the interval dict.
     """
     accepted_read_list = []
     for bam_file in bam_files:
-        interlap_dict, accepted_read_dict = IntervalReader(bam_file, read_lengths, all_reads_rpkm).output()
+        reader = IntervalReader(
+            bam_file, read_lengths, all_reads_rpkm, alignment_policy,
+        )
+        interlap_dict, accepted_read_dict = reader.output()
+        if diagnostics is not None:
+            diagnostics[Path(bam_file).stem] = {
+                **reader.alignment_diagnostics,
+                "accepted_reads_by_contig": accepted_read_dict,
+            }
 
         accepted_read_list.append(accepted_read_dict)
         for (chrom, start, stop, strand) in read_count_dict.keys():
             read_count_dict[(chrom, start, stop, strand)].append(
-                count_reads(chrom, start, stop, strand, interlap_dict)
+                count_reads(
+                    chrom, start, stop, strand, interlap_dict,
+                    reference_lengths=reference_lengths,
+                    circular_contigs=circular_contigs,
+                )
             )
 
     return read_count_dict, accepted_read_list

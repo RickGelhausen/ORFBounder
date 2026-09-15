@@ -1,0 +1,12 @@
+**
+!Dockerfile
+!pyproject.toml
+!uv.lock
+!README.md
+!LICENSE
+!orfbounder.py
+!orfbounder_batch.py
+!lib/
+!lib/*.py
+!helpers/
+!helpers/*.py

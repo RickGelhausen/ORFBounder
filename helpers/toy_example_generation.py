@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Generate a proper working toy example for ORFBounder."""
 
-import os
+import argparse
 import json
 from pathlib import Path
 import pysam
@@ -9,7 +9,9 @@ import pysam
 
 class ToyExampleGenerator:
     def __init__(self, output_dir="toy_example"):
-        self.output_dir = Path(output_dir)
+        self.output_dir = Path(output_dir).resolve()
+        if self.output_dir.exists() and any(self.output_dir.iterdir()):
+            raise FileExistsError(f"Example directory is not empty: {self.output_dir}. Choose a new --output-dir.")
         self.data_dir = self.output_dir / "data"
         self.bam_dir = self.data_dir / "bam"
         self.config_dir = self.output_dir / "config"
@@ -35,7 +37,7 @@ class ToyExampleGenerator:
         sequence = ["N"] * 1000
 
         # Gene 1 at position 100-162 (0-indexed: 99-161)
-        gene1 = "ATGAAACCGGGTTTCAAGGCCATTTTGAACCCGGGTTTCAAGCCATTTTGAAACCGGGTAG"
+        gene1 = "ATG" + "AAA" * 19 + "TAG"
         for i, base in enumerate(gene1):
             sequence[99 + i] = base
 
@@ -45,7 +47,7 @@ class ToyExampleGenerator:
             sequence[299 + i] = base
 
         # Gene 3 at position 500-562 (0-indexed: 499-561)
-        gene3 = "ATGGGACCGGGTTTCAAGGCCATTTTGAACCCGGGTTTCAAGCCATTTTGAAACCGGGTGA"
+        gene3 = "ATG" + "GGA" * 19 + "TGA"
         for i, base in enumerate(gene3):
             sequence[499 + i] = base
 
@@ -188,10 +190,9 @@ class ToyExampleGenerator:
             pysam.view("-bS", "-o", str(bam_file), str(sam_file), catch_stdout=False)
             sorted_bam = self.bam_dir / f"{sample_name}.sorted.bam"
             pysam.sort("-o", str(sorted_bam), str(bam_file), catch_stdout=False)
-            os.remove(bam_file)
-            os.rename(sorted_bam, bam_file)
+            sorted_bam.replace(bam_file)
             pysam.index(str(bam_file))
-            os.remove(sam_file)
+            sam_file.unlink()
 
             print(f"  Created: {bam_file}")
 
@@ -222,15 +223,15 @@ class ToyExampleGenerator:
                 "read_length_json", "normalization_method", "mapped_counts_file_path",
                 "mapping_method", "offset_file_path", "start_codons", "stop_codons",
                 "alignment_folder_path", "min_peak_height", "peak_height_operator",
-                "tts_start_selection", "max_ORF_length", "rpkm_read_usage", "gff_output_mode"
+                "tts_start_selection", "rpkm_read_usage", "gff_output_mode"
             ]) + "\n")
 
             f.write("\t".join([
-                "toy_example", "toy_example/data/annotation.gff", "toy_example/data/genome.fa",
-                "toy_example/data/bam", "toy_example/data/bam", "toy_example/data/bam",
-                "toy_example/config/read_lengths.json", "raw", "toy_example/config/mapped_counts.tsv",
-                "fiveprime", "toy_example/config/offsets.json", "ATG", "TAG,TAA,TGA",
-                "toy_example/data/bam", "1", "sum", "", "", "all", "combined"
+                "toy_example", str(self.data_dir / "annotation.gff"), str(self.data_dir / "genome.fa"),
+                str(self.bam_dir), "", str(self.bam_dir),
+                str(self.config_dir / "read_lengths.json"), "raw", str(self.config_dir / "mapped_counts.tsv"),
+                "fiveprime", str(self.config_dir / "offsets.json"), "ATG", "TAG,TAA,TGA",
+                str(self.bam_dir), "1", "sum", "", "all", "combined"
             ]) + "\n")
 
         print("  Created config files")
@@ -238,22 +239,32 @@ class ToyExampleGenerator:
     def generate_readme(self):
         """Generate README."""
         with open(self.output_dir / "README.md", 'w', encoding='utf-8') as f:
-            f.write("""# ORFBounder Toy Example
+            f.write(f"""# Try ORFBounder with example data
 
-## Structure
-- 3 genes at positions 100-162, 300-362, 500-562
-- Chromosome: NC_000913.3 (1000bp)
-- TIS reads concentrated at start codons (positions 100, 300, 500)
-- RIBO reads distributed across gene bodies
-- Offset: 0 (reads start exactly at start codon)
+This example contains two TIS/RIBO replicates and three genes with known
+boundaries. Run the analysis from your ORFBounder environment:
 
-## Run
 ```bash
-uv run call_orfbounder.py -c toy_example/config/config.tsv -r toy_example/results
+orfbounder-batch -c {self.config_dir}/config.tsv --validate-only
+orfbounder-batch -c {self.config_dir}/config.tsv -r {self.output_dir}/results
 ```
 
-## Expected Results
-Should detect 3 ORFs corresponding to the 3 annotated genes.
+If you installed with uv, put `uv run` before each command.
+
+Open `{self.output_dir}/results/toy_example/fiveprime/raw/report.html` in your
+web browser. The report works offline. You should find three annotated ORFs on
+`NC_000913.3`: 100–162, 300–362 and 500–562, each 63 nucleotides long.
+Select a candidate to inspect its sequence and compare the two replicates.
+
+Use the report's download links to open the spreadsheet, retrieve nucleotide
+or protein sequences, or load the GFF and coverage tracks in a genome browser
+with `{self.data_dir}/genome.fa`.
+
+To add statistical support, put `statistics` in a new configuration column,
+set its value to `local`, and rerun with a new result folder. Inspect both the
+called peak evidence and local statistical support; they answer different
+questions. This synthetic dataset teaches the workflow and is not a biological
+validation experiment.
 """)
 
     def generate_all(self):
@@ -271,8 +282,18 @@ Should detect 3 ORFs corresponding to the 3 annotated genes.
         print("=" * 60)
         print(f"✓ Generated: {self.output_dir}")
         print("=" * 60)
-        print(f"\nuv run call_orfbounder.py -c {self.output_dir}/config/config.tsv -r {self.output_dir}/results\n")
+        print(f"\nuv run orfbounder-batch -c {self.output_dir}/config/config.tsv -r {self.output_dir}/results\n")
+
+
+def main():
+    parser = argparse.ArgumentParser(description="Create a small synthetic ORFBounder dataset with three annotated ORFs and two replicates.")
+    parser.add_argument("--output-dir", type=Path, default=Path("toy_example"), help="New or empty folder (default: toy_example).")
+    args = parser.parse_args()
+    try:
+        ToyExampleGenerator(args.output_dir).generate_all()
+    except OSError as exc:
+        parser.exit(2, f"Example error: {exc}\n")
 
 
 if __name__ == "__main__":
-    ToyExampleGenerator().generate_all()
+    main()

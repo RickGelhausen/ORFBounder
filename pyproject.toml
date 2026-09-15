@@ -1,19 +1,42 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "orfbounder"
-version = "1.0.0"
+version = "2.0.0"
 description = "ORFBounder - A tool to identify TIS/TTS peaks and annotate open reading frames (ORFs) in prokaryotic genomes using ribosome profiling data."
 readme = "README.md"
-requires-python = ">=3.14"
+requires-python = ">=3.11"
 dependencies = [
     "pysam>=0.23.3",
-    "pandas>=2.3.3",
-    "numpy>=2.3.4",
-    "biopython>=1.8.6",
+    "pandas>=2.2",
+    "numpy>=1.26",
+    "scipy>=1.12",
+    "biopython>=1.83",
     "interlap>=0.2.7",
     "openpyxl>=3.1.5",
     "xlsxwriter>=3.2.9",
     "xlrd>=2.0.2",
-    "pytest>=8.4.2",
-    "pytest-mock>=3.15.1",
     "pyyaml>=6.0.3"
 ]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.4.2", "pytest-mock>=3.15.1", "build>=1.2", "ruff>=0.15"]
+
+[project.scripts]
+orfbounder = "orfbounder:main"
+orfbounder-batch = "orfbounder_batch:main"
+
+[tool.setuptools]
+py-modules = ["orfbounder", "orfbounder_batch"]
+packages = ["lib", "helpers"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.ruff.lint]
+# Keep CI's baseline independent of Ruff release-default changes. These rules
+# cover syntax errors, undefined names, unused imports, and core pycodestyle.
+select = ["E4", "E7", "E9", "F"]

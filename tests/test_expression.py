@@ -26,6 +26,17 @@ from lib.expression import (
 )
 
 
+
+def configure_contiguous_read(read):
+    """Give mock alignments the primary flags and contiguous CIGAR used here."""
+    read.is_secondary = False
+    read.is_supplementary = False
+    read.is_qcfail = False
+    read.has_tag.return_value = True
+    read.get_reference_positions.side_effect = lambda **kwargs: list(range(read.reference_start, read.reference_start + read.query_length))
+    read.get_blocks.side_effect = lambda: [(read.reference_start, read.reference_start + read.query_length)]
+    read.header.get_reference_length.return_value = 10000
+
 class TestOrderedCounter:
     """Tests for OrderedCounter class"""
 
@@ -383,11 +394,10 @@ class TestCalculateTe:
 
         result = calculate_te(read_list, wildcards)
 
-        # Should have 3 values: rep1 TE, rep2 TE, and average
-        assert len(result) == 3
+        # One value per corresponding TE header
+        assert len(result) == 2
         assert result[0] == 2.0
         assert result[1] == 2.0
-        assert result[2] == 2.0  # Average
 
     def test_calculate_te_multiple_methods(self):
         """Test with multiple methods"""
@@ -427,10 +437,9 @@ class TestCalculateTe:
 
         result = calculate_te(read_list, wildcards)
 
-        assert len(result) == 3
+        assert len(result) == 2
         assert np.isnan(result[0])  # rep1 has NaN
         assert result[1] == 2.0     # rep2 is valid
-        assert result[2] == 2.0     # Average of valid only
 
     def test_calculate_te_duplicate_keys_warns(self):
         """Test that duplicate keys trigger warning"""
@@ -438,7 +447,7 @@ class TestCalculateTe:
         wildcards = ["TIS-control-rep1", "RNATIS-control-rep1", "TIS-control-rep1"]
 
         with patch('lib.expression.msg.warning') as mock_warning:
-            result = calculate_te(read_list, wildcards)
+            calculate_te(read_list, wildcards)
 
             mock_warning.assert_called_once()
             assert "multiple equal keys" in mock_warning.call_args[0][0]
@@ -509,6 +518,7 @@ class TestCreateInterlapDict:
         mock_read.reference_start = 100
         mock_read.query_length = 30
         mock_read.is_reverse = False
+        configure_contiguous_read(mock_read)
 
         with patch('pysam.AlignmentFile') as mock_pysam:
             mock_samfile = Mock()
@@ -536,6 +546,7 @@ class TestCreateInterlapDict:
         mock_read.reference_start = 100
         mock_read.query_length = 30
         mock_read.is_reverse = False
+        configure_contiguous_read(mock_read)
 
         with patch('pysam.AlignmentFile') as mock_pysam:
             mock_samfile = Mock()
@@ -562,6 +573,7 @@ class TestCreateInterlapDict:
         mock_read_plus.reference_end = 130
         mock_read_plus.query_length = 30
         mock_read_plus.is_reverse = False
+        configure_contiguous_read(mock_read_plus)
 
         mock_read_minus = Mock()
         mock_read_minus.reference_name = "chr1"
@@ -572,6 +584,7 @@ class TestCreateInterlapDict:
         mock_read_minus.reference_end = 230
         mock_read_minus.query_length = 28
         mock_read_minus.is_reverse = True
+        configure_contiguous_read(mock_read_minus)
 
         with patch('pysam.AlignmentFile') as mock_pysam:
             mock_samfile = Mock()
@@ -598,7 +611,7 @@ class TestCreateInterlapDict:
             mock_samfile.fetch.side_effect = ValueError("Index not found")
             mock_pysam.return_value = mock_samfile
 
-            with pytest.raises(ValueError, match=re.escape("Error: Ensure that all bam files used for readcounting have an appropriate index file (.bam.bai). You can create them using samtools index.")):
+            with pytest.raises(ValueError, match=re.escape("Cannot read alignment file")):
                 create_interlap_dict(bam_file)
 
 

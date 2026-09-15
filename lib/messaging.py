@@ -1,6 +1,7 @@
 """
 Messaging functions for terminal output with colors.
 """
+import os
 import sys
 
 # ANSI color codes
@@ -14,9 +15,24 @@ BOLD = '\033[1m'
 UNDERLINE = '\033[4m'
 
 
+def _color_enabled(stream) -> bool:
+    """Use ANSI styling only for an interactive stream that permits color."""
+    if "NO_COLOR" in os.environ or os.environ.get("TERM") == "dumb":
+        return False
+    try:
+        return bool(stream.isatty())
+    except (AttributeError, OSError):
+        return False
+
+
+def _styled(text, *styles, stream):
+    text = str(text)
+    return f"{''.join(styles)}{text}{ENDC}" if _color_enabled(stream) else text
+
+
 def error(text):
     """Write an error message in bold red to stderr."""
-    print(f"{RED}{BOLD}{text}{ENDC}", file=sys.stderr)
+    print(_styled(text, RED, BOLD, stream=sys.stderr), file=sys.stderr)
 
 
 def error_list(prefix_text, suffix_text, input_description, expected_list, input_list):
@@ -37,13 +53,13 @@ def error_list(prefix_text, suffix_text, input_description, expected_list, input
     for i, item in enumerate(expected_list):
         color = RED if item in missing_entries else GREEN
         prefix = " " if i == 0 else indent
-        item_list.append(f"{prefix}{color}{BOLD}{item}{ENDC}\n")
+        item_list.append(f"{prefix}{_styled(item, color, BOLD, stream=sys.stderr)}\n")
 
     error_msg = (
-        f"{RED}{BOLD}{prefix_text}{ENDC}"
-        f"{RED}{BOLD}{input_description}{ENDC}"
+        f"{_styled(prefix_text, RED, BOLD, stream=sys.stderr)}"
+        f"{_styled(input_description, RED, BOLD, stream=sys.stderr)}"
         f"{''.join(item_list)}"
-        f"{RED}{BOLD}{suffix_text}{ENDC}"
+        f"{_styled(suffix_text, RED, BOLD, stream=sys.stderr)}"
     )
 
     print(error_msg, file=sys.stderr)
@@ -51,14 +67,14 @@ def error_list(prefix_text, suffix_text, input_description, expected_list, input
 
 def success(text):
     """Write a success message in green."""
-    print(f"{GREEN}{text}{ENDC}")
+    print(_styled(text, GREEN, stream=sys.stdout))
 
 
 def message(text):
     """Write a normal message in blue."""
-    print(f"{BLUE}{text}{ENDC}")
+    print(_styled(text, BLUE, stream=sys.stdout))
 
 
 def warning(text):
     """Write a warning message in yellow to stderr."""
-    print(f"{YELLOW}{text}{ENDC}", file=sys.stderr)
+    print(_styled(text, YELLOW, stream=sys.stderr), file=sys.stderr)

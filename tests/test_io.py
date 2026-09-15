@@ -2,14 +2,13 @@
 Unit tests for utility functions in lib.io module
 """
 
-import re
 from unittest.mock import patch
+from io import StringIO
 import pytest
 import json
-import csv
 from pathlib import Path
 import pandas as pd
-from io import StringIO
+from openpyxl import load_workbook
 
 from lib.io import (
     generate_genome_dict, parse_read_lengths, parse_total_reads,
@@ -17,6 +16,7 @@ from lib.io import (
     write_gff_file, write_codon_interval_gff, excel_writer,
     write_results_to_gff, write_results_to_table
 )
+from lib.alignment_reader import LIBRARY_MINIMUM_KEY
 
 
 class TestGenerateGenomeDict:
@@ -82,6 +82,23 @@ GCTA
 
         assert result["chr1"] == "ATGCGATCGATC"
         assert result["chr2"] == "GCTA"
+
+    def test_generate_genome_dict_closes_handle_when_validation_fails(
+            self, monkeypatch):
+        stream = StringIO(">duplicate\nATG\n>duplicate\nTAA\n")
+        monkeypatch.setattr(Path, "open", lambda *args, **kwargs: stream)
+
+        with pytest.raises(ValueError, match="Duplicate FASTA sequence identifier"):
+            generate_genome_dict(Path("unused.fa"))
+
+        assert stream.closed
+
+    def test_generate_genome_dict_rejects_empty_sequence_identifier(self, tmp_path):
+        fasta_file = tmp_path / "unnamed.fasta"
+        fasta_file.write_text(">\nATG\n")
+
+        with pytest.raises(ValueError, match="nonempty identifier"):
+            generate_genome_dict(fasta_file)
 
 
 class TestParseReadLengths:
@@ -192,6 +209,20 @@ class TestParseReadLengths:
         # Should be sorted
         assert result["sample1"] == ["28", "29", "30", "35"]
 
+    def test_parse_read_lengths_rejects_duplicate_sample_keys(self, tmp_path):
+        json_file = tmp_path / "read_lengths.json"
+        json_file.write_text('{"default": "28", "default": "30"}')
+
+        with pytest.raises(ValueError, match="Duplicate JSON key 'default'"):
+            parse_read_lengths(json_file)
+
+    def test_parse_read_lengths_rejects_unbounded_range_before_expansion(self, tmp_path):
+        json_file = tmp_path / "read_lengths.json"
+        json_file.write_text('{"default": "1-1000000000"}')
+
+        with pytest.raises(ValueError, match="exceeds 100,000 lengths"):
+            parse_read_lengths(json_file)
+
 
 class TestParseTotalReads:
     """Tests for parse_total_reads function"""
@@ -217,6 +248,39 @@ class TestParseTotalReads:
 
         assert result["chr1"] == 1000
         assert result["chr2"] == 1500
+
+    def test_parse_total_reads_library_min_sums_each_sample(self, tmp_path):
+        content = "sample1\tchr1\t1000\nsample2\tchr1\t800\nsample1\tchr2\t500\nsample2\tchr2\t600\n"
+        counts_file = tmp_path / "counts.txt"
+        counts_file.write_text(content)
+
+        result = parse_total_reads(counts_file, "min", "library")
+
+        assert result == {LIBRARY_MINIMUM_KEY: 1400}
+
+    def test_parse_total_reads_rejects_duplicate_sample_contig(self, tmp_path):
+        counts_file = tmp_path / "counts.txt"
+        counts_file.write_text("sample1\tchr1\t10\nsample1\tchr1\t20\n")
+
+        with pytest.raises(ValueError, match="Duplicate mapped-count row"):
+            parse_total_reads(counts_file, "min")
+
+    def test_parse_total_reads_requires_every_calling_sample(self, tmp_path):
+        counts_file = tmp_path / "counts.txt"
+        counts_file.write_text("sample1\tchr1\t10\n")
+
+        with pytest.raises(ValueError, match="missing samples: sample2"):
+            parse_total_reads(
+                counts_file, "min", required_samples={"sample1", "sample2"},
+            )
+
+    def test_parse_total_reads_allows_additional_normalization_samples(self, tmp_path):
+        counts_file = tmp_path / "counts.txt"
+        counts_file.write_text("sample1\tchr1\t10\nsample2\tchr1\t20\n")
+
+        assert parse_total_reads(
+            counts_file, "min", required_samples={"sample1"},
+        ) == {"chr1": 10}
 
     def test_parse_total_reads_non_min_method_returns_none(self, tmp_path):
         """Test that non-min methods return None"""
@@ -475,6 +539,25 @@ class TestParseOffsetJson:
         assert result["sample1"]["28"] == 10
         assert result["sample2"]["default"] == 14
 
+    @pytest.mark.parametrize("length", ["030", "00", "²", "+30"])
+    def test_parse_offset_json_rejects_noncanonical_length_keys(self, tmp_path, length):
+        json_file = tmp_path / "offsets.json"
+        json_file.write_text(json.dumps({"default": {length: 13, "default": 0}}))
+
+        with pytest.raises(ValueError, match="Invalid offset read length"):
+            parse_offset_json(json_file)
+
+    @pytest.mark.parametrize("content", [
+        '{"default": {"30": 12, "30": 13}}',
+        '{"default": {"30": 12}, "default": {"30": 13}}',
+    ])
+    def test_parse_offset_json_rejects_duplicate_keys(self, tmp_path, content):
+        json_file = tmp_path / "offsets.json"
+        json_file.write_text(content)
+
+        with pytest.raises(ValueError, match="Duplicate JSON key"):
+            parse_offset_json(json_file)
+
     def test_parse_offset_json_empty_file(self, tmp_path):
         """Test with empty file raises error"""
         json_file = tmp_path / "empty.json"
@@ -601,7 +684,7 @@ class TestWriteCodonIntervalGff:
         assert "Peak_height=50" in content
         # The zero and negative peak heights should not be in the file
         lines = content.strip().split('\n')
-        data_lines = [l for l in lines if not l.startswith('#')]
+        data_lines = [line for line in lines if not line.startswith('#')]
         assert len(data_lines) == 1
 
     def test_write_codon_interval_gff_format(self, tmp_path):
@@ -624,6 +707,23 @@ class TestWriteCodonIntervalGff:
         assert "codon_interval" in content
         assert "Start_codon=ATG" in content
         assert "Peak_height=50" in content
+
+    def test_linear_terminal_codon_windows_are_clipped_to_reference(self, tmp_path):
+        codon_dict = {
+            "chr1:-2-2:+": ["ATG", 5],
+            "chr1:6-10:-": ["ATG", 7],
+        }
+
+        write_codon_interval_gff(
+            tmp_path, "terminal.gff", codon_dict,
+            reference_lengths={"chr1": 9},
+        )
+
+        rows = [
+            line.split("\t") for line in (tmp_path / "terminal.gff").read_text().splitlines()
+            if line and not line.startswith("#")
+        ]
+        assert [(int(row[3]), int(row[4])) for row in rows] == [(1, 3), (7, 9)]
 
 
 class TestExcelWriter:
@@ -661,11 +761,10 @@ class TestExcelWriter:
         excel_writer(output_file, sample_dataframes)
 
         # Read back the Excel file
-        xl_file = pd.ExcelFile(output_file)
-
-        assert len(xl_file.sheet_names) == 2
-        assert "Sheet1" in xl_file.sheet_names
-        assert "Sheet2" in xl_file.sheet_names
+        with pd.ExcelFile(output_file) as xl_file:
+            assert len(xl_file.sheet_names) == 2
+            assert "Sheet1" in xl_file.sheet_names
+            assert "Sheet2" in xl_file.sheet_names
 
     def test_excel_writer_preserves_data(self, tmp_path, sample_dataframes):
         """Test that data is preserved correctly"""
@@ -674,13 +773,53 @@ class TestExcelWriter:
         excel_writer(output_file, sample_dataframes)
 
         # Read back and verify
-        df1_read = pd.read_excel(output_file, sheet_name="Sheet1")
-        df2_read = pd.read_excel(output_file, sheet_name="Sheet2")
+        with pd.ExcelFile(output_file) as xl_file:
+            df1_read = pd.read_excel(xl_file, sheet_name="Sheet1")
+            df2_read = pd.read_excel(xl_file, sheet_name="Sheet2")
 
         assert len(df1_read) == 2
         assert len(df2_read) == 2
         assert list(df1_read.columns) == ["Nucleotide_Seq", "Amino_Acid_Seq", "Start_codon", "Count"]
         assert list(df2_read.columns) == ["Gene", "Expression"]
+
+    def test_excel_writer_keeps_input_strings_literal(self, tmp_path):
+        output_file = tmp_path / "literal-input.xlsx"
+        excel_writer(output_file, {
+            "CDS": pd.DataFrame({
+                "Locus_tag": ["=1+1", "https://example.invalid/gene"],
+            }),
+        })
+
+        workbook = load_workbook(output_file, data_only=False)
+        try:
+            sheet = workbook["CDS"]
+            assert sheet["A2"].value == "=1+1"
+            assert sheet["A2"].data_type == "s"
+            assert sheet["A3"].hyperlink is None
+        finally:
+            workbook.close()
+
+    def test_excel_writer_stores_large_integers_as_exact_text(self, tmp_path):
+        output_file = tmp_path / "exact-integers.xlsx"
+        exact_count = (1 << 53) + 1
+        frame = pd.DataFrame({
+            "sample_peak_count": pd.array([exact_count, pd.NA], dtype=object),
+            "ordinary_count": [7, 8],
+        })
+
+        excel_writer(output_file, {"CDS": frame})
+
+        workbook = load_workbook(output_file, data_only=False)
+        try:
+            sheet = workbook["CDS"]
+            assert sheet["A2"].value == str(exact_count)
+            assert sheet["A2"].data_type == "s"
+            assert sheet["A3"].value is None
+            assert sheet["B2"].value == 7
+            assert sheet["B2"].data_type == "n"
+        finally:
+            workbook.close()
+        assert frame.at[0, "sample_peak_count"] == exact_count
 
 
 class TestWriteResultsToGff:
@@ -726,7 +865,7 @@ class TestWriteResultsToGff:
         main_gff = output_path / f"{output_basename}.gff"
         content = main_gff.read_text()
 
-        lines = [l for l in content.split('\n') if l and not l.startswith('#')]
+        lines = [line for line in content.split('\n') if line and not line.startswith('#')]
         assert len(lines) == 3
 
     def test_write_results_to_gff_split_creates_separate_files(self, tmp_path, sample_results_df):
@@ -806,6 +945,17 @@ class TestWriteResultsToTable:
         assert "Annotated" in content
         assert "Unannotated" in content
 
+    def test_write_results_to_table_round_trips_special_text(self, tmp_path):
+        frame = pd.DataFrame({
+            "Identifier": ["chr:1-3:+"],
+            "Locus_tag": ['gene "alpha"\tfirst line\nsecond line'],
+        })
+
+        write_results_to_table(frame, tmp_path, "special")
+
+        restored = pd.read_csv(tmp_path / "special.csv", sep="\t")
+        assert restored.to_dict(orient="records") == frame.to_dict(orient="records")
+
     def test_write_results_to_table_xlsx_has_cds_sheet(self, tmp_path, sample_results_df):
         """Test XLSX has CDS sheet"""
         output_path = tmp_path / "output"
@@ -814,6 +964,5 @@ class TestWriteResultsToTable:
         write_results_to_table(sample_results_df, output_path, output_basename)
 
         xlsx_file = output_path / f"{output_basename}.xlsx"
-        xl_file = pd.ExcelFile(xlsx_file)
-
-        assert "CDS" in xl_file.sheet_names
+        with pd.ExcelFile(xlsx_file) as xl_file:
+            assert "CDS" in xl_file.sheet_names

@@ -4,10 +4,6 @@ Unit tests for miscellaneous utility functions
 
 import pytest
 import numpy as np
-import pandas as pd
-from pathlib import Path
-from collections import deque, OrderedDict
-from unittest.mock import patch, Mock
 from interlap import InterLap
 
 from lib.misc import (
@@ -16,7 +12,6 @@ from lib.misc import (
     NEAR_ANNOTATED_THRESHOLD,
     CODON_INTERVAL_OFFSET,
     CODON_INTERVAL_SIZE,
-    VALID_MAPPING_TYPES,
     generate_annotation_dict,
     annotation_interlap,
     calculate_density,
@@ -26,9 +21,10 @@ from lib.misc import (
     get_gene_information,
     calculate_utr_distance,
     calculate_relative_density,
+    _build_annotation_candidate_index,
+    _overlapping_annotation_genes,
     generate_result_dataframe,
     dictionary_depth,
-    base_mapping
 )
 
 
@@ -54,14 +50,6 @@ class TestConstants:
     def test_codon_interval_size(self):
         """Test CODON_INTERVAL_SIZE is 5"""
         assert CODON_INTERVAL_SIZE == 5
-
-    def test_valid_mapping_types(self):
-        """Test VALID_MAPPING_TYPES contains expected values"""
-        assert "fiveprime" in VALID_MAPPING_TYPES
-        assert "threeprime" in VALID_MAPPING_TYPES
-        assert "global" in VALID_MAPPING_TYPES
-        assert "centered" in VALID_MAPPING_TYPES
-
 
 class TestGenerateAnnotationDict:
     """Tests for generate_annotation_dict function"""
@@ -340,9 +328,8 @@ class TestCreateCodonInterlapsBasic:
 
         interlap_dict, codon_dict = create_codon_interlaps(chrom, genome_seq, codons)
 
-        # Should be filtered due to boundary constraints
-        # interval_start = 0 - 2 = -2 (negative, filtered)
-        assert len(codon_dict) == 0
+        # Complete boundary codons are retained with clipped search windows.
+        assert len(codon_dict) == 1
 
     def test_no_matching_codons(self):
         """Test when no codons match"""
@@ -427,8 +414,8 @@ class TestCreateCodonInterlapsForwardStrand:
 
         interlap_dict, codon_dict = create_codon_interlaps(chrom, genome_seq, codons)
 
-        # interval_start = 0 - 2 = -2 (negative, should be filtered)
-        assert len(codon_dict) == 0
+        # Complete boundary codons are retained with clipped search windows.
+        assert len(codon_dict) == 1
 
     def test_forward_at_sequence_start_one(self):
         """Test ATG at very start of sequence"""
@@ -438,8 +425,8 @@ class TestCreateCodonInterlapsForwardStrand:
 
         interlap_dict, codon_dict = create_codon_interlaps(chrom, genome_seq, codons)
 
-        # interval_start = 1 - 2 = -1 (negative, should be filtered)
-        assert len(codon_dict) == 0
+        # Complete boundary codons are retained with clipped search windows.
+        assert len(codon_dict) == 1
 
     def test_forward_near_sequence_start(self):
         """Test ATG near start but not filtered"""
@@ -462,11 +449,8 @@ class TestCreateCodonInterlapsForwardStrand:
 
         interlap_dict, codon_dict = create_codon_interlaps(chrom, genome_seq, codons)
 
-        # ATG at position 4
-        # interval_stop = 4 + 2 = 6
-        # len(genome_seq) - CODON_LENGTH + 1 = 7 - 3 + 1 = 5
-        # 6 > 5, should be filtered
-        assert len(codon_dict) == 0
+        # Complete boundary codons are retained with clipped search windows.
+        assert len(codon_dict) == 1
 
     def test_forward_near_sequence_end(self):
         """Test ATG near end but not filtered"""
@@ -562,11 +546,8 @@ class TestCreateCodonInterlapsReverseStrand:
 
         interlap_dict, codon_dict = create_codon_interlaps(chrom, genome_seq, codons)
 
-        # CAT at position 4
-        # interval_stop = 4 + 5 - 1 = 8
-        # len(genome_seq) - CODON_LENGTH + 1 = 7 - 3 + 1 = 5
-        # 8 > 5, should be filtered
-        assert len(codon_dict) == 0
+        # Complete boundary codons are retained with clipped search windows.
+        assert len(codon_dict) == 1
 
     def test_reverse_near_sequence_end(self):
         """Test reverse codon near end but valid"""
@@ -576,17 +557,13 @@ class TestCreateCodonInterlapsReverseStrand:
 
         interlap_dict, codon_dict = create_codon_interlaps(chrom, genome_seq, codons)
 
-        # interval_stop = 0 + 5 - 1 = 4
-        # len(genome_seq)  = 5
-        # 4 <= 5, should be filtered
+        # Complete boundary codons are retained with clipped search windows.
         assert len(codon_dict) == 1
 
         genome_seq = "CATN"  # CAT at position 0
         interlap_dict, codon_dict = create_codon_interlaps(chrom, genome_seq, codons)
-        # interval_stop = 0 + 5 - 1 = 4
-        # len(genome_seq)  = 4
-        # 4 <= 4, should be filtered
-        assert len(codon_dict) == 0
+        # Complete boundary codons are retained with clipped search windows.
+        assert len(codon_dict) == 1
 
 class TestCreateCodonInterlapsBothStrands:
     """Tests for scenarios with both forward and reverse strand codons"""
@@ -790,14 +767,13 @@ class TestCreateCodonInterlapsBoundaryConditions:
     def test_boundary_offset_minus_one(self):
         """Test just before boundary"""
         chrom = "chr1"
-        # ATG at position 1
         genome_seq = "NATGNNN"
         codons = ["ATG"]
 
         interlap_dict, codon_dict = create_codon_interlaps(chrom, genome_seq, codons)
 
-        # interval_start = 1 - 2 = -1 (negative, filtered)
-        assert len(codon_dict) == 0
+        # Complete boundary codons are retained with clipped search windows.
+        assert len(codon_dict) == 1
 
     def test_very_long_sequence(self):
         """Test with long sequence to ensure no performance issues"""
@@ -897,12 +873,11 @@ class TestCreateCodonInterlapsInvariantsAndProperties:
 
         interlap_dict, codon_dict = create_codon_interlaps(chrom, genome_seq, codons)
 
-        # Check all keys have non-negative positions
-        for key in codon_dict.keys():
-            _, interval, _ = key.split(":")
-            start, stop = map(int, interval.split("-"))
-            assert start >= 0
-            assert stop >= 0
+        # Search intervals stay inside the reference; keys encode the unclipped
+        # codon-relative window and may therefore have a negative lower bound.
+        for intervals in interlap_dict.values():
+            for start, stop, _ in intervals:
+                assert 0 <= start <= stop < len(genome_seq)
 
     def test_intervals_respect_size_constraints(self):
         """Test that interval sizes are as expected"""
@@ -1072,7 +1047,7 @@ class TestGetGeneInformation:
         assert gene_name == "gene1"
 
     def test_get_gene_information_same_start(self, sample_gene_dict):
-        """Test exact match returns Annotated"""
+        """Test same start, different stop returns Unannotated"""
         gene_type, gene_name = get_gene_information(
             "chr1", 100, 172, "+", sample_gene_dict
         )
@@ -1150,6 +1125,17 @@ class TestGetGeneInformation:
         # 103 % 3 != 101 % 3, so out of frame
         assert gene_type == "Internal_OutofFrame"
         assert gene_name == "gene1"
+
+    def test_get_gene_information_internal_outofframe_minus(self, sample_gene_dict):
+        """Minus-strand frame is determined from the translation-start end."""
+        gene_type, gene_name = get_gene_information(
+            "chr1", 300, 486, "-", sample_gene_dict
+        )
+
+        # Public Stop 487 is out of frame with the annotated Stop 500. Public
+        # Start 301 is identical, so comparing the lower coordinate would miss it.
+        assert gene_type == "Internal_OutofFrame"
+        assert gene_name == "gene2"
 
     def test_get_gene_information_wrong_chromosome(self, sample_gene_dict):
         """Test with wrong chromosome"""
@@ -1394,6 +1380,49 @@ class TestGenerateResultDataframe:
         # Should be sorted by genome, start, stop, strand
         assert df.iloc[0]["Start"] < df.iloc[1]["Start"]
 
+    def test_annotation_lookup_only_passes_overlapping_genes(self, monkeypatch):
+        target = ("chr1", 3001, 3021, "+", 10.0)
+        genes = {
+            **{
+                f"unrelated-{index}": ("chr1", index * 30 + 1, index * 30 + 21, "+", 1.0)
+                for index in range(100)
+            },
+            "target": target,
+        }
+        observed_sizes = []
+        original = get_gene_information
+
+        def record_lookup_size(chrom, start, stop, strand, candidate_genes):
+            observed_sizes.append(len(candidate_genes))
+            return original(chrom, start, stop, strand, candidate_genes)
+
+        monkeypatch.setattr("lib.misc.get_gene_information", record_lookup_size)
+        result = generate_result_dataframe(
+            {("chr1", "+"): {(3000, 3020): (10.0, np.nan, np.nan)}},
+            genes, {}, {}, {"chr1": "A" * 3000 + "ATG" + "A" * 15 + "TAA" + "A" * 10},
+            {}, [], [], ("TIS", "TTS", "RIBO"),
+        )
+
+        assert observed_sizes == [1]
+        assert result.loc[0, "Type"] == "Annotated"
+        assert result.loc[0, "Locus_tag"] == "target"
+
+    def test_annotation_lookup_preserves_overlapping_gene_order(self):
+        genes = {
+            "first": ("chr1", 10, 30, "+", 0),
+            "unrelated": ("chr1", 100, 120, "+", 0),
+            "second": ("chr1", 11, 30, "+", 0),
+        }
+        index = _build_annotation_candidate_index(genes)
+        candidates = _overlapping_annotation_genes(
+            index, genes, "chr1", 11, 29, "+",
+        )
+
+        assert list(candidates) == ["first", "second"]
+        assert get_gene_information(
+            "chr1", 11, 29, "+", candidates,
+        ) == get_gene_information("chr1", 11, 29, "+", genes)
+
 
 class TestDictionaryDepth:
     """Tests for dictionary_depth function"""
@@ -1428,42 +1457,3 @@ class TestDictionaryDepth:
         d = {}
 
         assert dictionary_depth(d) == 0
-
-
-class TestBaseMapping:
-    """Tests for base_mapping function"""
-
-    def test_base_mapping_fiveprime(self):
-        """Test fiveprime mapping extraction"""
-        assert base_mapping("fiveprime") == "fiveprime"
-        assert base_mapping("fiveprime_offset") == "fiveprime"
-        assert base_mapping("some_fiveprime_suffix") == "fiveprime"
-
-    def test_base_mapping_threeprime(self):
-        """Test threeprime mapping extraction"""
-        assert base_mapping("threeprime") == "threeprime"
-        assert base_mapping("threeprime_offset") == "threeprime"
-
-    def test_base_mapping_global(self):
-        """Test global mapping extraction"""
-        assert base_mapping("global") == "global"
-        assert base_mapping("global_coverage") == "global"
-
-    def test_base_mapping_centered(self):
-        """Test centered mapping extraction"""
-        assert base_mapping("centered") == "centered"
-        assert base_mapping("centered_mode") == "centered"
-
-    def test_base_mapping_invalid(self):
-        """Test invalid mapping raises error"""
-        with pytest.raises(ValueError) as exc_info:
-            base_mapping("invalid_mapping")
-
-        assert "Unknown mapping type" in str(exc_info.value)
-        assert "invalid_mapping" in str(exc_info.value)
-
-    def test_base_mapping_priority(self):
-        """Test that first matching type is returned"""
-        # If string contains multiple types, first match wins
-        result = base_mapping("fiveprime_threeprime")
-        assert result in VALID_MAPPING_TYPES

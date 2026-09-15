@@ -4,7 +4,6 @@ Unit tests for ORF prediction functions
 
 import pytest
 import numpy as np
-from Bio.Seq import Seq
 from interlap import InterLap
 
 from lib.predictions import (
@@ -15,7 +14,6 @@ from lib.predictions import (
     search_longest_forward,
     search_longest_reverse,
     detect_potential_orfs,
-    convert_codon_dict
 )
 
 
@@ -654,103 +652,3 @@ class TestDetectPotentialOrfs:
                 detected_orfs_dict={},
                 tts_start_selection="invalid_method"
             )
-
-
-class TestConvertCodonDict:
-    """Tests for convert_codon_dict function"""
-
-    def test_convert_codon_dict_tis_plus_strand(self):
-        """Test converting TIS codon dict for plus strand"""
-        codon_dict_tis = {
-            ("chr1:2-6:+", 12): ["ATG", 10]  # interval_start=2, offset=12
-        }
-        codon_dict_tts = {}
-
-        start_dict, stop_dict = convert_codon_dict(
-            codon_dict_tis, codon_dict_tts, offset_tis=12, offset_tts=12
-        )
-
-        # cur_start = 2 - 12 + 2 = -8... wait, this seems wrong
-        # Let me recalculate: interval_start=2, offset=12
-        # cur_start = int(interval_start) - offset_tis + 2 = 2 - 12 + 2 = -8
-
-        assert 12 in start_dict
-        assert ("chr1", "+") in start_dict[12]
-        # Check the calculation
-        assert start_dict[12][("chr1", "+")] == [(-8, 10)]
-
-    def test_convert_codon_dict_tis_minus_strand(self):
-        """Test converting TIS codon dict for minus strand"""
-        codon_dict_tis = {
-            ("chr1:10-14:-", 12): ["ATG", 15]
-        }
-        codon_dict_tts = {}
-
-        start_dict, stop_dict = convert_codon_dict(
-            codon_dict_tis, codon_dict_tts, offset_tis=12, offset_tts=12
-        )
-
-        # cur_start = 10 + 12 + 2 = 24
-        assert 12 in start_dict
-        assert start_dict[12][("chr1", "-")] == [(24, 15)]
-
-    def test_convert_codon_dict_tts_plus_strand(self):
-        """Test converting TTS codon dict for plus strand"""
-        codon_dict_tis = {}
-        codon_dict_tts = {
-            ("chr1:11-15:+", 12): ["TAA", 20]
-        }
-
-        start_dict, stop_dict = convert_codon_dict(
-            codon_dict_tis, codon_dict_tts, offset_tis=12, offset_tts=12
-        )
-
-        # cur_stop = 11 - 12 + 4 = 3
-        assert 12 in stop_dict
-        assert stop_dict[12][("chr1", "+")] == [(3, 20)]
-
-    def test_convert_codon_dict_tts_minus_strand(self):
-        """Test converting TTS codon dict for minus strand"""
-        codon_dict_tis = {}
-        codon_dict_tts = {
-            ("chr1:10-14:-", 12): ["TAA", 25]
-        }
-
-        start_dict, stop_dict = convert_codon_dict(
-            codon_dict_tis, codon_dict_tts, offset_tis=12, offset_tts=12
-        )
-
-        # cur_stop = 10 + 12 = 22
-        assert 12 in stop_dict
-        assert stop_dict[12][("chr1", "-")] == [(22, 25)]
-
-    def test_convert_codon_dict_filters_low_peaks(self):
-        """Test that codons with peak < 1 are filtered"""
-        codon_dict_tis = {
-            ("chr1:2-6:+", 12): ["ATG", 0],
-            ("chr1:5-9:+", 12): ["ATG", 10]
-        }
-        codon_dict_tts = {}
-
-        start_dict, stop_dict = convert_codon_dict(
-            codon_dict_tis, codon_dict_tts, offset_tis=12, offset_tts=12
-        )
-
-        # Only second entry should be present
-        assert len(start_dict[12][("chr1", "+")]) == 1
-
-    def test_convert_codon_dict_multiple_offsets(self):
-        """Test with multiple different offsets"""
-        codon_dict_tis = {
-            ("chr1:2-6:+", 10): ["ATG", 10],
-            ("chr1:5-9:+", 12): ["ATG", 15]
-        }
-        codon_dict_tts = {}
-
-        start_dict, stop_dict = convert_codon_dict(
-            codon_dict_tis, codon_dict_tts, offset_tis=12, offset_tts=12
-        )
-
-        # Should have entries for both offsets
-        assert 10 in start_dict
-        assert 12 in start_dict

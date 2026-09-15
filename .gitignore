@@ -1,0 +1,26 @@
+# Local instructions/reports must never be committed.
+/REQUEST.md
+/PROJECT.md
+/Project.md
+
+# Python, build and editor artifacts.
+__pycache__/
+*.py[cod]
+.venv/
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+/build/
+/dist/
+.coverage
+htmlcov/
+
+# Local biological data and generated outputs.
+/tmp_data/
+/toy_example/
+/WH_experiments_*.tsv
+/exp*_mapped_reads.tsv
+/exp*_read_lengths.json
+/exp*_offsets_*.json
+/results/
+.snakemake/
