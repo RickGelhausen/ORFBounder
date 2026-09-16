@@ -50,6 +50,11 @@ def matched_inputs(tables):
     }
 
 
+def replace_second_control_table(data, replacement):
+    key = ("TIS", "control", "2")
+    data[key] = replacement(data[key])
+
+
 def test_comparison_file_is_explicit_directional_and_validated(tmp_path):
     path = tmp_path / "comparisons.tsv"
     path.write_text(
@@ -570,10 +575,28 @@ def test_candidate_and_sample_order_do_not_change_results():
     [
         (lambda data: data.pop(("TIS", "control", "2")), "identical replicate IDs"),
         (lambda data: [data.pop(key) for key in list(data) if key[2] == "2"], "at least two"),
-        (lambda data: data[("TIS", "control", "2")].drop(index=0, inplace=True), "candidate universes"),
-        (lambda data: data[("TIS", "control", "2")].__setitem__("Codon", ["GTG"]), "metadata"),
-        (lambda data: data[("TIS", "control", "2")].__setitem__("peak_count", [1.5]), "raw integer"),
-        (lambda data: data[("TIS", "control", "2")].__setitem__("background_count", [-1]), "raw integer"),
+        (
+            lambda data: replace_second_control_table(data, lambda frame: frame.drop(index=0)),
+            "candidate universes",
+        ),
+        (
+            lambda data: replace_second_control_table(
+                data, lambda frame: frame.assign(Codon=["GTG"]),
+            ),
+            "metadata",
+        ),
+        (
+            lambda data: replace_second_control_table(
+                data, lambda frame: frame.assign(peak_count=[1.5]),
+            ),
+            "raw integer",
+        ),
+        (
+            lambda data: replace_second_control_table(
+                data, lambda frame: frame.assign(background_count=[-1]),
+            ),
+            "raw integer",
+        ),
     ],
 )
 def test_invalid_matched_inputs_are_rejected(mutate, message):

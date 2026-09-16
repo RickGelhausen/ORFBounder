@@ -229,7 +229,9 @@ def test_gff3_parent_comma_list_remains_supported(tmp_path):
 
 
 @pytest.mark.parametrize("suffix,mode", [(".sam", "w"), (".bam", "wb")])
-def test_duplicate_alignment_reference_names_are_rejected(tmp_path, suffix, mode):
+def test_duplicate_alignment_reference_names_are_rejected(
+    tmp_path, monkeypatch, suffix, mode,
+):
     annotation = tmp_path / "annotation.gff"
     annotation.write_text("##gff-version 3\n", encoding="utf-8")
     alignment = tmp_path / f"duplicates{suffix}"
@@ -237,8 +239,34 @@ def test_duplicate_alignment_reference_names_are_rejected(tmp_path, suffix, mode
         "HD": {"VN": "1.6"},
         "SQ": [{"SN": "chr", "LN": 9}, {"SN": "chr", "LN": 9}],
     }
-    with pysam.AlignmentFile(alignment, mode, header=header):
-        pass
+    if suffix == ".sam":
+        alignment.write_text(
+            "@HD\tVN:1.6\n@SQ\tSN:chr\tLN:9\n@SQ\tSN:chr\tLN:9\n",
+            encoding="utf-8",
+        )
+    else:
+        with pysam.AlignmentFile(alignment, mode, header=header):
+            pass
 
+    def fail_if_pysam_parses_duplicate(*args, **kwargs):
+        pytest.fail("duplicate reference preflight must run before pysam")
+
+    monkeypatch.setattr(io.pysam, "AlignmentFile", fail_if_pysam_parses_duplicate)
     with pytest.raises(ValueError, match="duplicate reference name 'chr'"):
         io.validate_reference_inputs({"chr": "ATGCCCTAA"}, annotation, [alignment])
+
+
+def test_duplicate_alignment_preflight_defers_corrupt_gzip(tmp_path):
+    alignment = tmp_path / "corrupt.sam"
+    corrupt_member = b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xffBADDEFLATE"
+    alignment.write_bytes(corrupt_member * 2)
+
+    assert io._duplicate_alignment_reference_name(alignment) is None
+
+
+def test_duplicate_alignment_preflight_has_a_scan_budget(tmp_path, monkeypatch):
+    alignment = tmp_path / "oversized.sam"
+    alignment.write_bytes(b"@CO\t" + b"x" * 64)
+    monkeypatch.setattr(io, "_MAX_ALIGNMENT_HEADER_SCAN_BYTES", 32)
+
+    assert io._duplicate_alignment_reference_name(alignment) is None

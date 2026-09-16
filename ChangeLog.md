@@ -1,5 +1,15 @@
 ### Unreleased maintenance and container update
 
+ + Made duplicate SAM/BAM reference-name validation independent of bundled
+   HTSlib parser behavior, so ambiguous headers receive the same explicit
+   diagnostic across supported Python and pysam wheels.
+ + Made matched-statistics invalid-input tests compatible with pandas
+   copy-on-write, promoted CI warnings to errors and made the Python matrix use
+   the committed dependency lock used by local and container verification. A
+   separate job retains compatibility coverage against the newest compatible
+   dependencies,
+   and command smoke tests now exercise the built wheel rather than the source
+   checkout.
  + Rejected ambiguous reference inputs before analysis: FASTA and alignment
    reference identifiers must be nonempty and unique, primary mapped records
    must provide CIGAR, and GFF3 feature rows cannot repeat or omit attribute

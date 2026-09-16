@@ -8,9 +8,11 @@ from dataclasses import dataclass
 
 
 import csv
+import gzip
 import json
 import collections
 import re
+import zlib
 import pandas as pd
 import pysam
 
@@ -25,6 +27,9 @@ from lib.coordinates import parse_coordinate_id
 GFF3_SEQID_SAFE = ".:^*$@!+_?-|"
 _MAX_EXACT_BINARY64_INTEGER = 1 << 53
 _MAX_EXPANDED_READ_LENGTHS = 100_000
+_MAX_ALIGNMENT_HEADER_SCAN_BYTES = 16 * 1024 * 1024
+_MAX_ALIGNMENT_REFERENCE_SCAN_COUNT = 100_000
+_MAX_ALIGNMENT_REFERENCE_NAME_BYTES = 1024 * 1024
 
 
 def _unique_json_object(pairs):
@@ -232,6 +237,132 @@ def gff3_feature_segments(
     return ((*low_segment, "0"), (*high_segment, continuation_phase))
 
 
+def _duplicate_sam_reference_name(handle) -> str | None:
+    """Return a repeated valid ``@SQ SN`` value within a bounded scan."""
+    seen_references = set()
+    remaining_bytes = _MAX_ALIGNMENT_HEADER_SCAN_BYTES
+    reference_count = 0
+    while remaining_bytes:
+        first_byte = handle.read(1)
+        if not first_byte:
+            break
+        remaining_bytes -= 1
+        if first_byte != b"@":
+            break
+        line_tail = handle.readline(remaining_bytes + 1)
+        if len(line_tail) > remaining_bytes:
+            raise ValueError("SAM header exceeds the duplicate-scan limit.")
+        remaining_bytes -= len(line_tail)
+        line = first_byte + line_tail
+        if not line.startswith(b"@SQ\t"):
+            continue
+        reference_count += 1
+        if reference_count > _MAX_ALIGNMENT_REFERENCE_SCAN_COUNT:
+            raise ValueError("SAM header exceeds the reference-scan limit.")
+        fields = line.rstrip(b"\r\n").split(b"\t")[1:]
+        names = [field[3:] for field in fields if field.startswith(b"SN:")]
+        lengths = [field[3:] for field in fields if field.startswith(b"LN:")]
+        valid_length = (
+            len(lengths) == 1
+            and lengths[0].isdigit()
+            and int(lengths[0]) >= 1
+        )
+        # Malformed records remain pysam's responsibility.  The preflight only
+        # stabilizes duplicate errors between otherwise usable dictionaries.
+        if (len(names) != 1 or not names[0] or b"\0" in names[0]
+                or not valid_length):
+            continue
+        name = names[0]
+        if name in seen_references:
+            return name.decode("utf-8", errors="replace")
+        seen_references.add(name)
+    return None
+
+
+def _read_binary_header_field(handle, length: int) -> bytes:
+    """Read an exact-size BAM header field or report a truncated preflight."""
+    if length < 0:
+        raise ValueError("Negative BAM header field length.")
+    value = handle.read(length)
+    if len(value) != length:
+        raise EOFError("Truncated BAM header.")
+    return value
+
+
+def _discard_binary_header_field(handle, length: int) -> None:
+    """Advance over a potentially large BAM text header without one allocation."""
+    if not 0 <= length <= _MAX_ALIGNMENT_HEADER_SCAN_BYTES:
+        raise ValueError("BAM header text exceeds the duplicate-scan limit.")
+    while length:
+        chunk = handle.read(min(length, 64 * 1024))
+        if not chunk:
+            raise EOFError("Truncated BAM header.")
+        length -= len(chunk)
+
+
+def _duplicate_bam_reference_name(handle) -> str | None:
+    """Return a repeated name from the BAM binary reference dictionary."""
+    text_length = int.from_bytes(
+        _read_binary_header_field(handle, 4), "little", signed=True)
+    _discard_binary_header_field(handle, text_length)
+    reference_count = int.from_bytes(
+        _read_binary_header_field(handle, 4), "little", signed=True)
+    if not 0 <= reference_count <= _MAX_ALIGNMENT_REFERENCE_SCAN_COUNT:
+        raise ValueError("BAM header exceeds the reference-scan limit.")
+
+    seen_references = set()
+    scanned_name_bytes = 0
+    for _ in range(reference_count):
+        name_length = int.from_bytes(
+            _read_binary_header_field(handle, 4), "little", signed=True)
+        # BAM names include a trailing NUL.  Bound this lightweight preflight;
+        # malformed or implausibly large headers remain pysam's responsibility.
+        if not 2 <= name_length <= _MAX_ALIGNMENT_REFERENCE_NAME_BYTES:
+            raise ValueError("Invalid BAM reference-name length.")
+        scanned_name_bytes += name_length
+        if scanned_name_bytes > _MAX_ALIGNMENT_HEADER_SCAN_BYTES:
+            raise ValueError("BAM reference names exceed the duplicate-scan limit.")
+        encoded_name = _read_binary_header_field(handle, name_length)
+        reference_length = int.from_bytes(
+            _read_binary_header_field(handle, 4), "little", signed=True)
+        if not encoded_name.endswith(b"\0") or b"\0" in encoded_name[:-1]:
+            raise ValueError("Invalid BAM reference name.")
+        if reference_length < 1:
+            continue
+        name = encoded_name[:-1]
+        if name in seen_references:
+            return name.decode("utf-8", errors="replace")
+        seen_references.add(name)
+    return None
+
+
+def _duplicate_alignment_reference_name(path: Path) -> str | None:
+    """Inspect SAM/BAM headers independently of version-specific htslib checks."""
+    try:
+        with Path(path).open("rb") as raw_handle:
+            file_magic = raw_handle.read(4)
+
+        if file_magic.startswith(b"\x1f\x8b"):
+            with gzip.open(path, "rb") as header_handle:
+                content_magic = header_handle.read(4)
+                if content_magic == b"BAM\x01":
+                    return _duplicate_bam_reference_name(header_handle)
+                header_handle.seek(0)
+                return _duplicate_sam_reference_name(header_handle)
+        if file_magic == b"BAM\x01":
+            with Path(path).open("rb") as header_handle:
+                header_handle.read(4)
+                return _duplicate_bam_reference_name(header_handle)
+        if file_magic == b"CRAM":
+            return None
+        with Path(path).open("rb") as header_handle:
+            return _duplicate_sam_reference_name(header_handle)
+    except (EOFError, OSError, ValueError, zlib.error):
+        # A malformed/unreadable file should retain pysam's detailed error;
+        # this best-effort preflight exists only to stabilize duplicate errors.
+        return None
+
+
 def validate_reference_inputs(
     genome: dict[str, str],
     annotation: Path,
@@ -282,6 +413,12 @@ def validate_reference_inputs(
                 "Invalid CDS coordinates or strand in annotation: "
                 f"{feature.feature_id} ({chrom}:{start}-{stop}:{strand})")
     for path in dict.fromkeys(alignments):
+        duplicate_reference = _duplicate_alignment_reference_name(path)
+        if duplicate_reference is not None:
+            raise ValueError(
+                f"Alignment header in {path} contains duplicate reference name "
+                f"{duplicate_reference!r}."
+            )
         with pysam.AlignmentFile(path) as alignment:
             sequence_records = alignment.header.to_dict().get("SQ", ())
             seen_references = set()
