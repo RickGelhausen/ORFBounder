@@ -10,6 +10,10 @@
    dependencies,
    and command smoke tests now exercise the built wheel rather than the source
    checkout.
+ + Refreshed the dependency lock to packages with Python 3.14 wheels and moved
+   the official checkout/setup actions to their Node.js 24-based releases, so
+   clean hosted runners do not fall back to an unsupported pysam source build
+   or deprecated action runtime.
  + Rejected ambiguous reference inputs before analysis: FASTA and alignment
    reference identifiers must be nonempty and unique, primary mapped records
    must provide CIGAR, and GFF3 feature rows cannot repeat or omit attribute
